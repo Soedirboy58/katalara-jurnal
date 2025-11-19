@@ -1,6 +1,8 @@
+
 'use client'
 
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { XMarkIcon, CheckCircleIcon, LightBulbIcon } from '@heroicons/react/24/outline'
 import { createClient } from '@/lib/supabase/client'
 import { 
@@ -22,6 +24,7 @@ interface OnboardingWizardProps {
 }
 
 export function OnboardingWizard({ onComplete, userId }: OnboardingWizardProps) {
+  const [mounted, setMounted] = useState(false)
   const [currentStep, setCurrentStep] = useState<OnboardingStep>(0)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
@@ -45,6 +48,11 @@ export function OnboardingWizard({ onComplete, userId }: OnboardingWizardProps) 
   })
 
   const supabase = createClient()
+
+  // Mount flag for safe portal usage (avoid SSR mismatch)
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   // Format number with thousand separators (Indonesian format)
   const formatNumber = (value: number | string): string => {
@@ -159,8 +167,10 @@ export function OnboardingWizard({ onComplete, userId }: OnboardingWizardProps) 
 
   const progress = ((currentStep) / 5) * 100
 
-  return (
-    <div className="fixed inset-0 z-50 bg-black/50 sm:backdrop-blur-sm flex items-start justify-center sm:items-center sm:p-4 overflow-x-hidden">
+  if (!mounted) return null
+
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] bg-black/50 sm:backdrop-blur-sm flex items-start justify-center sm:items-center sm:p-4 overflow-x-hidden">
       <div className="bg-white w-full max-w-md sm:max-w-3xl h-full sm:h-auto sm:rounded-2xl sm:shadow-2xl sm:max-h-[90vh] overflow-y-auto overflow-x-hidden mx-auto">
         {/* Progress Bar */}
         <div className="h-2 bg-gray-200">
@@ -778,6 +788,7 @@ export function OnboardingWizard({ onComplete, userId }: OnboardingWizardProps) 
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
