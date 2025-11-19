@@ -18,57 +18,42 @@ export default function ResetPasswordPage() {
   const [validSession, setValidSession] = useState(false)
 
   useEffect(() => {
-    // Handle auth callback from email link (with hash fragment)
-    const handleAuthCallback = async () => {
-      try {
-        // Check for hash fragment in URL (Supabase uses #access_token=...)
-        const hashParams = new URLSearchParams(window.location.hash.substring(1))
-        const accessToken = hashParams.get('access_token')
-        const refreshToken = hashParams.get('refresh_token')
-        const type = hashParams.get('type')
-
-        console.log('Reset password page loaded', { 
-          hasHash: window.location.hash.length > 0, 
-          type,
-          hasAccessToken: !!accessToken 
-        })
-
-        // If we have tokens from the URL hash, set the session
-        if (accessToken && type === 'recovery') {
-          console.log('Setting session from recovery tokens')
-          const { data, error } = await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken || ''
-          })
-          
-          if (error) {
-            console.error('Error setting session:', error)
-            setError('Link reset password tidak valid atau sudah expired. Silakan request ulang.')
-          } else if (data.session) {
-            console.log('Session set successfully')
-            setValidSession(true)
-          } else {
-            setError('Link reset password tidak valid atau sudah expired')
-          }
-        } else {
-          // Check existing session
-          const { data: { session } } = await supabase.auth.getSession()
-          if (session) {
-            console.log('Existing session found')
-            setValidSession(true)
-          } else {
-            console.log('No session found')
-            setError('Link reset password tidak valid atau sudah expired. Silakan request ulang dari halaman forgot password.')
-          }
-        }
-      } catch (err) {
-        console.error('Error in handleAuthCallback:', err)
-        setError('Terjadi kesalahan. Silakan coba lagi.')
+    console.log('Reset password page mounted')
+    console.log('Current URL:', window.location.href)
+    console.log('Hash:', window.location.hash)
+    
+    // Listen for auth state changes (Supabase will automatically handle the hash)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth state changed:', event, 'Has session:', !!session)
+      
+      if (event === 'PASSWORD_RECOVERY') {
+        console.log('Password recovery event detected')
+        setValidSession(true)
+      } else if (session) {
+        console.log('Session exists')
+        setValidSession(true)
+      } else if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
+        console.log('No valid session')
+        setError('Link reset password tidak valid atau sudah expired. Silakan request ulang.')
       }
-    }
+    })
 
-    handleAuthCallback()
-  }, [supabase.auth])
+    // Also check initial session
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      console.log('Initial session check:', !!session, error)
+      if (session) {
+        setValidSession(true)
+      } else if (!window.location.hash) {
+        // Only show error if there's no hash (meaning no token to process)
+        setError('Link reset password tidak valid atau sudah expired.')
+      }
+      // If there's a hash, wait for onAuthStateChange to handle it
+    })
+
+    return () => {
+      subscription.unsubscribe()
+    }
+  }, [supabase])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
