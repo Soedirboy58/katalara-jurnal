@@ -7,7 +7,7 @@ import {
   HomeIcon,
   ShoppingCartIcon,
   CurrencyDollarIcon,
-  DatabaseIcon,
+  CircleStackIcon,
   Cog6ToothIcon,
   QuestionMarkCircleIcon,
   ArrowLeftOnRectangleIcon,
@@ -24,7 +24,7 @@ const menuItems = [
   { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
   { name: 'Produk', href: '/dashboard/products', icon: ShoppingCartIcon },
   { name: 'Penjualan', href: '/dashboard/sales', icon: CurrencyDollarIcon },
-  { name: 'Pengeluaran', href: '/dashboard/expenses', icon: DatabaseIcon },
+  { name: 'Pengeluaran', href: '/dashboard/expenses', icon: CircleStackIcon },
   { name: 'Pengaturan', href: '/dashboard/settings', icon: Cog6ToothIcon },
   { name: 'Bantuan', href: '/dashboard/help', icon: QuestionMarkCircleIcon },
 ]
