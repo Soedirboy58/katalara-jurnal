@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { Sidebar, MobileMenuButton } from '@/components/dashboard/Sidebar'
 import { createClient } from '@/lib/supabase/client'
-import { Bars3Icon, ChevronDoubleLeftIcon, ChevronDoubleRightIcon } from '@heroicons/react/24/outline'
+import { Bars3Icon, ChevronDoubleLeftIcon, ChevronDoubleRightIcon, BellIcon, UserCircleIcon, Cog6ToothIcon } from '@heroicons/react/24/outline'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -14,14 +14,28 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [userEmail, setUserEmail] = useState('')
+  const [fullName, setFullName] = useState('')
+  const [dropdownOpen, setDropdownOpen] = useState(false)
 
   useEffect(() => {
     if (!loading && !user) {
       router.push('/login')
     } else if (user) {
       setUserEmail(user.email || '')
+      // Fetch user profile for full name
+      const fetchProfile = async () => {
+        const { data } = await supabase
+          .from('user_profiles')
+          .select('full_name')
+          .eq('user_id', user.id)
+          .maybeSingle()
+        if (data?.full_name) {
+          setFullName(data.full_name)
+        }
+      }
+      fetchProfile()
     }
-  }, [user, loading, router])
+  }, [user, loading, router, supabase])
 
   if (loading) {
     return (
@@ -87,9 +101,56 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </div>
             </div>
             <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-600 hidden sm:block">{userEmail}</span>
-              <div className="h-8 w-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-medium text-sm">
-                {userEmail.charAt(0).toUpperCase()}
+              {/* Notification Bell */}
+              <button className="relative p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all">
+                <BellIcon className="h-5 w-5" />
+                <span className="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full"></span>
+              </button>
+              
+              {/* User Name */}
+              <span className="text-sm font-medium text-gray-700 hidden md:block">{fullName || userEmail}</span>
+              
+              {/* Avatar Dropdown */}
+              <div className="relative">
+                <button
+                  onClick={() => setDropdownOpen(!dropdownOpen)}
+                  className="h-9 w-9 rounded-full bg-gradient-to-br from-blue-600 to-blue-700 flex items-center justify-center text-white font-semibold text-sm hover:shadow-lg transition-all ring-2 ring-blue-100"
+                >
+                  {(fullName || userEmail).charAt(0).toUpperCase()}
+                </button>
+                
+                {/* Dropdown Menu */}
+                {dropdownOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setDropdownOpen(false)}></div>
+                    <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-gray-200 py-2 z-50">
+                      <div className="px-4 py-3 border-b border-gray-100">
+                        <p className="text-sm font-semibold text-gray-900">{fullName || 'User'}</p>
+                        <p className="text-xs text-gray-500 truncate">{userEmail}</p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setDropdownOpen(false)
+                          router.push('/dashboard/profile')
+                        }}
+                        className="w-full flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 transition-colors"
+                      >
+                        <UserCircleIcon className="h-5 w-5 mr-3 text-gray-500" />
+                        Profile Settings
+                      </button>
+                      <button
+                        onClick={() => {
+                          setDropdownOpen(false)
+                          router.push('/dashboard/settings')
+                        }}
+                        className="w-full flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 transition-colors"
+                      >
+                        <Cog6ToothIcon className="h-5 w-5 mr-3 text-gray-500" />
+                        General Settings
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </div>
