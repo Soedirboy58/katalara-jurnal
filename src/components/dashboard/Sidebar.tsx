@@ -62,11 +62,11 @@ export function Sidebar({ isOpen, onClose, collapsed, onToggleCollapse }: Sideba
       {/* Sidebar */}
       <aside
         className={`
-          fixed top-0 left-0 z-50 h-full border-r-2 border-white/10 shadow-xl
+          fixed top-0 left-0 z-50 h-full border-r border-white/10 shadow-lg
           transform transition-all duration-300 ease-in-out
           lg:translate-x-0 lg:static lg:z-auto
           ${isOpen ? 'translate-x-0' : '-translate-x-full'}
-          ${collapsed ? 'lg:w-20 w-64' : 'lg:w-72 w-64'}
+          ${collapsed ? 'lg:w-20 w-64' : 'lg:w-64 w-64'}
         `}
         style={{
           background: 'linear-gradient(180deg, #1088ff 0%, #0066cc 100%)'
@@ -74,23 +74,22 @@ export function Sidebar({ isOpen, onClose, collapsed, onToggleCollapse }: Sideba
       >
         <div className="flex flex-col h-full">
           {/* Header with Logo Badge */}
-          <div className="relative py-6 px-4 border-b border-white/10">
+          <div className="relative py-4 px-4 border-b border-white/10">
             <div className="flex flex-col items-center">
               {/* Logo Badge Container */}
               <div className={`
-                relative bg-white rounded-2xl shadow-2xl
-                transition-all duration-300 mb-3
-                ${collapsed ? 'p-3' : 'p-4'}
+                relative bg-white rounded-xl shadow-lg
+                transition-all duration-300
+                ${collapsed ? 'p-2 mb-0' : 'p-3 mb-2'}
               `}>
-                {/* Decorative corner accents */}
-                <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full"></div>
-                <div className="absolute -bottom-1 -left-1 w-2 h-2 bg-yellow-400 rounded-full"></div>
+                {/* Decorative corner accent */}
+                <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-yellow-400 rounded-full"></div>
                 
                 <img
                   src="https://usradkbchlkcfoabxvbo.supabase.co/storage/v1/object/public/assets/Artboard%201.png"
                   alt="Katalara"
                   className={`object-contain transition-all duration-300 ${
-                    collapsed ? 'h-10 w-10' : 'h-16 w-16'
+                    collapsed ? 'h-8 w-8' : 'h-12 w-12'
                   }`}
                 />
               </div>
@@ -98,8 +97,8 @@ export function Sidebar({ isOpen, onClose, collapsed, onToggleCollapse }: Sideba
               {/* Brand Name */}
               {!collapsed && (
                 <div className="text-center">
-                  <h2 className="text-xl font-bold text-white mb-1">Katalara</h2>
-                  <p className="text-xs text-white/60 font-medium">Business Platform</p>
+                  <h2 className="text-base font-bold text-white">Katalara</h2>
+                  <p className="text-[10px] text-white/50 font-medium">Business Platform</p>
                 </div>
               )}
             </div>
@@ -107,10 +106,10 @@ export function Sidebar({ isOpen, onClose, collapsed, onToggleCollapse }: Sideba
             {/* Toggle Button */}
             <button
               onClick={onToggleCollapse}
-              className="hidden lg:block absolute -right-3 top-8 p-2 bg-white text-blue-600 hover:bg-blue-50 rounded-full shadow-lg transition-all hover:scale-110"
+              className="hidden lg:block absolute -right-2.5 top-5 p-1.5 bg-white text-blue-600 hover:bg-blue-50 rounded-full shadow-md transition-all hover:scale-110"
               title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             >
-              <Bars3Icon className="h-4 w-4" />
+              <Bars3Icon className="h-3.5 w-3.5" />
             </button>
             
             {/* Mobile Close Button */}
@@ -123,7 +122,7 @@ export function Sidebar({ isOpen, onClose, collapsed, onToggleCollapse }: Sideba
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
+          <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
             {menuItems.map((item) => {
               const isActive = pathname === item.href
               const Icon = item.icon
@@ -133,17 +132,17 @@ export function Sidebar({ isOpen, onClose, collapsed, onToggleCollapse }: Sideba
                   href={item.href}
                   title={collapsed ? item.name : ''}
                   className={`
-                    flex items-center px-4 py-3.5 font-medium rounded-xl
+                    flex items-center px-3 py-2.5 text-sm font-medium rounded-lg
                     transition-all duration-200
-                    ${collapsed ? 'justify-center text-base' : 'text-base'}
+                    ${collapsed ? 'justify-center' : ''}
                     ${
                       isActive
-                        ? 'bg-white/25 text-white shadow-lg backdrop-blur-sm scale-105'
-                        : 'text-white/85 hover:bg-white/15 hover:text-white hover:scale-105'
+                        ? 'bg-white/20 text-white shadow-md'
+                        : 'text-white/80 hover:bg-white/10 hover:text-white'
                     }
                   `}
                 >
-                  <Icon className={`h-6 w-6 ${collapsed ? '' : 'mr-3'} flex-shrink-0`} />
+                  <Icon className={`h-5 w-5 ${collapsed ? '' : 'mr-3'} flex-shrink-0`} />
                   {!collapsed && <span className="whitespace-nowrap">{item.name}</span>}
                 </a>
               )
@@ -151,20 +150,20 @@ export function Sidebar({ isOpen, onClose, collapsed, onToggleCollapse }: Sideba
           </nav>
 
           {/* Logout Button */}
-          <div className="p-4 border-t border-white/10">
+          <div className="p-3 border-t border-white/10">
             <button
               onClick={handleLogout}
               disabled={loggingOut}
               title={collapsed ? 'Keluar' : ''}
               className={`
-                flex items-center w-full px-4 py-3.5 font-medium
-                text-yellow-300 hover:bg-yellow-400/20 rounded-xl
-                transition-all duration-200 hover:scale-105
+                flex items-center w-full px-3 py-2.5 text-sm font-medium
+                text-yellow-300 hover:bg-yellow-400/20 rounded-lg
+                transition-all duration-200
                 disabled:opacity-50 disabled:cursor-not-allowed
-                ${collapsed ? 'justify-center text-base' : 'text-base'}
+                ${collapsed ? 'justify-center' : ''}
               `}
             >
-              <ArrowLeftOnRectangleIcon className={`h-6 w-6 ${collapsed ? '' : 'mr-3'} flex-shrink-0`} />
+              <ArrowLeftOnRectangleIcon className={`h-5 w-5 ${collapsed ? '' : 'mr-3'} flex-shrink-0`} />
               {!collapsed && (loggingOut ? 'Keluar...' : 'Keluar')}
             </button>
           </div>
