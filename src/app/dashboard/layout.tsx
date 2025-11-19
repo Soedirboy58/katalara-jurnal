@@ -11,6 +11,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const router = useRouter()
   const supabase = createClient()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [userEmail, setUserEmail] = useState('')
 
   useEffect(() => {
@@ -38,17 +39,39 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
-      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <Sidebar 
+        isOpen={sidebarOpen} 
+        onClose={() => setSidebarOpen(false)}
+        collapsed={sidebarCollapsed}
+        onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+      />
       
-      <div className="flex-1 flex flex-col min-h-screen lg:ml-0">
+      <div className="flex-1 flex flex-col min-h-screen">
         {/* Top Bar */}
         <header className="bg-white border-b border-gray-200 sticky top-0 z-30">
           <div className="flex items-center justify-between h-16 px-4 lg:px-6">
             <div className="flex items-center space-x-4">
               <MobileMenuButton onClick={() => setSidebarOpen(true)} />
-              <h2 className="text-lg font-semibold text-gray-900 hidden sm:block">
-                Dashboard
-              </h2>
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => router.push('/dashboard')}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                >
+                  Dashboard
+                </button>
+                <button
+                  onClick={() => router.push('/dashboard/sales/new')}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium hidden sm:block"
+                >
+                  Input Penjualan
+                </button>
+                <button
+                  onClick={() => router.push('/dashboard/expenses/new')}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium hidden sm:block"
+                >
+                  Input Pengeluaran
+                </button>
+              </div>
             </div>
             <div className="flex items-center space-x-4">
               <span className="text-sm text-gray-600 hidden sm:block">{userEmail}</span>
