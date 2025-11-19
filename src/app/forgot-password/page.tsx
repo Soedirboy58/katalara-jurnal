@@ -22,9 +22,16 @@ export default function ForgotPasswordPage() {
 
     try {
       // Use production URL for reset password redirect
+      // Prioritize: env variable > hardcoded production > window origin
       const redirectUrl = process.env.NEXT_PUBLIC_SITE_URL 
         ? `${process.env.NEXT_PUBLIC_SITE_URL}/reset-password`
-        : `${window.location.origin}/reset-password`
+        : typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')
+        ? 'https://supabase-migration-gamma.vercel.app/reset-password'
+        : typeof window !== 'undefined'
+        ? `${window.location.origin}/reset-password`
+        : 'https://supabase-migration-gamma.vercel.app/reset-password'
+      
+      console.log('Reset password redirect URL:', redirectUrl)
       
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: redirectUrl
