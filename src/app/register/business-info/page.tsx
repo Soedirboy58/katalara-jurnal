@@ -17,6 +17,7 @@ export default function BusinessInfoPage() {
   const [loadingCategories, setLoadingCategories] = useState(true)
   const [error, setError] = useState('')
   const [categories, setCategories] = useState<BusinessCategory[]>([])
+  const [showSuccessModal, setShowSuccessModal] = useState(false)
   
   const [formData, setFormData] = useState({
     full_name: '',
@@ -180,8 +181,10 @@ export default function BusinessInfoPage() {
       }
 
       // Success message and redirect to dashboard
-      alert('✅ Data Bisnis Berhasil Disimpan!\n\nSelamat datang di Katalara.')
-      router.push('/dashboard/products')
+      setShowSuccessModal(true)
+      setTimeout(() => {
+        router.push('/dashboard/products')
+      }, 2000)
     } catch (err: any) {
       console.error('Error submitting business info:', err)
       
@@ -504,6 +507,42 @@ ADD COLUMN IF NOT EXISTS number_of_employees TEXT;
           </div>
         </div>
       </div>
+
+      {/* Success Modal */}
+      {showSuccessModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4 transform transition-all animate-fade-in">
+            {/* Success Icon */}
+            <div className="flex justify-center mb-6">
+              <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center">
+                <svg className="w-12 h-12 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+            </div>
+
+            {/* Message */}
+            <div className="text-center">
+              <h3 className="text-2xl font-bold text-gray-900 mb-3">
+                Data Bisnis Berhasil Disimpan! 🎉
+              </h3>
+              <p className="text-gray-600 mb-2">
+                Selamat datang di <span className="font-semibold text-blue-600">Katalara</span>
+              </p>
+              <p className="text-sm text-gray-500">
+                Anda akan dialihkan ke dashboard dalam beberapa saat...
+              </p>
+            </div>
+
+            {/* Loading Bar */}
+            <div className="mt-6">
+              <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                <div className="bg-gradient-to-r from-blue-500 to-green-500 h-2 rounded-full animate-loading-bar"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
