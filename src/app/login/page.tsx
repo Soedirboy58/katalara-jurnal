@@ -49,7 +49,7 @@ export default function LoginPage() {
       try {
         const { data, error: profileError } = await supabase
           .from('user_profiles')
-          .select('role, is_approved, is_active, full_name')
+          .select('role, is_approved, is_active, full_name, business_name, phone, address')
           .eq('user_id', authData.user.id)
           .single()
 
@@ -71,8 +71,9 @@ export default function LoginPage() {
         console.error('Profile error:', profileErr)
       }
 
-      // If still no profile, redirect to business info
-      if (!profile) {
+      // If no profile OR profile incomplete (missing business info), redirect to business info
+      if (!profile || !profile.business_name || !profile.phone || !profile.address) {
+        console.log('Profile incomplete, redirecting to business-info')
         setShowSuccessModal(true)
         setTimeout(() => {
           router.push('/register/business-info')
@@ -120,30 +121,34 @@ export default function LoginPage() {
 
       {/* Success Modal */}
       {showSuccessModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 animate-in fade-in zoom-in duration-300">
-            {/* Success Icon */}
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-10 animate-fade-in transform transition-all">
+            {/* Success Icon with Animation */}
             <div className="flex justify-center mb-6">
-              <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center">
-                <svg className="w-12 h-12 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
+              <div className="relative">
+                <div className="w-24 h-24 rounded-full bg-gradient-to-br from-green-400 to-green-600 flex items-center justify-center shadow-lg animate-scale-up">
+                  <svg className="w-14 h-14 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={3}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                {/* Pulse rings */}
+                <div className="absolute inset-0 rounded-full bg-green-400 animate-ping opacity-20"></div>
               </div>
             </div>
 
             {/* Content */}
-            <div className="text-center mb-6">
-              <h3 className="text-2xl font-bold text-gray-900 mb-2">
+            <div className="text-center mb-8">
+              <h3 className="text-3xl font-bold text-gray-900 mb-3">
                 Login Berhasil!
               </h3>
-              <p className="text-gray-600 leading-relaxed">
-                Silakan lengkapi data bisnis Anda.
+              <p className="text-gray-600 text-lg leading-relaxed">
+                Selamat datang kembali! Anda akan diarahkan ke dashboard.
               </p>
             </div>
 
-            {/* Loading indicator */}
-            <div className="flex justify-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            {/* Loading bar */}
+            <div className="relative h-2 bg-gray-200 rounded-full overflow-hidden">
+              <div className="absolute inset-y-0 left-0 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full animate-loading-bar"></div>
             </div>
           </div>
         </div>
