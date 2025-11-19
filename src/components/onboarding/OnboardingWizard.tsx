@@ -171,36 +171,36 @@ export function OnboardingWizard({ onComplete, userId }: OnboardingWizardProps) 
         </div>
 
         {/* Content */}
-        <div className="p-3 sm:p-6 lg:p-8">
+        <div className="p-3 sm:p-6 lg:p-8 max-w-full">
           {/* Step 0: Welcome */}
           {currentStep === 0 && (
-            <div className="space-y-4 sm:space-y-6">
+            <div className="space-y-4 sm:space-y-6 max-w-full">
               <div className="text-center">
                 <div className="inline-flex items-center justify-center w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-br from-blue-600 to-blue-400 rounded-full mb-3 sm:mb-4">
                   <span className="text-2xl sm:text-3xl">🎉</span>
                 </div>
-                <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Selamat Datang di Katalara!</h2>
-                <p className="text-sm sm:text-base text-gray-600">Platform yang akan membantu bisnis Anda tumbuh lebih cepat</p>
+                <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-2 break-words">Selamat Datang di Katalara!</h2>
+                <p className="text-xs sm:text-sm lg:text-base text-gray-600 break-words px-2">Platform yang akan membantu bisnis Anda tumbuh lebih cepat</p>
               </div>
 
               <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 sm:p-6 space-y-3 sm:space-y-4">
                 <h3 className="text-sm sm:text-base font-semibold text-blue-900">Platform ini akan membantu Anda:</h3>
-                <ul className="space-y-1.5 sm:space-y-2 text-xs sm:text-base text-blue-800">
+                <ul className="space-y-1.5 sm:space-y-2 text-xs sm:text-sm lg:text-base text-blue-800">
                   <li className="flex items-start">
                     <CheckCircleIcon className="h-4 w-4 sm:h-5 sm:w-5 mr-2 mt-0.5 flex-shrink-0" />
-                    <span>Memantau kesehatan finansial bisnis secara real-time</span>
+                    <span className="break-words">Memantau kesehatan finansial bisnis secara real-time</span>
                   </li>
                   <li className="flex items-start">
-                    <CheckCircleIcon className="h-5 w-5 mr-2 mt-0.5 flex-shrink-0" />
-                    <span>Mengetahui produk/layanan mana yang paling menguntungkan</span>
+                    <CheckCircleIcon className="h-4 w-4 sm:h-5 sm:w-5 mr-2 mt-0.5 flex-shrink-0" />
+                    <span className="break-words">Mengetahui produk/layanan mana yang paling menguntungkan</span>
                   </li>
                   <li className="flex items-start">
-                    <CheckCircleIcon className="h-5 w-5 mr-2 mt-0.5 flex-shrink-0" />
-                    <span>Menghindari kehabisan stok atau modal</span>
+                    <CheckCircleIcon className="h-4 w-4 sm:h-5 sm:w-5 mr-2 mt-0.5 flex-shrink-0" />
+                    <span className="break-words">Menghindari kehabisan stok atau modal</span>
                   </li>
                   <li className="flex items-start">
-                    <CheckCircleIcon className="h-5 w-5 mr-2 mt-0.5 flex-shrink-0" />
-                    <span>Mendapat insight dan rekomendasi untuk tumbuh lebih cepat</span>
+                    <CheckCircleIcon className="h-4 w-4 sm:h-5 sm:w-5 mr-2 mt-0.5 flex-shrink-0" />
+                    <span className="break-words">Mendapat insight dan rekomendasi untuk tumbuh lebih cepat</span>
                   </li>
                 </ul>
               </div>
@@ -208,15 +208,15 @@ export function OnboardingWizard({ onComplete, userId }: OnboardingWizardProps) 
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 sm:p-4">
                 <div className="flex items-start">
                   <LightBulbIcon className="h-4 w-4 sm:h-5 sm:w-5 mr-2 text-yellow-500 flex-shrink-0" />
-                  <div>
-                    <p className="text-sm sm:text-base font-medium">Proses setup: 5 menit</p>
-                    <p className="text-xs sm:text-sm text-gray-600">Semakin lengkap data Anda, semakin akurat analisis yang kami berikan</p>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs sm:text-sm lg:text-base font-medium break-words">Proses setup: 5 menit</p>
+                    <p className="text-xs sm:text-sm text-gray-600 break-words">Semakin lengkap data Anda, semakin akurat analisis yang kami berikan</p>
                   </div>
                 </div>
               </div>
 
-              <div className="text-center space-y-2 sm:space-y-3">
-                <p className="text-xs sm:text-sm text-gray-600">
+              <div className="text-center space-y-2 sm:space-y-3 px-2">
+                <p className="text-xs sm:text-sm text-gray-600 break-words">
                   ✅ Kami akan memandu langkah demi langkah<br />
                   ❌ Tidak ada tombol "Lewati" - Setup wajib lengkap
                 </p>
@@ -234,8 +234,8 @@ export function OnboardingWizard({ onComplete, userId }: OnboardingWizardProps) 
           {currentStep === 1 && (
             <div className="space-y-4 sm:space-y-6">
               <div>
-                <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Apa Jenis Bisnis Anda?</h2>
-                <p className="text-sm sm:text-base text-gray-600">Pilih kategori yang paling sesuai dengan bisnis Anda</p>
+                <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 mb-2 break-words">Apa Jenis Bisnis Anda?</h2>
+                <p className="text-xs sm:text-sm lg:text-base text-gray-600 break-words">Pilih kategori yang paling sesuai dengan bisnis Anda</p>
               </div>
 
               {/* Manual Selection with Radio Buttons */}
