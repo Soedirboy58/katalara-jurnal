@@ -1,0 +1,51 @@
+<!-- =====================================================
+EMAIL TEMPLATE: CONFIRM SIGNUP
+Copy template ini dan paste ke Supabase Dashboard
+=====================================================
+
+Path: Supabase Dashboard → Authentication → Email Templates → Confirm signup
+
+Ganti seluruh isi template dengan code di bawah ini:
+===================================================== -->
+
+<h2>✅ Selamat! Pendaftaran Anda Berhasil</h2>
+
+<p>Terima kasih telah mendaftar di <strong>Katalara</strong>!</p>
+
+<p>Akun Anda dengan email <strong>{{ .Email }}</strong> telah berhasil dibuat.</p>
+
+<h3>📧 Langkah Selanjutnya:</h3>
+<ol>
+  <li><strong>Verifikasi email Anda</strong> dengan klik tombol di bawah ini</li>
+  <li><strong>Login</strong> menggunakan email dan password yang Anda daftarkan</li>
+  <li><strong>Lengkapi data bisnis</strong> untuk mulai menggunakan platform</li>
+</ol>
+
+<p style="margin: 30px 0;">
+  <a 
+    href="{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&type=signup&next=/login" 
+    style="background-color: #1088ff; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600; display: inline-block;"
+  >
+    ✓ Verifikasi Email & Login
+  </a>
+</p>
+
+<p style="color: #666; font-size: 14px;">
+  Atau copy link ini ke browser Anda:
+</p>
+<p style="background: #f5f5f5; padding: 12px; border-radius: 6px; word-break: break-all; font-size: 13px;">
+  {{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&type=signup&next=/login
+</p>
+
+<hr style="margin: 30px 0; border: none; border-top: 1px solid #eee;">
+
+<p style="color: #999; font-size: 12px;">
+  <strong>Catatan Keamanan:</strong><br>
+  Jika Anda tidak mendaftar di Katalara, abaikan email ini.<br>
+  Link verifikasi akan kadaluarsa dalam 24 jam.
+</p>
+
+<p style="color: #999; font-size: 12px; margin-top: 20px;">
+  Butuh bantuan? Hubungi tim support kami.<br>
+  © 2025 Katalara. Platform Asisten UMKM.
+</p>
