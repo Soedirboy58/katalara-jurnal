@@ -30,20 +30,12 @@ export default function ResetPasswordPage() {
     
     console.log('URL params:', { tokenHash: !!tokenHash, type, code: !!code })
     
-    // Listen for auth state changes - Supabase client will auto-handle the URL
+    // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('🔔 Auth event:', event, 'Session:', !!session)
       
-      if (event === 'PASSWORD_RECOVERY') {
-        console.log('✅ PASSWORD_RECOVERY event - User dapat reset password')
-        setValidSession(true)
-        setError('')
-      } else if (event === 'SIGNED_IN' && type === 'recovery') {
-        console.log('✅ SIGNED_IN with recovery type')
-        setValidSession(true)
-        setError('')
-      } else if (session && type === 'recovery') {
-        console.log('✅ Session exists with recovery context')
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        console.log('✅ User authenticated - can reset password')
         setValidSession(true)
         setError('')
       } else if (event === 'SIGNED_OUT') {
@@ -51,20 +43,39 @@ export default function ResetPasswordPage() {
       }
     })
 
-    // Let Supabase client auto-handle the URL params
-    // It will trigger onAuthStateChange with appropriate events
+    // Handle password recovery code from URL
     const initSession = async () => {
-      // Small delay to let Supabase process the URL
-      await new Promise(resolve => setTimeout(resolve, 500))
-      
-      const { data: { session }, error } = await supabase.auth.getSession()
-      console.log('Session check after delay:', !!session, error?.message)
-      
-      if (session) {
-        console.log('✅ Valid session found')
-        setValidSession(true)
-        setError('')
-      } else if (!code && !tokenHash) {
+      if (code) {
+        console.log('🔑 Recovery code found, verifying OTP...')
+        try {
+          // Use verifyOtp for password recovery tokens
+          const { data, error } = await supabase.auth.verifyOtp({
+            token_hash: code,
+            type: 'recovery'
+          })
+          
+          if (error) {
+            console.error('❌ OTP verification error:', error.message)
+            setError('Link reset password tidak valid atau sudah expired. Silakan request ulang.')
+          } else if (data.session) {
+            console.log('✅ OTP verified, session created')
+            setValidSession(true)
+            setError('')
+          }
+        } catch (err: any) {
+          console.error('❌ Error verifying recovery code:', err)
+          setError('Terjadi kesalahan. Silakan request link baru.')
+        }
+      } else if (tokenHash) {
+        console.log('🔑 Token hash found in URL')
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session) {
+          console.log('✅ Valid session found')
+          setValidSession(true)
+        } else {
+          setError('Link reset password tidak valid atau sudah expired. Silakan request ulang.')
+        }
+      } else {
         console.log('❌ No recovery params in URL')
         setError('Link reset password tidak valid atau sudah expired. Silakan request ulang.')
       }
