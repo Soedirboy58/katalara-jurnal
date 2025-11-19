@@ -4,7 +4,7 @@
 -- Run this in Supabase SQL Editor if you get 409 or 500 errors
 
 -- 1. Check current user_profiles
-SELECT user_id, email, full_name, business_name, phone, address 
+SELECT user_id, full_name, business_name, phone, address 
 FROM user_profiles
 ORDER BY created_at DESC;
 

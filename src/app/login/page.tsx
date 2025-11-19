@@ -44,33 +44,47 @@ export default function LoginPage() {
         throw new Error('Login gagal')
       }
 
+      // Wait for session to be fully established
+      await new Promise(resolve => setTimeout(resolve, 500))
+
       // Try to get user profile
       let profile: any = null
-      try {
-        const { data, error: profileError } = await supabase
-          .from('user_profiles')
-          .select('role, is_approved, is_active, full_name, business_name, phone, address')
-          .eq('user_id', authData.user.id)
-          .single()
+      let retryCount = 0
+      const maxRetries = 3
+      
+      while (retryCount < maxRetries && !profile) {
+        try {
+          const { data, error: profileError } = await supabase
+            .from('user_profiles')
+            .select('role, is_approved, is_active, full_name, business_name, phone, address')
+            .eq('user_id', authData.user.id)
+            .maybeSingle()
 
-        if (profileError) {
-          console.error('Profile query error:', profileError)
-          
-          // If profile not found, redirect to complete business info
-          if (profileError.code === 'PGRST116') {
-            console.log('No profile found, redirecting to business-info')
-            setShowSuccessModal(true)
-            setTimeout(() => {
-              router.push('/register/business-info')
-            }, 2000)
-            return
+          if (profileError) {
+            console.error('Profile query error (attempt ' + (retryCount + 1) + '):', profileError)
+            
+            // If it's an RLS error or 500, retry
+            if (profileError.code === '42P17' || profileError.message?.includes('infinite recursion')) {
+              retryCount++
+              await new Promise(resolve => setTimeout(resolve, 1000))
+              continue
+            }
           }
-        } else {
-          profile = data
-          console.log('Profile loaded from database:', profile)
+          
+          if (data) {
+            profile = data
+            console.log('Profile loaded from database:', profile)
+          } else {
+            console.log('No profile found in database')
+          }
+          break
+        } catch (profileErr) {
+          console.error('Profile error (attempt ' + (retryCount + 1) + '):', profileErr)
+          retryCount++
+          if (retryCount < maxRetries) {
+            await new Promise(resolve => setTimeout(resolve, 1000))
+          }
         }
-      } catch (profileErr) {
-        console.error('Profile error:', profileErr)
       }
 
       // If no profile OR profile incomplete (missing business info), redirect to business info
