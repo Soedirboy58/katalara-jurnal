@@ -73,42 +73,52 @@ export function Sidebar({ isOpen, onClose, collapsed, onToggleCollapse }: Sideba
         }}
       >
         <div className="flex flex-col h-full">
-          {/* Header with Logo */}
-          <div className="flex items-center justify-between h-20 px-4 border-b border-white/10">
-            <div className={`flex items-center overflow-hidden transition-all duration-300 ${
-              collapsed ? 'justify-center w-full' : 'justify-center w-full'
-            }`}>
-              <img
-                src="https://usradkbchlkcfoabxvbo.supabase.co/storage/v1/object/public/assets/Artboard%201.png"
-                alt="Katalara"
-                className={`object-contain transition-all duration-300 ${
-                  collapsed ? 'h-12 w-12' : 'h-16 w-16'
-                }`}
-              />
+          {/* Header with Logo Badge */}
+          <div className="relative py-6 px-4 border-b border-white/10">
+            <div className="flex flex-col items-center">
+              {/* Logo Badge Container */}
+              <div className={`
+                relative bg-white rounded-2xl shadow-2xl
+                transition-all duration-300 mb-3
+                ${collapsed ? 'p-3' : 'p-4'}
+              `}>
+                {/* Decorative corner accents */}
+                <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full"></div>
+                <div className="absolute -bottom-1 -left-1 w-2 h-2 bg-yellow-400 rounded-full"></div>
+                
+                <img
+                  src="https://usradkbchlkcfoabxvbo.supabase.co/storage/v1/object/public/assets/Artboard%201.png"
+                  alt="Katalara"
+                  className={`object-contain transition-all duration-300 ${
+                    collapsed ? 'h-10 w-10' : 'h-16 w-16'
+                  }`}
+                />
+              </div>
+              
+              {/* Brand Name */}
+              {!collapsed && (
+                <div className="text-center">
+                  <h2 className="text-xl font-bold text-white mb-1">Katalara</h2>
+                  <p className="text-xs text-white/60 font-medium">Business Platform</p>
+                </div>
+              )}
             </div>
-            {!collapsed && (
-              <button
-                onClick={onToggleCollapse}
-                className="hidden lg:block absolute right-4 p-2 text-white/90 hover:text-white hover:bg-white/20 rounded-lg transition-all shadow-md"
-                title="Collapse sidebar"
-              >
-                <Bars3Icon className="h-5 w-5" />
-              </button>
-            )}
-            {collapsed && (
-              <button
-                onClick={onToggleCollapse}
-                className="hidden lg:block absolute right-2 p-1.5 text-white/90 hover:text-white hover:bg-white/20 rounded-lg transition-all"
-                title="Expand sidebar"
-              >
-                <Bars3Icon className="h-4 w-4" />
-              </button>
-            )}
+            
+            {/* Toggle Button */}
+            <button
+              onClick={onToggleCollapse}
+              className="hidden lg:block absolute -right-3 top-8 p-2 bg-white text-blue-600 hover:bg-blue-50 rounded-full shadow-lg transition-all hover:scale-110"
+              title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            >
+              <Bars3Icon className="h-4 w-4" />
+            </button>
+            
+            {/* Mobile Close Button */}
             <button
               onClick={onClose}
-              className="lg:hidden absolute right-4 p-2 text-white/90 hover:text-white"
+              className="lg:hidden absolute top-6 right-4 p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-lg"
             >
-              <XMarkIcon className="h-6 w-6" />
+              <XMarkIcon className="h-5 w-5" />
             </button>
           </div>
 
