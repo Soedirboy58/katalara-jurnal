@@ -124,13 +124,19 @@ export default function BusinessInfoPage() {
       // Check if profile already exists
       const { data: existingProfile, error: checkError } = await supabase
         .from('user_profiles')
-        .select('id')
+        .select('id, business_name, phone, address')
         .eq('user_id', userId)
         .maybeSingle() // Use maybeSingle instead of single to avoid error if not found
 
-      // If checkError exists, it might be because columns don't exist in DB
-      if (checkError && checkError.message?.includes('column')) {
-        throw new Error('Database schema belum lengkap. Silakan jalankan migration SQL terlebih dahulu. Buka Supabase SQL Editor dan jalankan file sql/10_add_business_details.sql')
+      console.log('Check profile result:', { existingProfile, checkError })
+
+      // If checkError exists and it's a 500 error, likely column doesn't exist
+      if (checkError) {
+        console.error('Error checking profile:', checkError)
+        if (checkError.message?.includes('column') || checkError.code === '42703') {
+          throw new Error('Database schema belum lengkap. Silakan jalankan migration SQL terlebih dahulu. Buka Supabase SQL Editor dan jalankan file sql/cleanup_user_profiles.sql')
+        }
+        // For other errors, continue to try insert/update
       }
 
       console.log('Form data being saved:', formData)
@@ -204,19 +210,17 @@ export default function BusinessInfoPage() {
       
       // Handle specific error types with detailed messages
       if (err.code === '23505' || err.message?.includes('duplicate key') || err.message?.includes('user_profiles_user_id_key')) {
-        setError(`❌ Error: Profil sudah terdaftar untuk akun ini.
+        setError(`❌ Error: Profil sudah ada untuk akun ini (Duplicate)
 
-📋 SOLUSI:
-1. Buka Supabase Dashboard SQL Editor
-2. Jalankan query ini untuk hapus profile lama:
-   
-   DELETE FROM user_profiles 
-   WHERE user_id = '${userId || 'YOUR_USER_ID'}';
+📋 SOLUSI CEPAT - Buka Supabase SQL Editor:
+1. Copy & paste query ini:
 
-3. Refresh halaman ini dan isi form lagi
-4. Atau gunakan email baru untuk testing
+DELETE FROM user_profiles WHERE user_id = '${userId}';
 
-📁 File SQL: katalara-nextjs/sql/QUICK_FIX_DATABASE.sql`)
+2. Klik Run
+3. Refresh halaman ini (F5) dan isi form lagi
+
+💡 Atau gunakan: katalara-nextjs/sql/cleanup_user_profiles.sql`)
       } else if (err.code === '42703' || err.message?.includes('column') || err.message?.includes('does not exist')) {
         setError(`❌ Error: Database schema belum lengkap (kolom tidak ada).
 
