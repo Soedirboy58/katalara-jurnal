@@ -62,7 +62,7 @@ export function Sidebar({ isOpen, onClose, collapsed, onToggleCollapse }: Sideba
       {/* Sidebar */}
       <aside
         className={`
-          fixed top-0 left-0 z-50 h-full border-r border-white/10 shadow-lg
+          fixed top-0 left-0 z-50 min-h-screen border-r border-white/10 shadow-lg
           transform transition-all duration-300 ease-in-out
           lg:translate-x-0 lg:static lg:z-auto
           ${isOpen ? 'translate-x-0' : '-translate-x-full'}
