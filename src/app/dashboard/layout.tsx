@@ -64,7 +64,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <div className="flex-1 flex flex-col min-h-screen">
         {/* Top Bar */}
         <header className="bg-white border-b border-gray-200 sticky top-0 z-30">
-          <div className="w-full max-w-7xl mx-auto flex items-center justify-between h-16 px-4 lg:px-6">
+          <div className="w-full max-w-6xl mx-auto flex items-center justify-between h-16 px-4 lg:px-6">
             <div className="flex items-center space-x-4">
               <MobileMenuButton onClick={() => setSidebarOpen(true)} />
               {/* Desktop Toggle Button */}
@@ -158,7 +158,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* Main Content */}
         <main className="flex-1 p-4 lg:p-6">
-          <div className="w-full max-w-7xl mx-auto">
+          <div className="w-full max-w-6xl mx-auto">
             {children}
           </div>
         </main>
