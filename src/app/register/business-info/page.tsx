@@ -133,8 +133,12 @@ export default function BusinessInfoPage() {
         throw new Error('Database schema belum lengkap. Silakan jalankan migration SQL terlebih dahulu. Buka Supabase SQL Editor dan jalankan file sql/10_add_business_details.sql')
       }
 
+      console.log('Form data being saved:', formData)
+      console.log('Existing profile:', existingProfile)
+
       if (existingProfile && !checkError) {
         // Update existing profile
+        console.log('Updating existing profile for user:', userId)
         const { error: updateError } = await supabase
           .from('user_profiles')
           .update({
@@ -144,18 +148,23 @@ export default function BusinessInfoPage() {
             kecamatan: formData.kecamatan,
             kabupaten: formData.kabupaten,
             provinsi: formData.provinsi,
-            business_name: formData.business_name || null,
+            business_name: formData.business_name,
             business_category_id: formData.business_category_id,
             business_start_year: formData.business_start_year ? parseInt(formData.business_start_year) : null,
-            business_type: formData.business_type || null,
-            number_of_employees: formData.number_of_employees || null,
+            business_type: formData.business_type,
+            number_of_employees: formData.number_of_employees,
             is_approved: true
           })
           .eq('user_id', userId)
 
-        if (updateError) throw updateError
+        if (updateError) {
+          console.error('Update error:', updateError)
+          throw updateError
+        }
+        console.log('Profile updated successfully')
       } else {
         // Create new profile
+        console.log('Creating new profile for user:', userId)
         const { error: profileError } = await supabase
           .from('user_profiles')
           .insert({
@@ -166,21 +175,26 @@ export default function BusinessInfoPage() {
             kecamatan: formData.kecamatan,
             kabupaten: formData.kabupaten,
             provinsi: formData.provinsi,
-            business_name: formData.business_name || null,
+            business_name: formData.business_name,
             business_category_id: formData.business_category_id,
             business_start_year: formData.business_start_year ? parseInt(formData.business_start_year) : null,
-            business_type: formData.business_type || null,
-            number_of_employees: formData.number_of_employees || null,
+            business_type: formData.business_type,
+            number_of_employees: formData.number_of_employees,
             role: 'user',
             is_verified: true,
             is_approved: true,
             is_active: true
           })
 
-        if (profileError) throw profileError
+        if (profileError) {
+          console.error('Insert error:', profileError)
+          throw profileError
+        }
+        console.log('Profile created successfully')
       }
 
       // Success message and redirect to dashboard
+      console.log('Business info saved, showing success modal')
       setShowSuccessModal(true)
       setTimeout(() => {
         router.push('/dashboard/products')

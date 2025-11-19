@@ -58,6 +58,7 @@ export default function LoginPage() {
           
           // If profile not found, redirect to complete business info
           if (profileError.code === 'PGRST116') {
+            console.log('No profile found, redirecting to business-info')
             setShowSuccessModal(true)
             setTimeout(() => {
               router.push('/register/business-info')
@@ -66,6 +67,7 @@ export default function LoginPage() {
           }
         } else {
           profile = data
+          console.log('Profile loaded from database:', profile)
         }
       } catch (profileErr) {
         console.error('Profile error:', profileErr)
@@ -73,13 +75,21 @@ export default function LoginPage() {
 
       // If no profile OR profile incomplete (missing business info), redirect to business info
       if (!profile || !profile.business_name || !profile.phone || !profile.address) {
-        console.log('Profile incomplete, redirecting to business-info')
+        console.log('Profile incomplete:', { 
+          hasProfile: !!profile, 
+          hasBusinessName: !!profile?.business_name,
+          hasPhone: !!profile?.phone,
+          hasAddress: !!profile?.address 
+        })
+        console.log('Redirecting to business-info to complete profile')
         setShowSuccessModal(true)
         setTimeout(() => {
           router.push('/register/business-info')
         }, 2000)
         return
       }
+
+      console.log('Profile complete, redirecting to dashboard')
 
       // Check if user is active
       if (profile.is_active === false) {
