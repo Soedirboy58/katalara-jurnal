@@ -1,7 +1,8 @@
 
+
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { XMarkIcon, CheckCircleIcon, LightBulbIcon } from '@heroicons/react/24/outline'
 import { createClient } from '@/lib/supabase/client'
@@ -25,6 +26,7 @@ interface OnboardingWizardProps {
 
 export function OnboardingWizard({ onComplete, userId }: OnboardingWizardProps) {
   const [mounted, setMounted] = useState(false)
+  const scrollYRef = useRef(0)
   const [currentStep, setCurrentStep] = useState<OnboardingStep>(0)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
@@ -53,6 +55,33 @@ export function OnboardingWizard({ onComplete, userId }: OnboardingWizardProps) 
   useEffect(() => {
     setMounted(true)
   }, [])
+
+  // Lock background scroll while wizard is open (mobile-safe)
+  useEffect(() => {
+    if (!mounted) return
+    const body = document.body
+    scrollYRef.current = window.scrollY || 0
+    // Apply scroll lock styles
+    body.classList.add('modal-open')
+    body.style.position = 'fixed'
+    body.style.width = '100%'
+    body.style.top = `-${scrollYRef.current}px`
+    body.style.overflow = 'hidden'
+    body.style.touchAction = 'none'
+    body.style.insetInlineStart = '0'
+
+    return () => {
+      // Restore body scroll state
+      body.classList.remove('modal-open')
+      body.style.position = ''
+      body.style.width = ''
+      body.style.top = ''
+      body.style.overflow = ''
+      body.style.touchAction = ''
+      body.style.insetInlineStart = ''
+      window.scrollTo(0, scrollYRef.current)
+    }
+  }, [mounted])
 
   // Format number with thousand separators (Indonesian format)
   const formatNumber = (value: number | string): string => {
@@ -170,9 +199,15 @@ export function OnboardingWizard({ onComplete, userId }: OnboardingWizardProps) 
   if (!mounted) return null
 
   return createPortal(
-    <div className="fixed inset-0 z-[9999] bg-black/50 sm:backdrop-blur-sm flex items-start justify-center sm:items-center sm:p-4">
+    <div
+      className="fixed inset-0 z-[9999] bg-black/50 sm:backdrop-blur-sm flex items-start justify-center sm:items-center sm:p-4 overscroll-none"
+      style={{ touchAction: 'none' }}
+    >
       {/* Fullscreen panel on mobile to guarantee fit */}
-      <div className="bg-white w-screen h-screen sm:w-full sm:h-auto sm:max-w-3xl sm:rounded-2xl sm:shadow-2xl sm:max-h-[90vh] overflow-y-auto overflow-x-hidden">
+      <div
+        className="bg-white w-[100vw] h-[100dvh] sm:w-full sm:h-auto sm:max-w-3xl sm:rounded-2xl sm:shadow-2xl sm:max-h-[90vh] overflow-y-auto overflow-x-hidden max-w-[100vw]"
+        style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
+      >
         {/* Progress Bar */}
         <div className="h-2 bg-gray-200">
           <div 

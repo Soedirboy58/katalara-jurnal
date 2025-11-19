@@ -25,6 +25,11 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+/* Prevent background scroll/overscroll when modal is open */
+body.modal-open {
+  overscroll-behavior: none;
+}
+
 /* Animations */
 @keyframes fade-in {
   from {
