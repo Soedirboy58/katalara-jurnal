@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react'
 import { Sidebar, MobileMenuButton } from '@/components/dashboard/Sidebar'
 import { createClient } from '@/lib/supabase/client'
 import { Bars3Icon, ChevronDoubleLeftIcon, ChevronDoubleRightIcon, BellIcon, UserCircleIcon, Cog6ToothIcon } from '@heroicons/react/24/outline'
+import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -16,6 +17,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [userEmail, setUserEmail] = useState('')
   const [fullName, setFullName] = useState('')
   const [dropdownOpen, setDropdownOpen] = useState(false)
+  const [showOnboarding, setShowOnboarding] = useState(false)
+  const [checkingOnboarding, setCheckingOnboarding] = useState(true)
 
   useEffect(() => {
     if (!loading && !user) {
@@ -34,10 +37,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         }
       }
       fetchProfile()
+
+      // Check if onboarding is completed
+      const checkOnboarding = async () => {
+        const { data } = await supabase
+          .from('business_configurations')
+          .select('onboarding_completed')
+          .eq('user_id', user.id)
+          .maybeSingle()
+        
+        setShowOnboarding(!data?.onboarding_completed)
+        setCheckingOnboarding(false)
+      }
+      checkOnboarding()
     }
   }, [user, loading, router, supabase])
 
-  if (loading) {
+  if (loading || checkingOnboarding) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
@@ -53,6 +69,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   return (
+    <>
+      {/* Onboarding Wizard */}
+      {showOnboarding && (
+        <OnboardingWizard 
+          userId={user.id}
+          onComplete={() => {
+            setShowOnboarding(false)
+            // Refresh page to reload dashboard
+            window.location.reload()
+          }}
+        />
+      )}
+
+      {/* Main Dashboard */}
     <div className="min-h-screen bg-gray-50 flex">
       <Sidebar 
         isOpen={sidebarOpen} 
@@ -164,5 +194,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </main>
       </div>
     </div>
+    </>
   )
 }
