@@ -170,8 +170,9 @@ export function OnboardingWizard({ onComplete, userId }: OnboardingWizardProps) 
   if (!mounted) return null
 
   return createPortal(
-    <div className="fixed inset-0 z-[9999] bg-black/50 sm:backdrop-blur-sm flex items-start justify-center sm:items-center sm:p-4 overflow-x-hidden">
-      <div className="bg-white w-full max-w-md sm:max-w-3xl h-full sm:h-auto sm:rounded-2xl sm:shadow-2xl sm:max-h-[90vh] overflow-y-auto overflow-x-hidden mx-auto">
+    <div className="fixed inset-0 z-[9999] bg-black/50 sm:backdrop-blur-sm flex items-start justify-center sm:items-center sm:p-4">
+      {/* Fullscreen panel on mobile to guarantee fit */}
+      <div className="bg-white w-screen h-screen sm:w-full sm:h-auto sm:max-w-3xl sm:rounded-2xl sm:shadow-2xl sm:max-h-[90vh] overflow-y-auto overflow-x-hidden">
         {/* Progress Bar */}
         <div className="h-2 bg-gray-200">
           <div 
