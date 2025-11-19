@@ -2,22 +2,32 @@
 
 import { useAuth } from '@/hooks/useAuth'
 import { useRouter } from 'next/navigation'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
+import { Sidebar, MobileMenuButton } from '@/components/dashboard/Sidebar'
+import { createClient } from '@/lib/supabase/client'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
   const router = useRouter()
+  const supabase = createClient()
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [userEmail, setUserEmail] = useState('')
 
   useEffect(() => {
     if (!loading && !user) {
       router.push('/login')
+    } else if (user) {
+      setUserEmail(user.email || '')
     }
   }, [user, loading, router])
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p>Loading...</p>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
       </div>
     )
   }
@@ -27,36 +37,35 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex">
-              <div className="flex-shrink-0 flex items-center">
-                <h1 className="text-2xl font-bold text-blue-600">Katalara</h1>
-              </div>
-              <div className="ml-6 flex space-x-8">
-                <a href="/dashboard" className="inline-flex items-center px-1 pt-1 text-sm font-medium text-gray-900">
-                  Dashboard
-                </a>
-                <a href="/dashboard/products" className="inline-flex items-center px-1 pt-1 text-sm font-medium text-gray-900">
-                  Produk
-                </a>
-                <a href="/dashboard/sales" className="inline-flex items-center px-1 pt-1 text-sm font-medium text-gray-500">
-                  Penjualan
-                </a>
-                <a href="/dashboard/expenses" className="inline-flex items-center px-1 pt-1 text-sm font-medium text-gray-500">
-                  Pengeluaran
-                </a>
-              </div>
+    <div className="min-h-screen bg-gray-50 flex">
+      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      
+      <div className="flex-1 flex flex-col min-h-screen lg:ml-0">
+        {/* Top Bar */}
+        <header className="bg-white border-b border-gray-200 sticky top-0 z-30">
+          <div className="flex items-center justify-between h-16 px-4 lg:px-6">
+            <div className="flex items-center space-x-4">
+              <MobileMenuButton onClick={() => setSidebarOpen(true)} />
+              <h2 className="text-lg font-semibold text-gray-900 hidden sm:block">
+                Dashboard
+              </h2>
             </div>
-            <div className="flex items-center">
-              <span className="text-sm text-gray-700 mr-4">{user.email}</span>
+            <div className="flex items-center space-x-4">
+              <span className="text-sm text-gray-600 hidden sm:block">{userEmail}</span>
+              <div className="h-8 w-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-medium text-sm">
+                {userEmail.charAt(0).toUpperCase()}
+              </div>
             </div>
           </div>
-        </div>
-      </nav>
-      <main>{children}</main>
+        </header>
+
+        {/* Main Content */}
+        <main className="flex-1 p-4 lg:p-6">
+          <div className="max-w-7xl mx-auto">
+            {children}
+          </div>
+        </main>
+      </div>
     </div>
   )
 }
