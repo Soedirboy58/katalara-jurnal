@@ -21,34 +21,54 @@ export default function ResetPasswordPage() {
     console.log('Reset password page mounted')
     console.log('Current URL:', window.location.href)
     console.log('Hash:', window.location.hash)
+    console.log('Search params:', window.location.search)
     
-    // Listen for auth state changes (Supabase will automatically handle the hash)
+    // Check for code in URL (PKCE flow)
+    const searchParams = new URLSearchParams(window.location.search)
+    const code = searchParams.get('code')
+    console.log('Recovery code from URL:', code)
+    
+    // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('Auth state changed:', event, 'Has session:', !!session)
       
       if (event === 'PASSWORD_RECOVERY') {
-        console.log('Password recovery event detected')
+        console.log('✅ Password recovery event detected')
         setValidSession(true)
+        setError('') // Clear any error
       } else if (session) {
-        console.log('Session exists')
+        console.log('✅ Session exists')
         setValidSession(true)
+        setError('') // Clear any error
       } else if (event === 'SIGNED_OUT') {
-        console.log('No valid session')
+        console.log('❌ Signed out event')
         setError('Link reset password tidak valid atau sudah expired. Silakan request ulang.')
       }
     })
 
-    // Also check initial session
-    supabase.auth.getSession().then(({ data: { session }, error }) => {
-      console.log('Initial session check:', !!session, error)
-      if (session) {
-        setValidSession(true)
-      } else if (!window.location.hash) {
-        // Only show error if there's no hash (meaning no token to process)
-        setError('Link reset password tidak valid atau sudah expired.')
-      }
-      // If there's a hash, wait for onAuthStateChange to handle it
-    })
+    // Exchange code for session if code exists
+    if (code) {
+      console.log('Exchanging code for session...')
+      supabase.auth.exchangeCodeForSession(code).then(({ data, error }) => {
+        if (error) {
+          console.error('❌ Error exchanging code:', error)
+          setError('Link reset password tidak valid atau sudah expired. Silakan request ulang.')
+        } else {
+          console.log('✅ Code exchanged successfully', data)
+          // Session will be set via onAuthStateChange
+        }
+      })
+    } else {
+      // No code in URL, check if there's already a session
+      supabase.auth.getSession().then(({ data: { session }, error }) => {
+        console.log('Initial session check:', !!session, error)
+        if (session) {
+          setValidSession(true)
+        } else {
+          setError('Link reset password tidak valid atau sudah expired.')
+        }
+      })
+    }
 
     return () => {
       subscription.unsubscribe()
