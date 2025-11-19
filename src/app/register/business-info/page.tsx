@@ -35,6 +35,7 @@ export default function BusinessInfoPage() {
   // State for location dropdowns
   const [selectedProvinsi, setSelectedProvinsi] = useState('')
   const [selectedKabupaten, setSelectedKabupaten] = useState('')
+  const [selectedKecamatan, setSelectedKecamatan] = useState('')
   const [availableKabupaten, setAvailableKabupaten] = useState<any[]>([])
   const [availableKecamatan, setAvailableKecamatan] = useState<any[]>([])
 
@@ -58,6 +59,7 @@ export default function BusinessInfoPage() {
       setAvailableKabupaten(kabupaten)
       // Reset kabupaten and kecamatan when provinsi changes
       setSelectedKabupaten('')
+      setSelectedKecamatan('')
       setAvailableKecamatan([])
       setFormData(prev => ({ ...prev, kabupaten: '', kecamatan: '' }))
     } else {
@@ -72,6 +74,7 @@ export default function BusinessInfoPage() {
       const kecamatan = getKecamatanByKabupaten(selectedKabupaten)
       setAvailableKecamatan(kecamatan)
       // Reset kecamatan when kabupaten changes
+      setSelectedKecamatan('')
       setFormData(prev => ({ ...prev, kecamatan: '' }))
     } else {
       setAvailableKecamatan([])
@@ -121,6 +124,11 @@ export default function BusinessInfoPage() {
         .select('id')
         .eq('user_id', userId)
         .maybeSingle() // Use maybeSingle instead of single to avoid error if not found
+
+      // If checkError exists, it might be because columns don't exist in DB
+      if (checkError && checkError.message?.includes('column')) {
+        throw new Error('Database schema belum lengkap. Silakan jalankan migration SQL terlebih dahulu. Buka Supabase SQL Editor dan jalankan file sql/10_add_business_details.sql')
+      }
 
       if (existingProfile && !checkError) {
         // Update existing profile
@@ -173,7 +181,17 @@ export default function BusinessInfoPage() {
       alert('✅ Data Bisnis Berhasil Disimpan!\n\nSelamat datang di Katalara.')
       router.push('/dashboard/products')
     } catch (err: any) {
-      setError(err.message || 'Terjadi kesalahan saat menyimpan data')
+      console.error('Error submitting business info:', err)
+      
+      // Handle specific error types
+      if (err.code === '23505' || err.message?.includes('duplicate key')) {
+        setError('Profil Anda sudah terdaftar. Halaman akan di-refresh untuk load data yang ada.')
+        setTimeout(() => window.location.reload(), 2000)
+      } else if (err.message?.includes('column')) {
+        setError('⚠️ Database belum siap. Admin perlu menjalankan migration SQL. Silakan hubungi tim support atau gunakan email baru untuk testing.')
+      } else {
+        setError(err.message || 'Terjadi kesalahan saat menyimpan data')
+      }
     } finally {
       setLoading(false)
     }
@@ -333,11 +351,12 @@ export default function BusinessInfoPage() {
                   Kecamatan <span className="text-red-500">*</span>
                 </label>
                 <select
-                  value={formData.kecamatan}
+                  value={selectedKecamatan}
                   onChange={(e) => {
                     const value = e.target.value
+                    setSelectedKecamatan(value)
                     const selectedKec = availableKecamatan.find(k => k.id === value)
-                    setFormData({ ...formData, kecamatan: selectedKec?.nama || value })
+                    setFormData({ ...formData, kecamatan: selectedKec?.nama || '' })
                   }}
                   required
                   disabled={!selectedKabupaten}
