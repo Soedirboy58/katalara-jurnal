@@ -203,7 +203,7 @@ export default function BusinessInfoPage() {
       console.log('Business info saved, showing success modal')
       setShowSuccessModal(true)
       setTimeout(() => {
-        router.push('/dashboard/products')
+        router.push('/dashboard')
       }, 2000)
     } catch (err: any) {
       console.error('Error submitting business info:', err)

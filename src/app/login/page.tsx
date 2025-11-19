@@ -119,7 +119,7 @@ export default function LoginPage() {
         if (profile.role === 'super_admin') {
           router.push('/admin/dashboard')
         } else {
-          router.push('/dashboard/products')
+          router.push('/dashboard')
         }
       }, 2000)
     } catch (err: any) {
