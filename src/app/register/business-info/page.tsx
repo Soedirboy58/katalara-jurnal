@@ -108,6 +108,8 @@ export default function BusinessInfoPage() {
     setLoading(true)
     setError('')
 
+    let userId = ''
+    
     try {
       // Get current session
       const { data: { session } } = await supabase.auth.getSession()
@@ -116,7 +118,7 @@ export default function BusinessInfoPage() {
         throw new Error('Session tidak ditemukan. Silakan login kembali.')
       }
 
-      const userId = session.user.id
+      userId = session.user.id
 
       // Check if profile already exists
       const { data: existingProfile, error: checkError } = await supabase
@@ -183,14 +185,51 @@ export default function BusinessInfoPage() {
     } catch (err: any) {
       console.error('Error submitting business info:', err)
       
-      // Handle specific error types
-      if (err.code === '23505' || err.message?.includes('duplicate key')) {
-        setError('Profil Anda sudah terdaftar. Halaman akan di-refresh untuk load data yang ada.')
-        setTimeout(() => window.location.reload(), 2000)
-      } else if (err.message?.includes('column')) {
-        setError('⚠️ Database belum siap. Admin perlu menjalankan migration SQL. Silakan hubungi tim support atau gunakan email baru untuk testing.')
+      // Handle specific error types with detailed messages
+      if (err.code === '23505' || err.message?.includes('duplicate key') || err.message?.includes('user_profiles_user_id_key')) {
+        setError(`❌ Error: Profil sudah terdaftar untuk akun ini.
+
+📋 SOLUSI:
+1. Buka Supabase Dashboard SQL Editor
+2. Jalankan query ini untuk hapus profile lama:
+   
+   DELETE FROM user_profiles 
+   WHERE user_id = '${userId || 'YOUR_USER_ID'}';
+
+3. Refresh halaman ini dan isi form lagi
+4. Atau gunakan email baru untuk testing
+
+📁 File SQL: katalara-nextjs/sql/QUICK_FIX_DATABASE.sql`)
+      } else if (err.code === '42703' || err.message?.includes('column') || err.message?.includes('does not exist')) {
+        setError(`❌ Error: Database schema belum lengkap (kolom tidak ada).
+
+📋 SOLUSI WAJIB:
+1. Buka Supabase Dashboard → SQL Editor
+2. Jalankan script ini:
+
+ALTER TABLE user_profiles 
+ADD COLUMN IF NOT EXISTS kecamatan TEXT,
+ADD COLUMN IF NOT EXISTS kabupaten TEXT,
+ADD COLUMN IF NOT EXISTS provinsi TEXT,
+ADD COLUMN IF NOT EXISTS business_start_year INT,
+ADD COLUMN IF NOT EXISTS business_type TEXT,
+ADD COLUMN IF NOT EXISTS number_of_employees TEXT;
+
+3. Setelah berhasil, refresh halaman dan coba lagi
+
+📁 File SQL lengkap: katalara-nextjs/sql/QUICK_FIX_DATABASE.sql`)
+      } else if (err.message?.includes('500') || err.message?.includes('Internal Server Error')) {
+        setError(`❌ Error 500: Server error dari Supabase.
+
+📋 KEMUNGKINAN PENYEBAB:
+1. Kolom database belum ditambahkan
+2. RLS Policy memblokir operasi
+3. Database connection issue
+
+📁 Jalankan SQL fix: katalara-nextjs/sql/QUICK_FIX_DATABASE.sql
+💡 Atau gunakan email fresh yang belum pernah didaftarkan`)
       } else {
-        setError(err.message || 'Terjadi kesalahan saat menyimpan data')
+        setError(err.message || 'Terjadi kesalahan saat menyimpan data. Silakan coba lagi atau hubungi admin.')
       }
     } finally {
       setLoading(false)
