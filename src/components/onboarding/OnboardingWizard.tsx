@@ -46,6 +46,18 @@ export function OnboardingWizard({ onComplete, userId }: OnboardingWizardProps) 
 
   const supabase = createClient()
 
+  // Format number with thousand separators (Indonesian format)
+  const formatNumber = (value: number | string): string => {
+    if (!value) return ''
+    const numStr = value.toString().replace(/\D/g, '')
+    return numStr.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+  }
+
+  // Parse formatted number back to integer
+  const parseNumber = (value: string): number => {
+    return parseInt(value.replace(/\./g, '') || '0')
+  }
+
   // Load business type mappings
   useEffect(() => {
     async function loadMappings() {
@@ -148,8 +160,8 @@ export function OnboardingWizard({ onComplete, userId }: OnboardingWizardProps) 
   const progress = ((currentStep) / 5) * 100
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4">
+      <div className="bg-white rounded-lg sm:rounded-2xl shadow-2xl w-full max-w-3xl max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
         {/* Progress Bar */}
         <div className="h-2 bg-gray-200">
           <div 
@@ -159,7 +171,7 @@ export function OnboardingWizard({ onComplete, userId }: OnboardingWizardProps) 
         </div>
 
         {/* Content */}
-        <div className="p-8">
+        <div className="p-4 sm:p-6 lg:p-8">
           {/* Step 0: Welcome */}
           {currentStep === 0 && (
             <div className="space-y-6">
@@ -167,13 +179,13 @@ export function OnboardingWizard({ onComplete, userId }: OnboardingWizardProps) 
                 <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-600 to-blue-400 rounded-full mb-4">
                   <span className="text-3xl">🎉</span>
                 </div>
-                <h2 className="text-3xl font-bold text-gray-900 mb-2">Selamat Datang di Katalara!</h2>
-                <p className="text-gray-600">Platform yang akan membantu bisnis Anda tumbuh lebih cepat</p>
+                <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Selamat Datang di Katalara!</h2>
+                <p className="text-sm sm:text-base text-gray-600">Platform yang akan membantu bisnis Anda tumbuh lebih cepat</p>
               </div>
 
-              <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 space-y-4">
-                <h3 className="font-semibold text-blue-900">Platform ini akan membantu Anda:</h3>
-                <ul className="space-y-2 text-blue-800">
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 sm:p-6 space-y-3 sm:space-y-4">
+                <h3 className="text-sm sm:text-base font-semibold text-blue-900">Platform ini akan membantu Anda:</h3>
+                <ul className="space-y-2 text-sm sm:text-base text-blue-800">
                   <li className="flex items-start">
                     <CheckCircleIcon className="h-5 w-5 mr-2 mt-0.5 flex-shrink-0" />
                     <span>Memantau kesehatan finansial bisnis secara real-time</span>
@@ -220,10 +232,10 @@ export function OnboardingWizard({ onComplete, userId }: OnboardingWizardProps) 
 
           {/* Step 1: Business Type Selection */}
           {currentStep === 1 && (
-            <div className="space-y-6">
+            <div className="space-y-4 sm:space-y-6">
               <div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">Apa Jenis Bisnis Anda?</h2>
-                <p className="text-gray-600">Pilih kategori yang paling sesuai dengan bisnis Anda</p>
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Apa Jenis Bisnis Anda?</h2>
+                <p className="text-sm sm:text-base text-gray-600">Pilih kategori yang paling sesuai dengan bisnis Anda</p>
               </div>
 
               {/* Manual Selection with Radio Buttons */}
@@ -363,17 +375,17 @@ export function OnboardingWizard({ onComplete, userId }: OnboardingWizardProps) 
               )}
 
               {/* Navigation Buttons */}
-              <div className="flex justify-between pt-4">
+              <div className="flex justify-between gap-2 pt-4">
                 <button
                   onClick={handleBack}
-                  className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition-all"
+                  className="px-4 sm:px-6 py-2 text-sm sm:text-base border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition-all"
                 >
                   ← Kembali
                 </button>
                 <button
                   onClick={handleNext}
                   disabled={!formData.businessCategory}
-                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-semibold transition-all shadow-md hover:shadow-lg"
+                  className="px-4 sm:px-6 py-2 text-sm sm:text-base bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-semibold transition-all shadow-md hover:shadow-lg"
                 >
                   Lanjut ke Target →
                 </button>
@@ -383,10 +395,10 @@ export function OnboardingWizard({ onComplete, userId }: OnboardingWizardProps) 
 
           {/* Step 2: Targets & Goals */}
           {currentStep === 2 && (
-            <div className="space-y-6">
+            <div className="space-y-4 sm:space-y-6">
               <div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">Tentukan Target Bisnis</h2>
-                <p className="text-gray-600">Target yang realistis membantu Anda fokus dan terukur</p>
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Tentukan Target Bisnis</h2>
+                <p className="text-sm sm:text-base text-gray-600">Target yang realistis membantu Anda fokus dan terukur</p>
               </div>
 
               {/* Educational Info Box */}
@@ -413,11 +425,11 @@ export function OnboardingWizard({ onComplete, userId }: OnboardingWizardProps) 
                   <div className="relative">
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium">Rp</span>
                     <input
-                      type="number"
-                      value={formData.monthlyRevenueTarget || ''}
-                      onChange={(e) => setFormData(prev => ({ ...prev, monthlyRevenueTarget: Number(e.target.value) }))}
+                      type="text"
+                      value={formatNumber(formData.monthlyRevenueTarget || 0)}
+                      onChange={(e) => setFormData(prev => ({ ...prev, monthlyRevenueTarget: parseNumber(e.target.value) }))}
                       className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
-                      placeholder="10000000"
+                      placeholder="10.000.000"
                     />
                   </div>
                   <p className="text-xs text-gray-500 mt-1.5">💡 Contoh: Rp 10.000.000 untuk warung sembako</p>
@@ -508,10 +520,10 @@ export function OnboardingWizard({ onComplete, userId }: OnboardingWizardProps) 
 
           {/* Step 3: Capital & Finance */}
           {currentStep === 3 && (
-            <div className="space-y-6">
+            <div className="space-y-4 sm:space-y-6">
               <div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">Modal & Keuangan</h2>
-                <p className="text-gray-600">Bantu kami memahami kondisi keuangan bisnis Anda</p>
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Modal & Keuangan</h2>
+                <p className="text-sm sm:text-base text-gray-600">Bantu kami memahami kondisi keuangan bisnis Anda</p>
               </div>
 
               {/* Educational Info Box */}
@@ -538,11 +550,11 @@ export function OnboardingWizard({ onComplete, userId }: OnboardingWizardProps) 
                   <div className="relative">
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium">Rp</span>
                     <input
-                      type="number"
-                      value={formData.initialCapital || ''}
-                      onChange={(e) => setFormData(prev => ({ ...prev, initialCapital: Number(e.target.value) }))}
+                      type="text"
+                      value={formatNumber(formData.initialCapital || 0)}
+                      onChange={(e) => setFormData(prev => ({ ...prev, initialCapital: parseNumber(e.target.value) }))}
                       className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
-                      placeholder="50000000"
+                      placeholder="50.000.000"
                     />
                   </div>
                   <p className="text-xs text-gray-500 mt-1.5">💡 Termasuk: Stok awal, peralatan, renovasi, sewa awal</p>
@@ -556,11 +568,11 @@ export function OnboardingWizard({ onComplete, userId }: OnboardingWizardProps) 
                   <div className="relative">
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium">Rp</span>
                     <input
-                      type="number"
-                      value={formData.monthlyOperationalCost || ''}
-                      onChange={(e) => setFormData(prev => ({ ...prev, monthlyOperationalCost: Number(e.target.value) }))}
+                      type="text"
+                      value={formatNumber(formData.monthlyOperationalCost || 0)}
+                      onChange={(e) => setFormData(prev => ({ ...prev, monthlyOperationalCost: parseNumber(e.target.value) }))}
                       className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
-                      placeholder="8000000"
+                      placeholder="8.000.000"
                     />
                   </div>
                   <p className="text-xs text-gray-500 mt-1.5">💡 Termasuk: Gaji karyawan, sewa, listrik, transport, dll</p>
@@ -574,11 +586,11 @@ export function OnboardingWizard({ onComplete, userId }: OnboardingWizardProps) 
                   <div className="relative">
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium">Rp</span>
                     <input
-                      type="number"
-                      value={formData.minimumCashAlert || calculateMinimumCash()}
-                      onChange={(e) => setFormData(prev => ({ ...prev, minimumCashAlert: Number(e.target.value) }))}
+                      type="text"
+                      value={formatNumber(formData.minimumCashAlert || calculateMinimumCash())}
+                      onChange={(e) => setFormData(prev => ({ ...prev, minimumCashAlert: parseNumber(e.target.value) }))}
                       className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
-                      placeholder={calculateMinimumCash().toString()}
+                      placeholder={formatNumber(calculateMinimumCash())}
                     />
                   </div>
                   {formData.monthlyOperationalCost && (
