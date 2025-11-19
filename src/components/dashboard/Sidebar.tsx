@@ -103,15 +103,6 @@ export function Sidebar({ isOpen, onClose, collapsed, onToggleCollapse }: Sideba
               )}
             </div>
             
-            {/* Toggle Button */}
-            <button
-              onClick={onToggleCollapse}
-              className="hidden lg:block absolute -right-2.5 top-1/2 -translate-y-1/2 p-1.5 bg-white text-blue-600 hover:bg-blue-50 rounded-full shadow-md transition-all hover:scale-110"
-              title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            >
-              <Bars3Icon className="h-3.5 w-3.5" />
-            </button>
-            
             {/* Mobile Close Button */}
             <button
               onClick={onClose}

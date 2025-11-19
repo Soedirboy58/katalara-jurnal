@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { Sidebar, MobileMenuButton } from '@/components/dashboard/Sidebar'
 import { createClient } from '@/lib/supabase/client'
+import { Bars3Icon, ChevronDoubleLeftIcon, ChevronDoubleRightIcon } from '@heroicons/react/24/outline'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -52,6 +53,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div className="w-full max-w-7xl mr-auto flex items-center justify-between h-16 px-4 lg:px-6">
             <div className="flex items-center space-x-4">
               <MobileMenuButton onClick={() => setSidebarOpen(true)} />
+              {/* Desktop Toggle Button */}
+              <button
+                onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                className="hidden lg:flex items-center justify-center p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              >
+                {sidebarCollapsed ? (
+                  <ChevronDoubleRightIcon className="h-5 w-5" />
+                ) : (
+                  <ChevronDoubleLeftIcon className="h-5 w-5" />
+                )}
+              </button>
               <div className="flex items-center space-x-2">
                 <button
                   onClick={() => router.push('/dashboard')}
