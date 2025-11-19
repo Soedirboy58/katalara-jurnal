@@ -21,8 +21,13 @@ export default function ForgotPasswordPage() {
     setSuccess(false)
 
     try {
+      // Use production URL for reset password redirect
+      const redirectUrl = process.env.NEXT_PUBLIC_SITE_URL 
+        ? `${process.env.NEXT_PUBLIC_SITE_URL}/reset-password`
+        : `${window.location.origin}/reset-password`
+      
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`
+        redirectTo: redirectUrl
       })
 
       if (error) throw error
@@ -36,9 +41,20 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full">
-        <div className="bg-white rounded-2xl shadow-xl p-8">
+    <div 
+      className="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 relative"
+      style={{
+        backgroundImage: 'url(https://usradkbchlkcfoabxvbo.supabase.co/storage/v1/object/public/assets/Brand%20Guidelines%20Katalara_19.jpg)',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat'
+      }}
+    >
+      {/* Overlay for better readability */}
+      <div className="absolute inset-0 bg-black/40"></div>
+      
+      <div className="max-w-md w-full relative z-10">
+        <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl p-8">
           {/* Header */}
           <div className="text-center mb-8">
             <div className="text-4xl font-bold text-blue-600 mb-2">
