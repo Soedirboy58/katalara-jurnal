@@ -160,8 +160,8 @@ export function OnboardingWizard({ onComplete, userId }: OnboardingWizardProps) 
   const progress = ((currentStep) / 5) * 100
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4">
-      <div className="bg-white rounded-lg sm:rounded-2xl shadow-2xl w-full max-w-3xl max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-0 sm:p-4 overflow-hidden">
+      <div className="bg-white rounded-none sm:rounded-2xl shadow-2xl w-full h-full sm:h-auto sm:max-w-3xl sm:max-h-[90vh] overflow-y-auto overflow-x-hidden">
         {/* Progress Bar */}
         <div className="h-2 bg-gray-200">
           <div 
@@ -171,13 +171,13 @@ export function OnboardingWizard({ onComplete, userId }: OnboardingWizardProps) 
         </div>
 
         {/* Content */}
-        <div className="p-4 sm:p-6 lg:p-8">
+        <div className="p-3 sm:p-6 lg:p-8">
           {/* Step 0: Welcome */}
           {currentStep === 0 && (
-            <div className="space-y-6">
+            <div className="space-y-4 sm:space-y-6">
               <div className="text-center">
-                <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-600 to-blue-400 rounded-full mb-4">
-                  <span className="text-3xl">🎉</span>
+                <div className="inline-flex items-center justify-center w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-br from-blue-600 to-blue-400 rounded-full mb-3 sm:mb-4">
+                  <span className="text-2xl sm:text-3xl">🎉</span>
                 </div>
                 <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Selamat Datang di Katalara!</h2>
                 <p className="text-sm sm:text-base text-gray-600">Platform yang akan membantu bisnis Anda tumbuh lebih cepat</p>
@@ -185,9 +185,9 @@ export function OnboardingWizard({ onComplete, userId }: OnboardingWizardProps) 
 
               <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 sm:p-6 space-y-3 sm:space-y-4">
                 <h3 className="text-sm sm:text-base font-semibold text-blue-900">Platform ini akan membantu Anda:</h3>
-                <ul className="space-y-2 text-sm sm:text-base text-blue-800">
+                <ul className="space-y-1.5 sm:space-y-2 text-xs sm:text-base text-blue-800">
                   <li className="flex items-start">
-                    <CheckCircleIcon className="h-5 w-5 mr-2 mt-0.5 flex-shrink-0" />
+                    <CheckCircleIcon className="h-4 w-4 sm:h-5 sm:w-5 mr-2 mt-0.5 flex-shrink-0" />
                     <span>Memantau kesehatan finansial bisnis secara real-time</span>
                   </li>
                   <li className="flex items-start">
@@ -205,24 +205,24 @@ export function OnboardingWizard({ onComplete, userId }: OnboardingWizardProps) 
                 </ul>
               </div>
 
-              <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
-                <div className="flex items-center text-gray-700">
-                  <LightBulbIcon className="h-5 w-5 mr-2 text-yellow-500" />
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 sm:p-4">
+                <div className="flex items-start">
+                  <LightBulbIcon className="h-4 w-4 sm:h-5 sm:w-5 mr-2 text-yellow-500 flex-shrink-0" />
                   <div>
-                    <p className="font-medium">Proses setup: 5 menit</p>
-                    <p className="text-sm text-gray-600">Semakin lengkap data Anda, semakin akurat analisis yang kami berikan</p>
+                    <p className="text-sm sm:text-base font-medium">Proses setup: 5 menit</p>
+                    <p className="text-xs sm:text-sm text-gray-600">Semakin lengkap data Anda, semakin akurat analisis yang kami berikan</p>
                   </div>
                 </div>
               </div>
 
-              <div className="text-center space-y-3">
-                <p className="text-sm text-gray-600">
+              <div className="text-center space-y-2 sm:space-y-3">
+                <p className="text-xs sm:text-sm text-gray-600">
                   ✅ Kami akan memandu langkah demi langkah<br />
                   ❌ Tidak ada tombol "Lewati" - Setup wajib lengkap
                 </p>
                 <button
                   onClick={() => setCurrentStep(1)}
-                  className="w-full py-3 bg-gradient-to-r from-blue-600 to-blue-500 text-white rounded-lg font-semibold hover:from-blue-700 hover:to-blue-600 transition-all shadow-lg hover:shadow-xl"
+                  className="w-full py-2.5 sm:py-3 text-sm sm:text-base bg-gradient-to-r from-blue-600 to-blue-500 text-white rounded-lg font-semibold hover:from-blue-700 hover:to-blue-600 transition-all shadow-lg hover:shadow-xl"
                 >
                   Mulai Setup Bisnis Saya →
                 </button>
@@ -239,19 +239,19 @@ export function OnboardingWizard({ onComplete, userId }: OnboardingWizardProps) 
               </div>
 
               {/* Manual Selection with Radio Buttons */}
-              <div className="space-y-3">
+              <div className="space-y-2 sm:space-y-3">
                 {BUSINESS_CATEGORIES_ARRAY.map((category: string) => (
                   <button
                     key={category}
                     onClick={() => handleCategorySelect(category)}
-                    className={`w-full text-left p-4 border-2 rounded-lg transition-all ${
+                    className={`w-full text-left p-3 sm:p-4 border-2 rounded-lg transition-all ${
                       formData.businessCategory === category
                         ? 'border-blue-600 bg-blue-50 shadow-md'
                         : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
                     }`}
                   >
                     <div className="flex items-start">
-                      <div className={`flex-shrink-0 mt-1 w-5 h-5 rounded-full border-2 ${
+                      <div className={`flex-shrink-0 mt-0.5 sm:mt-1 w-4 h-4 sm:w-5 sm:h-5 rounded-full border-2 ${
                         formData.businessCategory === category
                           ? 'border-blue-600 bg-blue-600'
                           : 'border-gray-300'
@@ -260,9 +260,9 @@ export function OnboardingWizard({ onComplete, userId }: OnboardingWizardProps) 
                           <div className="w-2 h-2 bg-white rounded-full"></div>
                         )}
                       </div>
-                      <div className="ml-3 flex-1">
-                        <div className="font-semibold text-gray-900">{category}</div>
-                        <div className="text-sm text-gray-600 mt-1">
+                      <div className="ml-2 sm:ml-3 flex-1">
+                        <div className="text-sm sm:text-base font-semibold text-gray-900">{category}</div>
+                        <div className="text-xs sm:text-sm text-gray-600 mt-0.5 sm:mt-1">
                           {getCategoryExplanation(category)}
                         </div>
                       </div>
@@ -282,16 +282,16 @@ export function OnboardingWizard({ onComplete, userId }: OnboardingWizardProps) 
               </div>
 
               {/* Auto-Classify Section */}
-              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-5">
-                <div className="flex items-start mb-3">
+              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-3 sm:p-5">
+                <div className="flex items-start mb-2 sm:mb-3">
                   <div className="flex-shrink-0">
-                    <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center">
-                      <span className="text-xl">💡</span>
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 bg-blue-600 rounded-full flex items-center justify-center">
+                      <span className="text-lg sm:text-xl">💡</span>
                     </div>
                   </div>
-                  <div className="ml-3">
-                    <h3 className="font-semibold text-gray-900">Tidak Yakin Kategori Anda?</h3>
-                    <p className="text-sm text-gray-600 mt-1">Jelaskan bisnis Anda, biar sistem yang menganalisis</p>
+                  <div className="ml-2 sm:ml-3">
+                    <h3 className="text-sm sm:text-base font-semibold text-gray-900">Tidak Yakin Kategori Anda?</h3>
+                    <p className="text-xs sm:text-sm text-gray-600 mt-0.5 sm:mt-1">Jelaskan bisnis Anda, biar sistem yang menganalisis</p>
                   </div>
                 </div>
                 
@@ -299,18 +299,18 @@ export function OnboardingWizard({ onComplete, userId }: OnboardingWizardProps) 
                   value={formData.businessDescription || ''}
                   onChange={(e) => setFormData(prev => ({ ...prev, businessDescription: e.target.value }))}
                   placeholder="Contoh: Saya jual beras, minyak goreng, dan sembako lainnya di warung kecil..."
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  rows={4}
+                  className="w-full px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  rows={3}
                 />
                 
                 <button
                   onClick={handleAnalyzeDescription}
                   disabled={isAnalyzing || !formData.businessDescription || (formData.businessDescription?.length || 0) < 10}
-                  className="mt-3 w-full px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-semibold transition-all shadow-md hover:shadow-lg"
+                  className="mt-2 sm:mt-3 w-full px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-base bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-semibold transition-all shadow-md hover:shadow-lg"
                 >
                   {isAnalyzing ? (
                     <span className="flex items-center justify-center">
-                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <svg className="animate-spin -ml-1 mr-2 sm:mr-3 h-4 w-4 sm:h-5 sm:w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                       </svg>
@@ -423,16 +423,16 @@ export function OnboardingWizard({ onComplete, userId }: OnboardingWizardProps) 
                     Target Penjualan per Bulan
                   </label>
                   <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium">Rp</span>
+                    <span className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 text-sm sm:text-base text-gray-500 font-medium">Rp</span>
                     <input
                       type="text"
                       value={formatNumber(formData.monthlyRevenueTarget || 0)}
                       onChange={(e) => setFormData(prev => ({ ...prev, monthlyRevenueTarget: parseNumber(e.target.value) }))}
-                      className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
+                      className="w-full pl-10 sm:pl-12 pr-3 sm:pr-4 py-2 sm:py-3 text-sm sm:text-lg border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       placeholder="10.000.000"
                     />
                   </div>
-                  <p className="text-xs text-gray-500 mt-1.5">💡 Contoh: Rp 10.000.000 untuk warung sembako</p>
+                  <p className="text-xs text-gray-500 mt-1">💡 Contoh: Rp 10.000.000 untuk warung sembako</p>
                 </div>
 
                 {/* Profit Margin Target */}
@@ -445,12 +445,12 @@ export function OnboardingWizard({ onComplete, userId }: OnboardingWizardProps) 
                       type="number"
                       value={formData.profitMarginTarget || ''}
                       onChange={(e) => setFormData(prev => ({ ...prev, profitMarginTarget: Number(e.target.value) }))}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
+                      className="w-full px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-lg border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       placeholder="25"
                       min="1"
                       max="100"
                     />
-                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium">%</span>
+                    <span className="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 text-sm sm:text-base text-gray-500 font-medium">%</span>
                   </div>
                   {formData.businessCategory && (
                     <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
@@ -471,12 +471,12 @@ export function OnboardingWizard({ onComplete, userId }: OnboardingWizardProps) 
                     type="number"
                     value={formData.breakEvenMonths || ''}
                     onChange={(e) => setFormData(prev => ({ ...prev, breakEvenMonths: Number(e.target.value) }))}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
+                    className="w-full px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-lg border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="12"
                     min="1"
                     max="60"
                   />
-                  <p className="text-xs text-gray-500 mt-1.5">💡 Rata-rata bisnis UMKM: 12-18 bulan</p>
+                  <p className="text-xs text-gray-500 mt-1">💡 Rata-rata bisnis UMKM: 12-18 bulan</p>
                 </div>
               </div>
 
