@@ -32,7 +32,7 @@ export default function ResetPasswordPage() {
       } else if (session) {
         console.log('Session exists')
         setValidSession(true)
-      } else if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
+      } else if (event === 'SIGNED_OUT') {
         console.log('No valid session')
         setError('Link reset password tidak valid atau sudah expired. Silakan request ulang.')
       }
