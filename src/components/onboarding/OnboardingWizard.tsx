@@ -160,8 +160,8 @@ export function OnboardingWizard({ onComplete, userId }: OnboardingWizardProps) 
   const progress = ((currentStep) / 5) * 100
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-0 sm:p-4 overflow-hidden">
-      <div className="bg-white rounded-none sm:rounded-2xl shadow-2xl w-full h-full sm:h-auto sm:max-w-3xl sm:max-h-[90vh] overflow-y-auto overflow-x-hidden">
+    <div className="fixed inset-0 z-50 bg-black/50 sm:backdrop-blur-sm sm:flex sm:items-center sm:justify-center sm:p-4">
+      <div className="bg-white w-full h-full sm:h-auto sm:rounded-2xl sm:shadow-2xl sm:max-w-3xl sm:max-h-[90vh] overflow-y-auto overflow-x-hidden">
         {/* Progress Bar */}
         <div className="h-2 bg-gray-200">
           <div 
