@@ -111,7 +111,7 @@ export function HealthScoreCard({
       {/* Overall Score Circle */}
       <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6 mb-6">
         <div className="relative flex-shrink-0">
-          <svg className="w-28 h-28 sm:w-32 sm:h-32 -rotate-90">
+          <svg className="w-28 h-28 sm:w-32 sm:h-32 -rotate-90" viewBox="0 0 112 112">
             {/* Background circle */}
             <circle
               cx="56"
@@ -136,13 +136,11 @@ export function HealthScoreCard({
               className={`${overallColor.bg} transition-all duration-1000 ease-out`}
             />
           </svg>
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="text-center">
-              <div className={`text-3xl sm:text-4xl font-bold ${overallColor.text}`}>
-                {overallScore}
-              </div>
-              <div className="text-xs text-gray-500">dari 100</div>
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-2">
+            <div className={`text-3xl sm:text-4xl font-bold ${overallColor.text} leading-none tabular-nums`}>
+              {overallScore}
             </div>
+            <div className="text-xs text-gray-500 mt-1 whitespace-nowrap">dari 100</div>
           </div>
         </div>
 

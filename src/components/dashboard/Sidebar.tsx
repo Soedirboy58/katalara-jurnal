@@ -12,7 +12,14 @@ import {
   QuestionMarkCircleIcon,
   ArrowLeftOnRectangleIcon,
   XMarkIcon,
-  Bars3Icon
+  Bars3Icon,
+  CubeIcon,
+  UserGroupIcon,
+  ChartBarIcon,
+  RocketLaunchIcon,
+  ChatBubbleLeftRightIcon,
+  PlusCircleIcon,
+  MinusCircleIcon
 } from '@heroicons/react/24/outline'
 
 interface SidebarProps {
@@ -23,12 +30,71 @@ interface SidebarProps {
 }
 
 const menuItems = [
-  { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
-  { name: 'Produk', href: '/dashboard/products', icon: ShoppingCartIcon },
-  { name: 'Penjualan', href: '/dashboard/sales', icon: CurrencyDollarIcon },
-  { name: 'Pengeluaran', href: '/dashboard/expenses', icon: CircleStackIcon },
-  { name: 'Pengaturan', href: '/dashboard/settings', icon: Cog6ToothIcon },
-  { name: 'Bantuan', href: '/dashboard/help', icon: QuestionMarkCircleIcon },
+  { 
+    name: 'Dashboard', 
+    href: '/dashboard', 
+    icon: HomeIcon,
+    description: 'Overview bisnis Anda'
+  },
+  { 
+    name: 'Input Penjualan', 
+    href: '/dashboard/input-sales', 
+    icon: PlusCircleIcon,
+    description: 'Catat transaksi penjualan',
+    badge: 'Hot'
+  },
+  { 
+    name: 'Input Pengeluaran', 
+    href: '/dashboard/input-expenses', 
+    icon: MinusCircleIcon,
+    description: 'Catat pengeluaran bisnis',
+    badge: 'Hot'
+  },
+  { 
+    name: 'Produk Saya', 
+    href: '/dashboard/products', 
+    icon: CubeIcon,
+    description: 'Kelola produk & stok'
+  },
+  { 
+    name: 'Pelanggan', 
+    href: '/dashboard/customers', 
+    icon: UserGroupIcon,
+    description: 'Data pelanggan & piutang',
+    badge: 'New'
+  },
+  { 
+    name: 'Laporan', 
+    href: '/dashboard/reports', 
+    icon: ChartBarIcon,
+    description: 'Analisis & laporan'
+  },
+  { 
+    name: 'Level Up', 
+    href: '/dashboard/level-up', 
+    icon: RocketLaunchIcon,
+    description: 'Mentoring & pembelajaran',
+    badge: 'New'
+  },
+  { 
+    name: 'Community', 
+    href: '/dashboard/community', 
+    icon: ChatBubbleLeftRightIcon,
+    description: 'Forum & diskusi',
+    badge: 'New'
+  },
+  { 
+    name: 'Pengaturan', 
+    href: '/dashboard/settings', 
+    icon: Cog6ToothIcon,
+    description: 'Konfigurasi platform'
+  },
+  { 
+    name: 'Bantuan', 
+    href: '/dashboard/help', 
+    icon: QuestionMarkCircleIcon,
+    description: 'Panduan & support'
+  },
 ]
 
 export function Sidebar({ isOpen, onClose, collapsed, onToggleCollapse }: SidebarProps) {
@@ -113,29 +179,54 @@ export function Sidebar({ isOpen, onClose, collapsed, onToggleCollapse }: Sideba
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-            {menuItems.map((item) => {
+          <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto scrollbar-thin scrollbar-thumb-white/20">
+            {menuItems.map((item, index) => {
               const isActive = pathname === item.href
               const Icon = item.icon
+              const showDivider = index === 2 || index === 5 || index === 7 // After Input Pengeluaran, Laporan, Community
+              
               return (
-                <a
-                  key={item.name}
-                  href={item.href}
-                  title={collapsed ? item.name : ''}
-                  className={`
-                    flex items-center px-3 py-2.5 text-sm font-medium rounded-lg
-                    transition-all duration-200
-                    ${collapsed ? 'justify-center' : ''}
-                    ${
-                      isActive
-                        ? 'bg-white/20 text-white shadow-md'
-                        : 'text-white/80 hover:bg-white/10 hover:text-white'
-                    }
-                  `}
-                >
-                  <Icon className={`h-5 w-5 ${collapsed ? '' : 'mr-3'} flex-shrink-0`} />
-                  {!collapsed && <span className="whitespace-nowrap">{item.name}</span>}
-                </a>
+                <div key={item.name}>
+                  <a
+                    href={item.href}
+                    title={collapsed ? item.name : item.description}
+                    className={`
+                      group flex items-center px-3 py-2.5 text-sm font-medium rounded-lg
+                      transition-all duration-200 relative
+                      ${collapsed ? 'justify-center' : ''}
+                      ${
+                        isActive
+                          ? 'bg-white/20 text-white shadow-md'
+                          : 'text-white/80 hover:bg-white/10 hover:text-white'
+                      }
+                    `}
+                  >
+                    <Icon className={`h-5 w-5 ${collapsed ? '' : 'mr-3'} flex-shrink-0 transition-transform group-hover:scale-110`} />
+                    {!collapsed && (
+                      <div className="flex-1 flex items-center justify-between">
+                        <span className="whitespace-nowrap">{item.name}</span>
+                        {item.badge && (
+                          <span className={`
+                            ml-2 px-1.5 py-0.5 text-[10px] font-bold rounded uppercase tracking-wide
+                            ${item.badge === 'Hot' ? 'bg-red-500 text-white' : 'bg-green-500 text-white'}
+                          `}>
+                            {item.badge}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    
+                    {/* Active indicator */}
+                    {isActive && (
+                      <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-yellow-400 rounded-r-full" />
+                    )}
+                  </a>
+                  
+                  {/* Divider */}
+                  {showDivider && !collapsed && (
+                    <div className="my-2 h-px bg-white/10" />
+                  )}
+                </div>
               )
             })}
           </nav>

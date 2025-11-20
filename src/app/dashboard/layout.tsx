@@ -109,24 +109,41 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   <ChevronDoubleLeftIcon className="h-5 w-5" />
                 )}
               </button>
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center gap-2">
+                {/* Dashboard Button */}
                 <button
                   onClick={() => router.push('/dashboard')}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                  className="flex items-center justify-center p-2 sm:px-4 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  title="Dashboard"
                 >
-                  Dashboard
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
+                  </svg>
+                  <span className="ml-2 text-sm font-medium hidden sm:inline">Dashboard</span>
                 </button>
+                
+                {/* Input Penjualan Button */}
                 <button
-                  onClick={() => router.push('/dashboard/sales/new')}
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium hidden sm:block"
+                  onClick={() => router.push('/dashboard/input-sales')}
+                  className="flex items-center justify-center p-2 sm:px-4 sm:py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                  title="Input Penjualan"
                 >
-                  Input Penjualan
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                  </svg>
+                  <span className="ml-2 text-sm font-medium hidden sm:inline">Penjualan</span>
                 </button>
+                
+                {/* Input Pengeluaran Button */}
                 <button
-                  onClick={() => router.push('/dashboard/expenses/new')}
-                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium hidden sm:block"
+                  onClick={() => router.push('/dashboard/input-expenses')}
+                  className="flex items-center justify-center p-2 sm:px-4 sm:py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                  title="Input Pengeluaran"
                 >
-                  Input Pengeluaran
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 12h-15" />
+                  </svg>
+                  <span className="ml-2 text-sm font-medium hidden sm:inline">Pengeluaran</span>
                 </button>
               </div>
             </div>

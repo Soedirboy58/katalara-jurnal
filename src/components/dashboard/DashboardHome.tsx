@@ -16,6 +16,8 @@ import {
 } from '@heroicons/react/24/outline'
 import { InsightsPanel } from './InsightsPanel'
 import { HealthScoreCard } from './HealthScoreCard'
+import { SalesChart } from './SalesChart'
+import { RevenueExpenseChart } from './RevenueExpenseChart'
 
 interface KPICard {
   title: string
@@ -150,18 +152,6 @@ export function DashboardHome() {
         <p className="text-sm sm:text-base text-blue-100">
           Berikut adalah ringkasan bisnis Anda hari ini
         </p>
-        
-        {/* Quick Actions - Mobile Optimized */}
-        <div className="mt-3 sm:mt-4 flex flex-wrap gap-2">
-          <button className="flex items-center gap-1.5 px-3 py-1.5 bg-white/20 hover:bg-white/30 rounded-lg text-xs sm:text-sm font-medium transition-colors">
-            <PlusIcon className="h-4 w-4" />
-            Tambah Penjualan
-          </button>
-          <button className="flex items-center gap-1.5 px-3 py-1.5 bg-white/20 hover:bg-white/30 rounded-lg text-xs sm:text-sm font-medium transition-colors">
-            <ArrowUpTrayIcon className="h-4 w-4" />
-            Input Pengeluaran
-          </button>
-        </div>
       </div>
 
       {/* KPI Grid - Mobile Optimized */}
@@ -229,24 +219,10 @@ export function DashboardHome() {
         minCashAlert={businessConfig?.minimum_cash_alert || 10000000}
       />
 
-      {/* Charts Section (Placeholder) */}
+      {/* Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
-          <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">
-            Penjualan 7 Hari Terakhir
-          </h3>
-          <div className="h-48 sm:h-64 flex items-center justify-center bg-gray-50 rounded-lg">
-            <p className="text-xs sm:text-sm text-gray-500">Chart akan ditambahkan segera</p>
-          </div>
-        </div>
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
-          <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">
-            Revenue vs Expense
-          </h3>
-          <div className="h-48 sm:h-64 flex items-center justify-center bg-gray-50 rounded-lg">
-            <p className="text-xs sm:text-sm text-gray-500">Chart akan ditambahkan segera</p>
-          </div>
-        </div>
+        <SalesChart />
+        <RevenueExpenseChart revenue={45000000} expense={32000000} />
       </div>
 
       {/* Recent Transactions */}
