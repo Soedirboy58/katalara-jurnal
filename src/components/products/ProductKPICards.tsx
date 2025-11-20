@@ -100,22 +100,22 @@ export function ProductKPICards({
   ]
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 mb-6">
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-4 mb-3 sm:mb-6">
       {kpiData.map((kpi, index) => {
         const Icon = kpi.icon
         return (
           <div
             key={index}
-            className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 hover:shadow-md transition-shadow"
+            className="bg-white rounded-lg shadow-sm border border-gray-200 p-2 sm:p-4 hover:shadow-md transition-shadow"
           >
-            <div className={`w-10 h-10 ${kpi.bgColor} rounded-lg flex items-center justify-center mb-3`}>
-              <Icon className={`w-5 h-5 ${kpi.iconColor}`} />
+            <div className={`w-8 h-8 sm:w-10 sm:h-10 ${kpi.bgColor} rounded-lg flex items-center justify-center mb-1.5 sm:mb-3`}>
+              <Icon className={`w-4 h-4 sm:w-5 sm:h-5 ${kpi.iconColor}`} />
             </div>
-            <p className="text-xs text-gray-600 mb-1">{kpi.label}</p>
-            <p className={`text-lg sm:text-xl font-bold ${kpi.textColor} mb-1 truncate`}>
+            <p className="text-[10px] sm:text-xs text-gray-600 mb-0.5 sm:mb-1 leading-tight">{kpi.label}</p>
+            <p className={`text-sm sm:text-lg lg:text-xl font-bold ${kpi.textColor} mb-0.5 sm:mb-1 truncate leading-tight`}>
               {kpi.value}
             </p>
-            <p className="text-xs text-gray-500">{kpi.subtitle}</p>
+            <p className="text-[9px] sm:text-xs text-gray-500 leading-tight truncate">{kpi.subtitle}</p>
           </div>
         )
       })}

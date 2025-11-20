@@ -6,6 +6,35 @@ export type Product = Database['public']['Tables']['products']['Row']
 export type ProductInsert = Database['public']['Tables']['products']['Insert']
 export type ProductUpdate = Database['public']['Tables']['products']['Update']
 
+// Recipe types (manual types until DB migration runs)
+export interface ProductRecipe {
+  id: string
+  user_id: string
+  finished_product_id: string
+  ingredient_product_id: string
+  quantity_needed: number
+  unit: string
+  notes?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface RecipeIngredient {
+  id: string
+  ingredient_product_id: string
+  ingredient_name: string
+  ingredient_unit: string
+  quantity_needed: number
+  unit: string
+  notes?: string
+}
+
+export interface ProductWithRecipe extends Product {
+  recipe: RecipeIngredient[]
+  total_ingredient_cost: number
+  profit_margin: number
+}
+
 export type StockStatus = 
   | 'OUT_OF_STOCK' 
   | 'CRITICAL' 

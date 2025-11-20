@@ -36,9 +36,10 @@ export function DashboardHome() {
   const [loading, setLoading] = useState(true)
   const [businessName, setBusinessName] = useState('')
   const [businessConfig, setBusinessConfig] = useState<any>(null)
+  const [kpiData, setKpiData] = useState<any>(null)
 
   useEffect(() => {
-    const loadUserData = async () => {
+    const loadData = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser()
         if (user) {
@@ -53,7 +54,7 @@ export function DashboardHome() {
             setBusinessName(profile.business_name)
           }
 
-          // Load business config for insights
+          // Load business config
           const { data: config } = await supabase
             .from('business_configurations')
             .select('*')
@@ -63,6 +64,15 @@ export function DashboardHome() {
           if (config) {
             setBusinessConfig(config)
           }
+
+          // Load KPI data from API
+          const kpiResponse = await fetch('/api/kpi')
+          if (kpiResponse.ok) {
+            const kpiResult = await kpiResponse.json()
+            if (kpiResult.success) {
+              setKpiData(kpiResult.data)
+            }
+          }
         }
       } catch (error) {
         console.error('Error loading data:', error)
@@ -71,52 +81,63 @@ export function DashboardHome() {
       }
     }
 
-    loadUserData()
+    loadData()
   }, [supabase])
+
+  const formatCurrency = (num: number) => {
+    return new Intl.NumberFormat('id-ID', {
+      style: 'currency',
+      currency: 'IDR',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(num)
+  }
 
   const kpiCards: KPICard[] = [
     {
       title: 'Penjualan Hari Ini',
-      value: 'Rp 2.500.000',
-      subtitle: '15 transaksi',
+      value: kpiData ? formatCurrency(kpiData.today.sales) : 'Rp 0',
+      subtitle: 'Target harian',
       icon: CurrencyDollarIcon,
-      trend: { value: '+12%', isPositive: true },
       color: 'blue'
     },
     {
       title: 'Pengeluaran Hari Ini',
-      value: 'Rp 800.000',
-      subtitle: '8 transaksi',
+      value: kpiData ? formatCurrency(kpiData.today.expenses) : 'Rp 0',
+      subtitle: 'Total pengeluaran',
       icon: ShoppingBagIcon,
-      trend: { value: '+5%', isPositive: false },
       color: 'red'
     },
     {
-      title: 'Omset Bulan Ini',
-      value: 'Rp 45.000.000',
-      subtitle: '125 transaksi',
+      title: 'Laba Hari Ini',
+      value: kpiData ? formatCurrency(kpiData.today.netProfit) : 'Rp 0',
+      subtitle: 'Penjualan - Pengeluaran',
       icon: ChartBarIcon,
-      trend: { value: '+18%', isPositive: true },
+      trend: kpiData?.today.netProfit > 0 
+        ? { value: 'Profit', isPositive: true }
+        : kpiData?.today.netProfit < 0
+        ? { value: 'Loss', isPositive: false }
+        : undefined,
       color: 'green'
     },
     {
-      title: 'Total Pelanggan',
-      value: '42',
-      subtitle: 'Pelanggan aktif',
-      icon: UsersIcon,
+      title: 'Omset Bulan Ini',
+      value: kpiData ? formatCurrency(kpiData.month.sales) : 'Rp 0',
+      subtitle: 'Total penjualan bulan ini',
+      icon: ChartBarIcon,
       color: 'purple'
     },
     {
-      title: 'Total Piutang',
-      value: 'Rp 3.200.000',
-      subtitle: '12 pelanggan',
-      icon: CreditCardIcon,
+      title: 'Total Produk',
+      value: kpiData ? String(kpiData.products.total) : '0',
+      subtitle: 'Produk terdaftar',
+      icon: ShoppingBagIcon,
       color: 'yellow'
     },
     {
-      title: 'Pelanggan Overdue',
-      value: '5',
-      subtitle: 'Butuh follow-up',
+      title: 'Stok Menipis',
+      value: kpiData ? String(kpiData.products.lowStock) : '0',
+      subtitle: 'Perlu restock',
       icon: ExclamationTriangleIcon,
       color: 'orange'
     }

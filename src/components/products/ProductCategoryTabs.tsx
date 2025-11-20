@@ -18,7 +18,8 @@ export function ProductCategoryTabs({ tabs, activeTab, onTabChange }: ProductCat
   return (
     <div className="mb-6">
       {/* Desktop Tabs */}
-      <div className="hidden sm:flex gap-2 overflow-x-auto pb-2">
+      <div className="hidden sm:flex justify-center">
+        <div className="flex gap-2 overflow-x-auto pb-2">
         {tabs.map((tab) => (
           <button
             key={tab.id}
@@ -42,6 +43,7 @@ export function ProductCategoryTabs({ tabs, activeTab, onTabChange }: ProductCat
             </span>
           </button>
         ))}
+        </div>
       </div>
 
       {/* Mobile Select */}

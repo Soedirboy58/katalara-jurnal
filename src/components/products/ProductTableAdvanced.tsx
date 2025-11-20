@@ -104,8 +104,9 @@ export function ProductTableAdvanced({
 
   return (
     <div className="bg-white rounded-lg shadow overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="w-full">
+      {/* Desktop Table */}
+      <div className="hidden md:block overflow-x-auto">
+        <table className="min-w-full w-full">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
               <th className="px-4 py-3 text-left w-12">
@@ -183,7 +184,7 @@ export function ProductTableAdvanced({
                   key={product.id} 
                   className={`hover:bg-gray-50 transition-colors ${isSelected ? 'bg-blue-50' : ''}`}
                 >
-                  <td className="px-4 py-3">
+                  <td className="px-2 sm:px-4 py-2 sm:py-3">
                     <input
                       type="checkbox"
                       checked={isSelected}
@@ -191,76 +192,76 @@ export function ProductTableAdvanced({
                       className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
                     />
                   </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-gradient-to-br from-blue-100 to-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                        <span className="text-lg">📦</span>
+                  <td className="px-2 sm:px-4 py-2 sm:py-3">
+                    <div className="flex items-center gap-2 sm:gap-3">
+                      <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-blue-100 to-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <span className="text-sm sm:text-lg">📦</span>
                       </div>
-                      <div>
-                        <div className="text-sm font-semibold text-gray-900">{product.name}</div>
+                      <div className="min-w-0">
+                        <div className="text-xs sm:text-sm font-semibold text-gray-900 truncate">{product.name}</div>
                         {product.sku && (
-                          <div className="text-xs text-gray-500">SKU: {product.sku}</div>
+                          <div className="text-[10px] sm:text-xs text-gray-500 truncate">SKU: {product.sku}</div>
                         )}
                       </div>
                     </div>
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-2 sm:px-4 py-2 sm:py-3">
                     {product.category ? (
-                      <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-700">
+                      <span className="inline-flex px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs font-medium rounded-full bg-gray-100 text-gray-700">
                         {product.category}
                       </span>
                     ) : (
-                      <span className="text-xs text-gray-400">-</span>
+                      <span className="text-[10px] sm:text-xs text-gray-400">-</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-right">
-                    <div className="text-sm font-semibold text-gray-900">
+                  <td className="px-2 sm:px-4 py-2 sm:py-3 text-right">
+                    <div className="text-xs sm:text-sm font-semibold text-gray-900">
                       {product.stock_quantity.toLocaleString()} {product.stock_unit}
                     </div>
                     {product.min_stock_alert > 0 && (
-                      <div className="text-xs text-gray-500">Min: {product.min_stock_alert}</div>
+                      <div className="text-[9px] sm:text-xs text-gray-500">Min: {product.min_stock_alert}</div>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-right text-sm text-gray-600">
+                  <td className="px-2 sm:px-4 py-2 sm:py-3 text-right text-xs sm:text-sm text-gray-600">
                     {formatCurrency(product.buy_price)}
                   </td>
-                  <td className="px-4 py-3 text-right">
-                    <div className="text-sm font-semibold text-gray-900">
+                  <td className="px-2 sm:px-4 py-2 sm:py-3 text-right">
+                    <div className="text-xs sm:text-sm font-semibold text-gray-900">
                       {formatCurrency(product.sell_price)}
                     </div>
-                    <div className={`text-xs ${margin > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    <div className={`text-[9px] sm:text-xs ${margin > 0 ? 'text-green-600' : 'text-red-600'}`}>
                       {margin > 0 ? '+' : ''}{margin.toFixed(1)}%
                     </div>
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-2 sm:px-4 py-2 sm:py-3">
                     <div className="flex justify-center">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${status.color}`}>
+                      <span className={`inline-flex px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs font-semibold rounded-full whitespace-nowrap ${status.color}`}>
                         {status.label}
                       </span>
                     </div>
                   </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center justify-center gap-1">
+                  <td className="px-2 sm:px-4 py-2 sm:py-3">
+                    <div className="flex items-center justify-center gap-0.5 sm:gap-1">
                       <button
                         onClick={() => onEdit(product)}
-                        className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                        className="p-1 sm:p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
                         title="Edit"
                       >
-                        <PencilSquareIcon className="w-4 h-4" />
+                        <PencilSquareIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                       </button>
                       <button
                         onClick={() => onAdjustStock(product)}
-                        className="p-1.5 text-green-600 hover:bg-green-50 rounded transition-colors"
+                        className="p-1 sm:p-1.5 text-green-600 hover:bg-green-50 rounded transition-colors"
                         title="Adjust Stock"
                       >
-                        <AdjustmentsHorizontalIcon className="w-4 h-4" />
+                        <AdjustmentsHorizontalIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                       </button>
                       <button
                         onClick={() => onDelete(product)}
-                        className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
+                        className="p-1 sm:p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
                         title="Delete"
                       >
-                        <TrashIcon className="w-4 h-4" />
+                        <TrashIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                       </button>
                     </div>
                   </td>
@@ -271,15 +272,120 @@ export function ProductTableAdvanced({
         </table>
       </div>
 
+      {/* Mobile List View - No Horizontal Scroll */}
+      <div className="md:hidden divide-y divide-gray-200">
+        {products.map((product) => {
+          const status = getStockStatus(product)
+          const margin = getMargin(product)
+          const isSelected = selectedProducts.includes(product.id)
+
+          return (
+            <div 
+              key={product.id}
+              className={`p-3 ${isSelected ? 'bg-blue-50' : 'bg-white'}`}
+            >
+              {/* Header Row - Checkbox + Name + Actions */}
+              <div className="flex items-start gap-2 mb-2">
+                <input
+                  type="checkbox"
+                  checked={isSelected}
+                  onChange={() => onSelectProduct(product.id)}
+                  className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500 mt-1"
+                />
+                <div className="w-8 h-8 bg-gradient-to-br from-blue-100 to-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <span className="text-sm">📦</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold text-gray-900 truncate">{product.name}</div>
+                  {product.sku && (
+                    <div className="text-[10px] text-gray-500">SKU: {product.sku}</div>
+                  )}
+                </div>
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => onEdit(product)}
+                    className="p-1 text-blue-600 hover:bg-blue-50 rounded"
+                    title="Edit"
+                  >
+                    <PencilSquareIcon className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => onAdjustStock(product)}
+                    className="p-1 text-green-600 hover:bg-green-50 rounded"
+                    title="Stok"
+                  >
+                    <AdjustmentsHorizontalIcon className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => onDelete(product)}
+                    className="p-1 text-red-600 hover:bg-red-50 rounded"
+                    title="Hapus"
+                  >
+                    <TrashIcon className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Info Grid - 2 Columns */}
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs ml-14">
+                {/* Category */}
+                {product.category && (
+                  <div className="col-span-2">
+                    <span className="inline-flex px-2 py-0.5 text-[10px] font-medium rounded-full bg-gray-100 text-gray-700">
+                      {product.category}
+                    </span>
+                  </div>
+                )}
+                
+                {/* Stock */}
+                <div>
+                  <span className="text-gray-500">Stok:</span>
+                  <span className="font-semibold text-gray-900 ml-1">
+                    {product.stock_quantity.toLocaleString()} {product.stock_unit}
+                  </span>
+                </div>
+
+                {/* Status */}
+                <div className="text-right">
+                  <span className={`inline-flex px-2 py-0.5 text-[10px] font-semibold rounded-full ${status.color}`}>
+                    {status.label}
+                  </span>
+                </div>
+
+                {/* Buy Price */}
+                <div>
+                  <span className="text-gray-500">Beli:</span>
+                  <span className="text-gray-900 ml-1">{formatCurrency(product.buy_price)}</span>
+                </div>
+
+                {/* Sell Price */}
+                <div className="text-right">
+                  <span className="text-gray-500">Jual:</span>
+                  <span className="font-semibold text-gray-900 ml-1">{formatCurrency(product.sell_price)}</span>
+                </div>
+
+                {/* Margin - Full Width */}
+                <div className="col-span-2 pt-1 border-t border-gray-100">
+                  <span className="text-gray-500">Margin:</span>
+                  <span className={`font-semibold ml-1 ${margin > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {margin > 0 ? '+' : ''}{margin.toFixed(1)}%
+                  </span>
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
       {/* Pagination */}
-      <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 sm:px-6">
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2 text-sm text-gray-700">
-            <span>Show</span>
+      <div className="px-2 sm:px-4 py-2 sm:py-3 bg-gray-50 border-t border-gray-200">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-2 sm:gap-4">
+          <div className="flex items-center gap-1 sm:gap-2 text-[10px] sm:text-sm text-gray-700">
+            <span className="hidden sm:inline">Show</span>
             <select
               value={itemsPerPage}
               onChange={(e) => onItemsPerPageChange(Number(e.target.value))}
-              className="px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+              className="px-1.5 sm:px-2 py-0.5 sm:py-1 text-xs sm:text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
             >
               <option value={10}>10</option>
               <option value={25}>25</option>
@@ -289,11 +395,11 @@ export function ProductTableAdvanced({
             <span>items per page</span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
             <button
               onClick={() => onPageChange(currentPage - 1)}
               disabled={currentPage === 1}
-              className="px-3 py-1 border border-gray-300 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+              className="px-2 sm:px-3 py-0.5 sm:py-1 border border-gray-300 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed text-[10px] sm:text-sm font-medium"
             >
               Previous
             </button>
@@ -314,7 +420,7 @@ export function ProductTableAdvanced({
                   <button
                     key={pageNum}
                     onClick={() => onPageChange(pageNum)}
-                    className={`px-3 py-1 rounded text-sm font-medium ${
+                    className={`px-2 sm:px-3 py-0.5 sm:py-1 rounded text-[10px] sm:text-sm font-medium ${
                       currentPage === pageNum
                         ? 'bg-blue-600 text-white'
                         : 'border border-gray-300 hover:bg-gray-100'
@@ -328,13 +434,13 @@ export function ProductTableAdvanced({
             <button
               onClick={() => onPageChange(currentPage + 1)}
               disabled={currentPage === totalPages}
-              className="px-3 py-1 border border-gray-300 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+              className="px-2 sm:px-3 py-0.5 sm:py-1 border border-gray-300 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed text-[10px] sm:text-sm font-medium"
             >
               Next
             </button>
           </div>
 
-          <div className="text-sm text-gray-700">
+          <div className="text-[10px] sm:text-sm text-gray-700">
             Page {currentPage} of {totalPages}
           </div>
         </div>

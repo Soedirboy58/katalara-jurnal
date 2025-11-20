@@ -218,12 +218,12 @@ export function ProductsView() {
   }
 
   return (
-    <div className="space-y-4 sm:space-y-6 pb-20">
+    <div className="space-y-3 sm:space-y-6 pb-20">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Produk Saya</h1>
-          <p className="text-sm sm:text-base text-gray-600 mt-1">
+          <h1 className="text-xl sm:text-3xl font-bold text-gray-900">Produk Saya</h1>
+          <p className="text-xs sm:text-base text-gray-600 mt-0.5 sm:mt-1">
             Kelola katalog produk dan inventory bisnis Anda
           </p>
         </div>
@@ -232,12 +232,12 @@ export function ProductsView() {
             setSelectedProduct(null)
             setIsProductModalOpen(true)
           }}
-          className="w-full sm:w-auto"
+          className="w-full sm:w-auto py-2 sm:py-3"
         >
-          <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg className="w-4 h-4 sm:w-5 sm:h-5 mr-1 sm:mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
-          Tambah Produk
+          <span className="text-sm sm:text-base">Tambah Produk</span>
         </Button>
       </div>
 
@@ -245,42 +245,44 @@ export function ProductsView() {
       <ProductKPICards {...kpiData} />
 
       {/* Search and View Controls */}
-      <div className="flex flex-col sm:flex-row gap-3">
+      <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
         <div className="relative flex-1">
-          <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+          <MagnifyingGlassIcon className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
           <input
             type="search"
-            placeholder="Cari produk, SKU, atau kategori..."
+            placeholder="Cari produk..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full pl-8 sm:pl-10 pr-3 sm:pr-4 py-2 sm:py-2.5 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
         </div>
 
         {/* View Mode Toggle */}
-        <div className="flex gap-2 bg-gray-100 p-1 rounded-lg">
-          <button
+        <div className="flex justify-center sm:justify-start">
+          <div className="flex gap-1 bg-gray-100 p-0.5 sm:p-1 rounded-lg w-fit">
+            <button
             onClick={() => setViewMode('table')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-md font-medium text-sm transition-colors ${
+            className={`flex items-center justify-center gap-1 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-md font-medium text-xs sm:text-sm transition-colors ${
               viewMode === 'table'
                 ? 'bg-white text-gray-900 shadow-sm'
                 : 'text-gray-600 hover:text-gray-900'
             }`}
           >
-            <TableCellsIcon className="w-4 h-4" />
+            <TableCellsIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             <span className="hidden sm:inline">Table</span>
           </button>
           <button
             onClick={() => setViewMode('card')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-md font-medium text-sm transition-colors ${
+            className={`flex items-center justify-center gap-1 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-md font-medium text-xs sm:text-sm transition-colors ${
               viewMode === 'card'
                 ? 'bg-white text-gray-900 shadow-sm'
                 : 'text-gray-600 hover:text-gray-900'
             }`}
           >
-            <Squares2X2Icon className="w-4 h-4" />
+            <Squares2X2Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             <span className="hidden sm:inline">Cards</span>
           </button>
+          </div>
         </div>
       </div>
 
@@ -304,13 +306,13 @@ export function ProductsView() {
 
       {/* Results Info */}
       {!loading && filteredProducts.length > 0 && (
-        <div className="flex items-center justify-between text-sm text-gray-600">
-          <span>
-            Menampilkan {paginatedProducts.length} dari {filteredProducts.length} produk
+        <div className="flex items-center justify-between text-xs sm:text-sm text-gray-600 px-1">
+          <span className="truncate">
+            {paginatedProducts.length} dari {filteredProducts.length} produk
           </span>
           {selectedProducts.length > 0 && (
-            <span className="font-semibold text-blue-600">
-              {selectedProducts.length} produk dipilih
+            <span className="font-semibold text-blue-600 ml-2 whitespace-nowrap">
+              {selectedProducts.length} dipilih
             </span>
           )}
         </div>
