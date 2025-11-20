@@ -19,7 +19,8 @@ import {
   RocketLaunchIcon,
   ChatBubbleLeftRightIcon,
   PlusCircleIcon,
-  MinusCircleIcon
+  MinusCircleIcon,
+  BuildingStorefrontIcon
 } from '@heroicons/react/24/outline'
 
 interface SidebarProps {
@@ -61,6 +62,13 @@ const menuItems = [
     href: '/dashboard/customers', 
     icon: UserGroupIcon,
     description: 'Data pelanggan & piutang'
+  },
+  { 
+    name: 'Lapak Online', 
+    href: '/dashboard/lapak', 
+    icon: BuildingStorefrontIcon,
+    description: 'Toko online & share link',
+    badge: 'New'
   },
   { 
     name: 'Laporan', 
