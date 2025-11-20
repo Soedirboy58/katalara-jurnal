@@ -4,9 +4,12 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import QRCode from 'react-qr-code';
 import { Storefront, StorefrontProduct, THEME_PRESETS, PRODUCT_TYPES, BARANG_CATEGORIES, JASA_CATEGORIES } from '@/types/lapak';
+import ImageUpload from '@/components/lapak/ImageUpload';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function LapakPage() {
   const router = useRouter();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [storefront, setStorefront] = useState<Storefront | null>(null);
@@ -19,6 +22,10 @@ export default function LapakPage() {
     store_name: '',
     description: '',
     logo_url: '',
+    qris_image_url: '',
+    bank_name: '',
+    bank_account_number: '',
+    bank_account_holder: '',
     whatsapp_number: '',
     instagram_handle: '',
     location_text: '',
@@ -60,6 +67,10 @@ export default function LapakPage() {
           store_name: data.storefront.store_name,
           description: data.storefront.description || '',
           logo_url: data.storefront.logo_url || '',
+          qris_image_url: data.storefront.qris_image_url || '',
+          bank_name: data.storefront.bank_name || '',
+          bank_account_number: data.storefront.bank_account_number || '',
+          bank_account_holder: data.storefront.bank_account_holder || '',
           whatsapp_number: data.storefront.whatsapp_number,
           instagram_handle: data.storefront.instagram_handle || '',
           location_text: data.storefront.location_text || '',
@@ -289,37 +300,14 @@ export default function LapakPage() {
                     />
                   </div>
 
-                  <div>
-                    <label className="block font-medium text-gray-900 mb-2">Logo Bisnis</label>
-                    <div className="space-y-3">
-                      {formData.logo_url && (
-                        <div className="relative w-32 h-32 bg-gray-100 rounded-lg overflow-hidden">
-                          <img 
-                            src={formData.logo_url} 
-                            alt="Logo preview" 
-                            className="w-full h-full object-cover"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setFormData({ ...formData, logo_url: '' })}
-                            className="absolute top-1 right-1 p-1.5 bg-red-500 text-white rounded-full hover:bg-red-600 text-xs"
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      )}
-                      <input
-                        type="url"
-                        value={formData.logo_url || ''}
-                        onChange={(e) => setFormData({ ...formData, logo_url: e.target.value })}
-                        placeholder="https://example.com/logo.png"
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent"
-                      />
-                      <p className="text-xs text-gray-500">
-                        🏪 Upload logo ke ImgBB/Imgur, lalu paste URL di sini
-                      </p>
-                    </div>
-                  </div>
+                  <ImageUpload
+                    currentImageUrl={formData.logo_url}
+                    onImageUploaded={(url) => setFormData({ ...formData, logo_url: url })}
+                    folder="logos"
+                    userId={user?.id || ''}
+                    label="Logo Bisnis"
+                    aspectRatio="square"
+                  />
 
                   <div>
                     <label className="block font-medium text-gray-900 mb-2">
@@ -357,7 +345,67 @@ export default function LapakPage() {
                     />
                   </div>
 
-                  <div>
+                  {/* Payment Methods Section */}
+                  <div className="border-t pt-6 mt-6">
+                    <h3 className="text-lg font-bold text-gray-900 mb-4">💳 Metode Pembayaran</h3>
+                    
+                    <ImageUpload
+                      currentImageUrl={formData.qris_image_url}
+                      onImageUploaded={(url) => setFormData({ ...formData, qris_image_url: url })}
+                      folder="qris"
+                      userId={user?.id || ''}
+                      label="QRIS Code"
+                      aspectRatio="square"
+                    />
+
+                    <div className="mt-6 space-y-4">
+                      <h4 className="font-semibold text-gray-900">Rekening Bank Transfer</h4>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Nama Bank</label>
+                        <select
+                          value={formData.bank_name}
+                          onChange={(e) => setFormData({ ...formData, bank_name: e.target.value })}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+                        >
+                          <option value="">Pilih Bank</option>
+                          <option value="BCA">BCA</option>
+                          <option value="Mandiri">Mandiri</option>
+                          <option value="BNI">BNI</option>
+                          <option value="BRI">BRI</option>
+                          <option value="CIMB Niaga">CIMB Niaga</option>
+                          <option value="Permata">Permata</option>
+                          <option value="Danamon">Danamon</option>
+                          <option value="BTN">BTN</option>
+                          <option value="Bank Syariah Indonesia (BSI)">Bank Syariah Indonesia (BSI)</option>
+                          <option value="Jenius">Jenius</option>
+                          <option value="SeaBank">SeaBank</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Nomor Rekening</label>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={formData.bank_account_number}
+                          onChange={(e) => setFormData({ ...formData, bank_account_number: e.target.value })}
+                          placeholder="1234567890"
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Atas Nama</label>
+                        <input
+                          type="text"
+                          value={formData.bank_account_holder}
+                          onChange={(e) => setFormData({ ...formData, bank_account_holder: e.target.value })}
+                          placeholder="Nama Pemilik Rekening"
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="border-t pt-6">
                     <label className="block font-medium text-gray-900 mb-2">Warna Tema</label>
                     <div className="grid grid-cols-5 gap-2 mb-3">
                       {THEME_PRESETS.map((preset) => (
@@ -392,13 +440,63 @@ export default function LapakPage() {
                     <label className="font-medium text-gray-900">Aktifkan Lapak</label>
                   </div>
 
-                  <button
-                    onClick={handleSaveStorefront}
-                    disabled={saving || !formData.store_name || !formData.whatsapp_number}
-                    className="w-full py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    {saving ? 'Menyimpan...' : storefront ? 'Perbarui Lapak' : 'Buat Lapak'}
-                  </button>
+                  <div className="space-y-3">
+                    <button
+                      onClick={handleSaveStorefront}
+                      disabled={saving || !formData.store_name || !formData.whatsapp_number}
+                      className="w-full py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {saving ? 'Menyimpan...' : storefront ? 'Perbarui Lapak' : 'Buat Lapak'}
+                    </button>
+
+                    {storefront && (
+                      <button
+                        onClick={async () => {
+                          if (!confirm('⚠️ PERHATIAN!\n\nMenghapus lapak akan menghapus:\n• Semua produk\n• Data analytics\n• Link lapak tidak akan bisa diakses lagi\n\nApakah Anda yakin ingin menghapus lapak ini?')) {
+                            return;
+                          }
+
+                          setSaving(true);
+                          try {
+                            const response = await fetch('/api/lapak', {
+                              method: 'DELETE',
+                            });
+
+                            if (response.ok) {
+                              alert('✅ Lapak berhasil dihapus');
+                              setStorefront(null);
+                              setProducts([]);
+                              setFormData({
+                                store_name: '',
+                                description: '',
+                                logo_url: '',
+                                qris_image_url: '',
+                                bank_name: '',
+                                bank_account_number: '',
+                                bank_account_holder: '',
+                                whatsapp_number: '',
+                                instagram_handle: '',
+                                location_text: '',
+                                theme_color: '#3B82F6',
+                                is_active: true,
+                              });
+                            } else {
+                              alert('❌ Gagal menghapus lapak');
+                            }
+                          } catch (error) {
+                            console.error('Error deleting storefront:', error);
+                            alert('❌ Terjadi kesalahan');
+                          } finally {
+                            setSaving(false);
+                          }
+                        }}
+                        disabled={saving}
+                        className="w-full py-3 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        🗑️ Hapus Lapak Permanen
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* Right Column - Preview & Share */}
@@ -654,37 +752,14 @@ export default function LapakPage() {
                           </div>
 
                           {/* Upload Foto Produk */}
-                          <div>
-                            <label className="block font-medium mb-2">Foto Produk</label>
-                            <div className="space-y-3">
-                              {productForm.image_url && (
-                                <div className="relative w-full h-48 bg-gray-100 rounded-lg overflow-hidden">
-                                  <img 
-                                    src={productForm.image_url} 
-                                    alt="Product preview" 
-                                    className="w-full h-full object-cover"
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={() => setProductForm({ ...productForm, image_url: '' })}
-                                    className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-full hover:bg-red-600"
-                                  >
-                                    ✕
-                                  </button>
-                                </div>
-                              )}
-                              <input
-                                type="url"
-                                value={productForm.image_url || ''}
-                                onChange={(e) => setProductForm({ ...productForm, image_url: e.target.value })}
-                                placeholder="https://example.com/image.jpg"
-                                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent"
-                              />
-                              <p className="text-xs text-gray-500">
-                                📸 Masukkan URL foto produk atau upload ke layanan seperti ImgBB, Imgur, dll
-                              </p>
-                            </div>
-                          </div>
+                          <ImageUpload
+                            currentImageUrl={productForm.image_url}
+                            onImageUploaded={(url) => setProductForm({ ...productForm, image_url: url })}
+                            folder="products"
+                            userId={user?.id || ''}
+                            label="Foto Produk"
+                            aspectRatio="auto"
+                          />
 
                           {/* Kategori - Dynamic based on product type */}
                           <div>

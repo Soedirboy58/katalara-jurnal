@@ -22,6 +22,12 @@ export interface Storefront {
   instagram_handle?: string;
   location_text?: string;
   
+  // Payment Methods
+  qris_image_url?: string;
+  bank_name?: string;
+  bank_account_number?: string;
+  bank_account_holder?: string;
+  
   // Status
   is_active: boolean;
   

@@ -415,6 +415,16 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
         totalAmount={checkoutItems.reduce((sum, item) => sum + (item.price * item.quantity), 0)}
         themeColor={storefront.theme_color}
         storeName={storefront.store_name}
+        qrisImage={storefront.qris_image_url}
+        businessBankAccount={
+          storefront.bank_name && storefront.bank_account_number
+            ? {
+                bank_name: storefront.bank_name,
+                account_number: storefront.bank_account_number,
+                account_holder: storefront.bank_account_holder || storefront.store_name,
+              }
+            : undefined
+        }
         onPaymentComplete={handlePaymentComplete}
       />
 

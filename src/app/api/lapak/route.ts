@@ -100,6 +100,10 @@ export async function POST(request: NextRequest) {
       theme_color,
       logo_url,
       cover_image_url,
+      qris_image_url,
+      bank_name,
+      bank_account_number,
+      bank_account_holder,
       is_active,
     } = body;
 
@@ -131,6 +135,10 @@ export async function POST(request: NextRequest) {
           theme_color,
           logo_url,
           cover_image_url,
+          qris_image_url,
+          bank_name,
+          bank_account_number,
+          bank_account_holder,
           is_active,
           updated_at: new Date().toISOString(),
         })
@@ -190,6 +198,10 @@ export async function POST(request: NextRequest) {
           theme_color: theme_color || '#3B82F6',
           logo_url,
           cover_image_url,
+          qris_image_url,
+          bank_name,
+          bank_account_number,
+          bank_account_holder,
           is_active: is_active !== undefined ? is_active : true,
         })
         .select()
@@ -207,6 +219,59 @@ export async function POST(request: NextRequest) {
     }
   } catch (error) {
     console.error('Error in lapak API:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+// DELETE /api/lapak - Delete storefront and all related data
+export async function DELETE() {
+  try {
+    const supabase = await createClient();
+    
+    // Get current user
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    
+    if (userError || !user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    // Get storefront ID
+    const { data: storefront } = await supabase
+      .from('business_storefronts')
+      .select('id')
+      .eq('user_id', user.id)
+      .single();
+
+    if (!storefront) {
+      return NextResponse.json(
+        { error: 'Storefront not found' },
+        { status: 404 }
+      );
+    }
+
+    // Delete storefront (CASCADE will delete products, analytics, cart_sessions)
+    const { error: deleteError } = await supabase
+      .from('business_storefronts')
+      .delete()
+      .eq('id', storefront.id);
+
+    if (deleteError) {
+      console.error('Error deleting storefront:', deleteError);
+      return NextResponse.json(
+        { error: 'Failed to delete storefront' },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Error in DELETE lapak API:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
