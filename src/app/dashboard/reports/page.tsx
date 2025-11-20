@@ -28,6 +28,54 @@ export default function ReportsPage() {
         </p>
       </div>
 
+      {/* Quick Access Card - Cash Flow Report */}
+      <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-lg p-6 mb-6 shadow-sm hover:shadow-md transition-all">
+        <div className="flex items-start justify-between">
+          <div className="flex-1">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 bg-blue-600 rounded-lg">
+                <svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">Laporan Arus Kas (Cash Flow)</h3>
+                <p className="text-sm text-gray-600">Analisis lengkap pemasukan dan pengeluaran bulanan</p>
+              </div>
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2 text-sm text-gray-700">
+              <span className="inline-flex items-center gap-1 bg-white px-3 py-1 rounded-full border border-blue-200">
+                <svg className="h-4 w-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Aktivitas Operasional
+              </span>
+              <span className="inline-flex items-center gap-1 bg-white px-3 py-1 rounded-full border border-blue-200">
+                <svg className="h-4 w-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Aktivitas Investasi
+              </span>
+              <span className="inline-flex items-center gap-1 bg-white px-3 py-1 rounded-full border border-blue-200">
+                <svg className="h-4 w-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Aktivitas Pendanaan
+              </span>
+            </div>
+          </div>
+          <a 
+            href="/dashboard/reports/cash-flow"
+            className="ml-4 flex-shrink-0 px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors shadow-md hover:shadow-lg flex items-center gap-2"
+          >
+            Lihat Laporan
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </a>
+        </div>
+      </div>
+
       {/* Date Range Selector */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
         <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">

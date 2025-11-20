@@ -62,6 +62,12 @@ export default function InputExpensesPage() {
   // Bulk selection
   const [selectedExpenses, setSelectedExpenses] = useState<string[]>([])
   const [showPreviewModal, setShowPreviewModal] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<{type: 'single' | 'bulk', id?: string} | null>(null)
+  
+  // Edit expense
+  const [editingExpense, setEditingExpense] = useState<any>(null)
+  const [showEditModal, setShowEditModal] = useState(false)
   
   // Expense limit settings
   const [dailyExpenseLimit, setDailyExpenseLimit] = useState<number | null>(null)
@@ -323,22 +329,33 @@ export default function InputExpensesPage() {
 
   const handleBulkDelete = async () => {
     if (selectedExpenses.length === 0) return
+    setDeleteTarget({ type: 'bulk' })
+    setShowDeleteConfirm(true)
+  }
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return
     
-    const confirmMsg = `Hapus ${selectedExpenses.length} pengeluaran yang dipilih?`
-    if (!confirm(confirmMsg)) return
+    setShowDeleteConfirm(false)
 
     try {
+      const idsToDelete = deleteTarget.type === 'bulk' 
+        ? selectedExpenses 
+        : [deleteTarget.id]
+
       const response = await fetch('/api/expenses', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids: selectedExpenses })
+        body: JSON.stringify({ ids: idsToDelete })
       })
 
       const result = await response.json()
       
       if (result.success) {
-        showToast('success', `✅ ${selectedExpenses.length} pengeluaran berhasil dihapus`)
+        const count = deleteTarget.type === 'bulk' ? selectedExpenses.length : 1
+        showToast('success', `✅ ${count} pengeluaran berhasil dihapus`)
         setSelectedExpenses([])
+        setDeleteTarget(null)
         fetchExpenses()
         fetchKpiStats()
       } else {
@@ -346,6 +363,48 @@ export default function InputExpensesPage() {
       }
     } catch (error: any) {
       showToast('error', `❌ Gagal menghapus: ${error.message}`)
+      setDeleteTarget(null)
+    }
+  }
+
+  const handleSingleDelete = (expenseId: string) => {
+    setDeleteTarget({ type: 'single', id: expenseId })
+    setShowDeleteConfirm(true)
+  }
+
+  const handleEditExpense = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    if (!editingExpense) return
+
+    try {
+      const response = await fetch(`/api/expenses/${editingExpense.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          expense_date: editingExpense.expense_date,
+          amount: parseFloat(editingExpense.amount),
+          category: editingExpense.category,
+          expense_type: editingExpense.expense_type,
+          payment_method: editingExpense.payment_method,
+          description: editingExpense.description || '',
+          notes: editingExpense.notes || ''
+        })
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        showToast('success', '✅ Pengeluaran berhasil diupdate')
+        setShowEditModal(false)
+        setEditingExpense(null)
+        fetchExpenses()
+        fetchKpiStats()
+      } else {
+        throw new Error(result.error)
+      }
+    } catch (error: any) {
+      showToast('error', `❌ Gagal update: ${error.message}`)
     }
   }
 
@@ -980,6 +1039,7 @@ export default function InputExpensesPage() {
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase">Deskripsi</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase">Pembayaran</th>
                     <th className="px-4 py-3 text-right text-xs font-medium text-gray-600 uppercase">Jumlah</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-600 uppercase">Aksi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
@@ -1020,6 +1080,31 @@ export default function InputExpensesPage() {
                       </td>
                       <td className="px-4 py-3 text-sm font-semibold text-red-600 text-right">
                         Rp {parseFloat(expense.amount).toLocaleString('id-ID')}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-center gap-2">
+                          <button
+                            onClick={() => {
+                              setEditingExpense(expense)
+                              setShowEditModal(true)
+                            }}
+                            className="text-blue-600 hover:text-blue-800 transition-colors"
+                            title="Edit"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() => handleSingleDelete(expense.id)}
+                            className="text-red-600 hover:text-red-800 transition-colors"
+                            title="Hapus"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -1493,6 +1578,51 @@ export default function InputExpensesPage() {
         </div>
       )}
 
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && deleteTarget && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg max-w-md w-full p-6 shadow-xl">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="flex-shrink-0 w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+                <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Konfirmasi Hapus</h3>
+                <p className="text-sm text-gray-600">
+                  {deleteTarget.type === 'bulk' 
+                    ? `Hapus ${selectedExpenses.length} pengeluaran yang dipilih?`
+                    : 'Hapus pengeluaran ini?'}
+                </p>
+              </div>
+            </div>
+            
+            <p className="text-sm text-gray-600 mb-6">
+              Data yang sudah dihapus tidak dapat dikembalikan.
+            </p>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowDeleteConfirm(false)
+                  setDeleteTarget(null)
+                }}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Batal
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              >
+                Ya, Hapus
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Preview Modal */}
       {showPreviewModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
@@ -1563,9 +1693,149 @@ export default function InputExpensesPage() {
         </div>
       )}
 
+      {/* Edit Expense Modal */}
+      {showEditModal && editingExpense && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-hidden">
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold text-gray-900">Edit Pengeluaran</h2>
+                <button
+                  onClick={() => {
+                    setShowEditModal(false)
+                    setEditingExpense(null)
+                  }}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            
+            <form onSubmit={handleEditExpense} className="p-6 overflow-y-auto max-h-[calc(90vh-140px)] space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Tanggal Pengeluaran
+                </label>
+                <input
+                  type="date"
+                  value={editingExpense.expense_date.split('T')[0]}
+                  onChange={(e) => setEditingExpense({...editingExpense, expense_date: e.target.value})}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-gray-900"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Tipe Transaksi
+                </label>
+                <select
+                  value={editingExpense.expense_type}
+                  onChange={(e) => setEditingExpense({...editingExpense, expense_type: e.target.value})}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-gray-900"
+                >
+                  <option value="operating">Operasional</option>
+                  <option value="investing">Investasi</option>
+                  <option value="financing">Pendanaan</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Kategori Pengeluaran
+                </label>
+                <input
+                  type="text"
+                  value={editingExpense.category}
+                  onChange={(e) => setEditingExpense({...editingExpense, category: e.target.value})}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-gray-900"
+                  placeholder="Kategori"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Jumlah Pengeluaran
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">Rp</span>
+                  <input
+                    type="number"
+                    value={editingExpense.amount}
+                    onChange={(e) => setEditingExpense({...editingExpense, amount: e.target.value})}
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-gray-900"
+                    placeholder="0"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Metode Pembayaran
+                </label>
+                <input
+                  type="text"
+                  value={editingExpense.payment_method || ''}
+                  onChange={(e) => setEditingExpense({...editingExpense, payment_method: e.target.value})}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-gray-900"
+                  placeholder="Tunai / Transfer / Tempo"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Deskripsi (Opsional)
+                </label>
+                <textarea
+                  rows={3}
+                  value={editingExpense.description || ''}
+                  onChange={(e) => setEditingExpense({...editingExpense, description: e.target.value})}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-gray-900"
+                  placeholder="Detail tambahan..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Catatan (Opsional)
+                </label>
+                <textarea
+                  rows={2}
+                  value={editingExpense.notes || ''}
+                  onChange={(e) => setEditingExpense({...editingExpense, notes: e.target.value})}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-gray-900"
+                  placeholder="Catatan tambahan..."
+                />
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEditModal(false)
+                    setEditingExpense(null)
+                  }}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold"
+                >
+                  Simpan Perubahan
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Toast Notification */}
       {toast.show && (
-        <div className="fixed top-4 right-4 z-[100] animate-slide-in">
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] animate-slide-in">
           <div className={`
             rounded-lg shadow-2xl p-4 min-w-[300px] max-w-md
             flex items-start gap-3 border-l-4
