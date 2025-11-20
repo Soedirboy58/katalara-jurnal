@@ -7,6 +7,7 @@ import ProductDetailModal from '@/components/lapak/ProductDetailModal';
 import FloatingCartButton from '@/components/lapak/FloatingCartButton';
 import FloatingWhatsApp from '@/components/lapak/FloatingWhatsApp';
 import ShoppingCart from '@/components/lapak/ShoppingCart';
+import PaymentModal from '@/components/lapak/PaymentModal';
 import { Storefront, StorefrontProduct, CartItem, formatWhatsAppMessage } from '@/types/lapak';
 
 interface StorefrontPageProps {
@@ -25,6 +26,8 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
   const [selectedProduct, setSelectedProduct] = useState<StorefrontProduct | null>(null);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [checkoutItems, setCheckoutItems] = useState<CartItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
 
@@ -171,19 +174,34 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
     if (!storefront) return;
     
     trackEvent('checkout_start', undefined, { item_count: selectedItems.length });
+    
+    // Store checkout items and open payment modal
+    setCheckoutItems(selectedItems);
+    setIsCartOpen(false);
+    setIsPaymentModalOpen(true);
+  };
+
+  const handlePaymentComplete = (method: 'qris' | 'transfer' | 'cash') => {
+    if (!storefront) return;
 
     // Calculate total
-    const total = selectedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const total = checkoutItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
-    // Format WhatsApp message
+    // Format WhatsApp message with payment method
+    const paymentMethodText = 
+      method === 'qris' ? 'QRIS (Sudah Dibayar)' :
+      method === 'transfer' ? 'Transfer Bank (Sudah Dibayar)' :
+      'Tunai (Bayar di Tempat)';
+
     const message = formatWhatsAppMessage({
       storefront_name: storefront.store_name,
       customer_name: 'Pembeli',
       customer_phone: '-',
       customer_address: '-',
       delivery_method: 'Akan dikonfirmasi',
-      items: selectedItems,
+      items: checkoutItems,
       total_amount: total,
+      payment_method: paymentMethodText,
     });
 
     // Track WhatsApp click
@@ -193,8 +211,13 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
     const url = `https://wa.me/${storefront.whatsapp_number}?text=${message}`;
     window.open(url, '_blank');
 
-    // Close cart
-    setIsCartOpen(false);
+    // Remove checked out items from cart
+    setCartItems(prev => 
+      prev.filter(item => !checkoutItems.find(ci => ci.product_id === item.product_id))
+    );
+
+    // Close modal
+    setIsPaymentModalOpen(false);
   };
 
   // Filter products
@@ -382,6 +405,17 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
         onUpdateQuantity={updateCartQuantity}
         onRemoveItem={removeFromCart}
         onCheckout={handleCheckout}
+      />
+
+      {/* Payment Modal */}
+      <PaymentModal
+        isOpen={isPaymentModalOpen}
+        onClose={() => setIsPaymentModalOpen(false)}
+        cartItems={checkoutItems}
+        totalAmount={checkoutItems.reduce((sum, item) => sum + (item.price * item.quantity), 0)}
+        themeColor={storefront.theme_color}
+        storeName={storefront.store_name}
+        onPaymentComplete={handlePaymentComplete}
       />
 
       {/* Floating Cart Button */}

@@ -18,6 +18,7 @@ export default function LapakPage() {
   const [formData, setFormData] = useState({
     store_name: '',
     description: '',
+    logo_url: '',
     whatsapp_number: '',
     instagram_handle: '',
     location_text: '',
@@ -58,6 +59,7 @@ export default function LapakPage() {
         setFormData({
           store_name: data.storefront.store_name,
           description: data.storefront.description || '',
+          logo_url: data.storefront.logo_url || '',
           whatsapp_number: data.storefront.whatsapp_number,
           instagram_handle: data.storefront.instagram_handle || '',
           location_text: data.storefront.location_text || '',
@@ -285,6 +287,38 @@ export default function LapakPage() {
                       rows={3}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent resize-none"
                     />
+                  </div>
+
+                  <div>
+                    <label className="block font-medium text-gray-900 mb-2">Logo Bisnis</label>
+                    <div className="space-y-3">
+                      {formData.logo_url && (
+                        <div className="relative w-32 h-32 bg-gray-100 rounded-lg overflow-hidden">
+                          <img 
+                            src={formData.logo_url} 
+                            alt="Logo preview" 
+                            className="w-full h-full object-cover"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setFormData({ ...formData, logo_url: '' })}
+                            className="absolute top-1 right-1 p-1.5 bg-red-500 text-white rounded-full hover:bg-red-600 text-xs"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      )}
+                      <input
+                        type="url"
+                        value={formData.logo_url || ''}
+                        onChange={(e) => setFormData({ ...formData, logo_url: e.target.value })}
+                        placeholder="https://example.com/logo.png"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+                      />
+                      <p className="text-xs text-gray-500">
+                        🏪 Upload logo ke ImgBB/Imgur, lalu paste URL di sini
+                      </p>
+                    </div>
                   </div>
 
                   <div>
@@ -617,6 +651,39 @@ export default function LapakPage() {
                                 : 'Jelaskan layanan yang diberikan, benefit, dll'}
                               className="w-full px-4 py-2 border rounded-lg resize-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
                             />
+                          </div>
+
+                          {/* Upload Foto Produk */}
+                          <div>
+                            <label className="block font-medium mb-2">Foto Produk</label>
+                            <div className="space-y-3">
+                              {productForm.image_url && (
+                                <div className="relative w-full h-48 bg-gray-100 rounded-lg overflow-hidden">
+                                  <img 
+                                    src={productForm.image_url} 
+                                    alt="Product preview" 
+                                    className="w-full h-full object-cover"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setProductForm({ ...productForm, image_url: '' })}
+                                    className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-full hover:bg-red-600"
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
+                              )}
+                              <input
+                                type="url"
+                                value={productForm.image_url || ''}
+                                onChange={(e) => setProductForm({ ...productForm, image_url: e.target.value })}
+                                placeholder="https://example.com/image.jpg"
+                                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+                              />
+                              <p className="text-xs text-gray-500">
+                                📸 Masukkan URL foto produk atau upload ke layanan seperti ImgBB, Imgur, dll
+                              </p>
+                            </div>
                           </div>
 
                           {/* Kategori - Dynamic based on product type */}

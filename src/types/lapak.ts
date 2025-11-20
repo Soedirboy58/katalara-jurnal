@@ -158,6 +158,7 @@ export interface WhatsAppOrder {
   delivery_method: string;
   items: CartItem[];
   total_amount: number;
+  payment_method?: string;
   notes?: string;
 }
 
@@ -252,6 +253,7 @@ ${itemsList}
 
 💰 *Total: Rp ${order.total_amount.toLocaleString('id-ID')}*
 
+${order.payment_method ? `💳 *Metode Pembayaran:*\n${order.payment_method}\n` : ''}
 👤 *Data Pembeli:*
 Nama: ${order.customer_name}
 No. HP: ${order.customer_phone}
