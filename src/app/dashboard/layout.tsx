@@ -7,6 +7,7 @@ import { Sidebar, MobileMenuButton } from '@/components/dashboard/Sidebar'
 import { createClient } from '@/lib/supabase/client'
 import { Bars3Icon, ChevronDoubleLeftIcon, ChevronDoubleRightIcon, BellIcon, UserCircleIcon, Cog6ToothIcon } from '@heroicons/react/24/outline'
 import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard'
+import BugReportButton from '@/components/BugReportButton'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -19,6 +20,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [checkingOnboarding, setCheckingOnboarding] = useState(true)
+  const [notificationOpen, setNotificationOpen] = useState(false)
+  const [notifications, setNotifications] = useState<any[]>([])
+  const [unreadCount, setUnreadCount] = useState(0)
 
   useEffect(() => {
     if (!loading && !user) {
@@ -50,8 +54,72 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         setCheckingOnboarding(false)
       }
       checkOnboarding()
+      
+      // Load notifications
+      loadNotifications()
     }
   }, [user, loading, router, supabase])
+  
+  const loadNotifications = async () => {
+    if (!user) return
+    
+    try {
+      const today = new Date().toISOString().split('T')[0]
+      const notifs: any[] = []
+      
+      // Get today's expenses
+      const { data: expenses } = await supabase
+        .from('expenses')
+        .select('*')
+        .or(`owner_id.eq.${user.id},user_id.eq.${user.id}`)
+        .eq('expense_date', today)
+        .order('created_at', { ascending: false })
+        .limit(10)
+      
+      if (expenses) {
+        expenses.forEach(exp => {
+          notifs.push({
+            id: `expense-${exp.id}`,
+            type: 'expense',
+            title: 'Pengeluaran Baru',
+            message: `${exp.expense_name || exp.category} - Rp ${parseFloat(exp.amount).toLocaleString('id-ID')}`,
+            time: exp.created_at,
+            icon: '💰',
+            color: 'red'
+          })
+        })
+      }
+      
+      // Get settings for limit warning
+      const { data: settings } = await supabase
+        .from('business_configurations')
+        .select('daily_expense_limit, enable_expense_notifications, notification_threshold')
+        .eq('user_id', user.id)
+        .single()
+      
+      if (settings?.daily_expense_limit && settings.enable_expense_notifications && expenses) {
+        const totalExpenses = expenses.reduce((sum, exp) => sum + parseFloat(exp.amount), 0)
+        const percentage = (totalExpenses / settings.daily_expense_limit) * 100
+        
+        if (percentage >= (settings.notification_threshold || 80)) {
+          notifs.unshift({
+            id: 'limit-warning',
+            type: 'warning',
+            title: percentage >= 100 ? '🚨 Limit Terlampaui!' : '⚠️ Mendekati Limit',
+            message: `Pengeluaran hari ini ${percentage.toFixed(0)}% dari limit (Rp ${totalExpenses.toLocaleString('id-ID')} / Rp ${settings.daily_expense_limit.toLocaleString('id-ID')})`,
+            time: new Date().toISOString(),
+            icon: percentage >= 100 ? '🚨' : '⚠️',
+            color: percentage >= 100 ? 'red' : 'amber'
+          })
+        }
+      }
+      
+      setNotifications(notifs)
+      setUnreadCount(notifs.length)
+    } catch (error) {
+      console.error('Error loading notifications:', error)
+    }
+  }
 
   if (loading || checkingOnboarding) {
     return (
@@ -164,11 +232,121 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </div>
             </div>
             <div className="flex items-center space-x-4">
-              {/* Notification Bell */}
-              <button className="relative p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all">
-                <BellIcon className="h-5 w-5" />
-                <span className="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full"></span>
-              </button>
+              {/* Notification Bell with Dropdown */}
+              <div className="relative">
+                <button 
+                  onClick={() => setNotificationOpen(!notificationOpen)}
+                  className="relative p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                >
+                  <BellIcon className="h-5 w-5" />
+                  {unreadCount > 0 && (
+                    <span className="absolute top-0.5 right-0.5 h-4 w-4 bg-red-500 rounded-full text-[10px] text-white font-bold flex items-center justify-center">
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
+                  )}
+                </button>
+                
+                {/* Notification Panel */}
+                {notificationOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setNotificationOpen(false)}></div>
+                    <div className="absolute right-0 mt-2 w-96 max-w-[calc(100vw-2rem)] bg-white rounded-lg shadow-2xl border border-gray-200 z-50 max-h-[calc(100vh-5rem)] overflow-hidden flex flex-col">
+                      {/* Header */}
+                      <div className="p-4 border-b border-gray-200 bg-gradient-to-r from-blue-600 to-blue-700">
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-base font-semibold text-white flex items-center gap-2">
+                            <BellIcon className="h-5 w-5" />
+                            Notifikasi Hari Ini
+                          </h3>
+                          <button
+                            onClick={() => {
+                              setUnreadCount(0)
+                              loadNotifications()
+                            }}
+                            className="text-xs text-blue-100 hover:text-white font-medium transition-colors"
+                          >
+                            Refresh
+                          </button>
+                        </div>
+                        <p className="text-xs text-blue-100 mt-1">
+                          {notifications.length} aktivitas hari ini
+                        </p>
+                      </div>
+                      
+                      {/* Notifications List */}
+                      <div className="flex-1 overflow-y-auto">
+                        {notifications.length === 0 ? (
+                          <div className="text-center py-12 px-4">
+                            <div className="text-4xl mb-2">🔔</div>
+                            <p className="text-sm text-gray-600 font-medium">Belum ada notifikasi</p>
+                            <p className="text-xs text-gray-500 mt-1">Aktivitas hari ini akan muncul di sini</p>
+                          </div>
+                        ) : (
+                          <div className="divide-y divide-gray-100">
+                            {notifications.map((notif) => (
+                              <div
+                                key={notif.id}
+                                className={`p-4 hover:bg-gray-50 transition-colors cursor-pointer ${
+                                  notif.color === 'red' ? 'bg-red-50/50' :
+                                  notif.color === 'amber' ? 'bg-amber-50/50' :
+                                  ''
+                                }`}
+                                onClick={() => {
+                                  if (notif.type === 'warning') {
+                                    router.push('/dashboard/settings')
+                                  } else if (notif.type === 'expense') {
+                                    router.push('/dashboard/input-expenses')
+                                  }
+                                  setNotificationOpen(false)
+                                }}
+                              >
+                                <div className="flex items-start gap-3">
+                                  <div className="flex-shrink-0 text-2xl">
+                                    {notif.icon}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className={`text-sm font-medium ${
+                                      notif.color === 'red' ? 'text-red-900' :
+                                      notif.color === 'amber' ? 'text-amber-900' :
+                                      'text-gray-900'
+                                    }`}>
+                                      {notif.title}
+                                    </p>
+                                    <p className="text-xs text-gray-600 mt-1 break-words">
+                                      {notif.message}
+                                    </p>
+                                    <p className="text-xs text-gray-400 mt-1">
+                                      {new Date(notif.time).toLocaleTimeString('id-ID', {
+                                        hour: '2-digit',
+                                        minute: '2-digit'
+                                      })}
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Footer */}
+                      {notifications.length > 0 && (
+                        <div className="p-3 border-t border-gray-200 bg-gray-50">
+                          <button
+                            onClick={() => {
+                              router.push('/dashboard/input-expenses')
+                              setNotificationOpen(false)
+                            }}
+                            className="w-full text-center text-xs font-medium text-blue-600 hover:text-blue-700 transition-colors"
+                          >
+                            Lihat Semua Aktivitas →
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
               
               {/* User Name */}
               <span className="text-sm font-medium text-gray-700 hidden md:block">{fullName || userEmail}</span>
@@ -226,6 +404,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         </main>
       </div>
+
+      {/* Bug Report Floating Button */}
+      <BugReportButton />
     </div>
     </>
   )

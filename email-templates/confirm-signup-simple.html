@@ -1,0 +1,12 @@
+<!-- =====================================================
+EMAIL TEMPLATE: CONFIRM SIGNUP - Simple Version
+Versi sederhana tanpa fancy design
+===================================================== -->
+
+<h2>Selamat! Pendaftaran Berhasil</h2>
+
+<p>Terima kasih telah mendaftar di Katalara.</p>
+
+<p>Silakan klik tombol di bawah untuk memverifikasi email Anda, kemudian login menggunakan email dan password yang telah Anda daftarkan.</p>
+
+<p><a href="{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&type=signup&next=/login">Verifikasi Email & Login Sekarang</a></p>

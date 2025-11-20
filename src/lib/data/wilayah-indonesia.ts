@@ -140,7 +140,61 @@ export const kabupatenList: Kabupaten[] = [
   { id: '3576', provinsi_id: '35', nama: 'Kota Madiun' },
   { id: '3577', provinsi_id: '35', nama: 'Kota Pasuruan' },
   { id: '3578', provinsi_id: '35', nama: 'Kota Probolinggo' },
-  { id: '3579', provinsi_id: '35', nama: 'Kota Batu' }
+  { id: '3579', provinsi_id: '35', nama: 'Kota Batu' },
+  
+  // Sumatera Utara
+  { id: '1271', provinsi_id: '12', nama: 'Kota Medan' },
+  { id: '1272', provinsi_id: '12', nama: 'Kota Binjai' },
+  { id: '1273', provinsi_id: '12', nama: 'Kota Tebing Tinggi' },
+  { id: '1274', provinsi_id: '12', nama: 'Kota Pematangsiantar' },
+  
+  // DI Yogyakarta
+  { id: '3471', provinsi_id: '34', nama: 'Kota Yogyakarta' },
+  { id: '3401', provinsi_id: '34', nama: 'Kabupaten Kulon Progo' },
+  { id: '3402', provinsi_id: '34', nama: 'Kabupaten Bantul' },
+  { id: '3403', provinsi_id: '34', nama: 'Kabupaten Gunungkidul' },
+  { id: '3404', provinsi_id: '34', nama: 'Kabupaten Sleman' },
+  
+  // Bali
+  { id: '5101', provinsi_id: '51', nama: 'Kabupaten Jembrana' },
+  { id: '5102', provinsi_id: '51', nama: 'Kabupaten Tabanan' },
+  { id: '5103', provinsi_id: '51', nama: 'Kabupaten Badung' },
+  { id: '5104', provinsi_id: '51', nama: 'Kabupaten Gianyar' },
+  { id: '5105', provinsi_id: '51', nama: 'Kabupaten Klungkung' },
+  { id: '5106', provinsi_id: '51', nama: 'Kabupaten Bangli' },
+  { id: '5107', provinsi_id: '51', nama: 'Kabupaten Karangasem' },
+  { id: '5108', provinsi_id: '51', nama: 'Kabupaten Buleleng' },
+  { id: '5171', provinsi_id: '51', nama: 'Kota Denpasar' },
+  
+  // Sulawesi Selatan
+  { id: '7371', provinsi_id: '73', nama: 'Kota Makassar' },
+  { id: '7372', provinsi_id: '73', nama: 'Kota Parepare' },
+  { id: '7373', provinsi_id: '73', nama: 'Kota Palopo' },
+  
+  // Kalimantan Timur
+  { id: '6471', provinsi_id: '64', nama: 'Kota Balikpapan' },
+  { id: '6472', provinsi_id: '64', nama: 'Kota Samarinda' },
+  { id: '6474', provinsi_id: '64', nama: 'Kota Bontang' },
+  
+  // Lampung
+  { id: '1871', provinsi_id: '18', nama: 'Kota Bandar Lampung' },
+  { id: '1872', provinsi_id: '18', nama: 'Kota Metro' },
+  
+  // Riau
+  { id: '1471', provinsi_id: '14', nama: 'Kota Pekanbaru' },
+  { id: '1472', provinsi_id: '14', nama: 'Kota Dumai' },
+  
+  // Sumatera Selatan
+  { id: '1671', provinsi_id: '16', nama: 'Kota Palembang' },
+  { id: '1672', provinsi_id: '16', nama: 'Kota Prabumulih' },
+  { id: '1673', provinsi_id: '16', nama: 'Kota Pagar Alam' },
+  { id: '1674', provinsi_id: '16', nama: 'Kota Lubuklinggau' },
+  
+  // Banten
+  { id: '3671', provinsi_id: '36', nama: 'Kota Tangerang' },
+  { id: '3672', provinsi_id: '36', nama: 'Kota Cilegon' },
+  { id: '3673', provinsi_id: '36', nama: 'Kota Serang' },
+  { id: '3674', provinsi_id: '36', nama: 'Kota Tangerang Selatan' }
 ]
 
 // Sample kecamatan data
@@ -178,6 +232,41 @@ export const kecamatanList: Kecamatan[] = [
   { id: '327308', kabupaten_id: '3273', nama: 'Bandung Kidul' },
   { id: '327309', kabupaten_id: '3273', nama: 'Buahbatu' },
   { id: '327310', kabupaten_id: '3273', nama: 'Rancasari' },
+  
+  // Kota Depok (3276) - ADDED FOR USER
+  { id: '327601', kabupaten_id: '3276', nama: 'Pancoran Mas' },
+  { id: '327602', kabupaten_id: '3276', nama: 'Beji' },
+  { id: '327603', kabupaten_id: '3276', nama: 'Sukmajaya' },
+  { id: '327604', kabupaten_id: '3276', nama: 'Cilodong' },
+  { id: '327605', kabupaten_id: '3276', nama: 'Cimanggis' },
+  { id: '327606', kabupaten_id: '3276', nama: 'Sawangan' },
+  { id: '327607', kabupaten_id: '3276', nama: 'Cinere' },
+  { id: '327608', kabupaten_id: '3276', nama: 'Limo' },
+  { id: '327609', kabupaten_id: '3276', nama: 'Bojongsari' },
+  { id: '327610', kabupaten_id: '3276', nama: 'Tapos' },
+  { id: '327611', kabupaten_id: '3276', nama: 'Cipayung' },
+  
+  // Kota Bogor (3271)
+  { id: '327101', kabupaten_id: '3271', nama: 'Bogor Selatan' },
+  { id: '327102', kabupaten_id: '3271', nama: 'Bogor Timur' },
+  { id: '327103', kabupaten_id: '3271', nama: 'Bogor Utara' },
+  { id: '327104', kabupaten_id: '3271', nama: 'Bogor Tengah' },
+  { id: '327105', kabupaten_id: '3271', nama: 'Bogor Barat' },
+  { id: '327106', kabupaten_id: '3271', nama: 'Tanah Sareal' },
+  
+  // Kota Bekasi (3275)
+  { id: '327501', kabupaten_id: '3275', nama: 'Bekasi Barat' },
+  { id: '327502', kabupaten_id: '3275', nama: 'Bekasi Selatan' },
+  { id: '327503', kabupaten_id: '3275', nama: 'Bekasi Timur' },
+  { id: '327504', kabupaten_id: '3275', nama: 'Bekasi Utara' },
+  { id: '327505', kabupaten_id: '3275', nama: 'Bantargebang' },
+  { id: '327506', kabupaten_id: '3275', nama: 'Jatisampurna' },
+  { id: '327507', kabupaten_id: '3275', nama: 'Jatiasih' },
+  { id: '327508', kabupaten_id: '3275', nama: 'Pondokgede' },
+  { id: '327509', kabupaten_id: '3275', nama: 'Pondok Melati' },
+  { id: '327510', kabupaten_id: '3275', nama: 'Rawalumbu' },
+  { id: '327511', kabupaten_id: '3275', nama: 'Medan Satria' },
+  { id: '327512', kabupaten_id: '3275', nama: 'Mustikajaya' },
   
   // JAWA TENGAH
   
@@ -324,7 +413,7 @@ export const kecamatanList: Kecamatan[] = [
   { id: '337115', kabupaten_id: '3371', nama: 'Tugu' },
   { id: '337116', kabupaten_id: '3371', nama: 'Ngaliyan' },
   
-  // Kota Surabaya
+  // Kota Surabaya (3571) - Complete
   { id: '357101', kabupaten_id: '3571', nama: 'Karangpilang' },
   { id: '357102', kabupaten_id: '3571', nama: 'Wonocolo' },
   { id: '357103', kabupaten_id: '3571', nama: 'Rungkut' },
@@ -334,7 +423,242 @@ export const kecamatanList: Kecamatan[] = [
   { id: '357107', kabupaten_id: '3571', nama: 'Genteng' },
   { id: '357108', kabupaten_id: '3571', nama: 'Gubeng' },
   { id: '357109', kabupaten_id: '3571', nama: 'Sukolilo' },
-  { id: '357110', kabupaten_id: '3571', nama: 'Tambaksari' }
+  { id: '357110', kabupaten_id: '3571', nama: 'Tambaksari' },
+  { id: '357111', kabupaten_id: '3571', nama: 'Simokerto' },
+  { id: '357112', kabupaten_id: '3571', nama: 'Pabean Cantian' },
+  { id: '357113', kabupaten_id: '3571', nama: 'Bubutan' },
+  { id: '357114', kabupaten_id: '3571', nama: 'Tandes' },
+  { id: '357115', kabupaten_id: '3571', nama: 'Krembangan' },
+  { id: '357116', kabupaten_id: '3571', nama: 'Semampir' },
+  { id: '357117', kabupaten_id: '3571', nama: 'Kenjeran' },
+  { id: '357118', kabupaten_id: '3571', nama: 'Lakarsantri' },
+  { id: '357119', kabupaten_id: '3571', nama: 'Benowo' },
+  { id: '357120', kabupaten_id: '3571', nama: 'Asemrowo' },
+  { id: '357121', kabupaten_id: '3571', nama: 'Sukomanunggal' },
+  { id: '357122', kabupaten_id: '3571', nama: 'Dukuh Pakis' },
+  { id: '357123', kabupaten_id: '3571', nama: 'Wiyung' },
+  { id: '357124', kabupaten_id: '3571', nama: 'Gayungan' },
+  { id: '357125', kabupaten_id: '3571', nama: 'Jambangan' },
+  { id: '357126', kabupaten_id: '3571', nama: 'Tenggilis Mejoyo' },
+  { id: '357127', kabupaten_id: '3571', nama: 'Gunung Anyar' },
+  { id: '357128', kabupaten_id: '3571', nama: 'Mulyorejo' },
+  { id: '357129', kabupaten_id: '3571', nama: 'Bulak' },
+  { id: '357130', kabupaten_id: '3571', nama: 'Pakal' },
+  { id: '357131', kabupaten_id: '3571', nama: 'Sambikerep' },
+  
+  // Kota Malang (3572)
+  { id: '357201', kabupaten_id: '3572', nama: 'Kedungkandang' },
+  { id: '357202', kabupaten_id: '3572', nama: 'Sukun' },
+  { id: '357203', kabupaten_id: '3572', nama: 'Klojen' },
+  { id: '357204', kabupaten_id: '3572', nama: 'Blimbing' },
+  { id: '357205', kabupaten_id: '3572', nama: 'Lowokwaru' },
+  
+  // SUMATERA UTARA
+  
+  // Kota Medan (1271)
+  { id: '127101', kabupaten_id: '1271', nama: 'Medan Tuntungan' },
+  { id: '127102', kabupaten_id: '1271', nama: 'Medan Johor' },
+  { id: '127103', kabupaten_id: '1271', nama: 'Medan Amplas' },
+  { id: '127104', kabupaten_id: '1271', nama: 'Medan Denai' },
+  { id: '127105', kabupaten_id: '1271', nama: 'Medan Area' },
+  { id: '127106', kabupaten_id: '1271', nama: 'Medan Kota' },
+  { id: '127107', kabupaten_id: '1271', nama: 'Medan Maimun' },
+  { id: '127108', kabupaten_id: '1271', nama: 'Medan Polonia' },
+  { id: '127109', kabupaten_id: '1271', nama: 'Medan Baru' },
+  { id: '127110', kabupaten_id: '1271', nama: 'Medan Selayang' },
+  { id: '127111', kabupaten_id: '1271', nama: 'Medan Sunggal' },
+  { id: '127112', kabupaten_id: '1271', nama: 'Medan Helvetia' },
+  { id: '127113', kabupaten_id: '1271', nama: 'Medan Petisah' },
+  { id: '127114', kabupaten_id: '1271', nama: 'Medan Barat' },
+  { id: '127115', kabupaten_id: '1271', nama: 'Medan Timur' },
+  { id: '127116', kabupaten_id: '1271', nama: 'Medan Perjuangan' },
+  { id: '127117', kabupaten_id: '1271', nama: 'Medan Tembung' },
+  { id: '127118', kabupaten_id: '1271', nama: 'Medan Deli' },
+  { id: '127119', kabupaten_id: '1271', nama: 'Medan Labuhan' },
+  { id: '127120', kabupaten_id: '1271', nama: 'Medan Marelan' },
+  { id: '127121', kabupaten_id: '1271', nama: 'Medan Belawan' },
+  
+  // BALI
+  
+  // Kota Denpasar (5171)
+  { id: '517101', kabupaten_id: '5171', nama: 'Denpasar Selatan' },
+  { id: '517102', kabupaten_id: '5171', nama: 'Denpasar Timur' },
+  { id: '517103', kabupaten_id: '5171', nama: 'Denpasar Barat' },
+  { id: '517104', kabupaten_id: '5171', nama: 'Denpasar Utara' },
+  
+  // Kabupaten Badung (5103)
+  { id: '510301', kabupaten_id: '5103', nama: 'Kuta' },
+  { id: '510302', kabupaten_id: '5103', nama: 'Kuta Selatan' },
+  { id: '510303', kabupaten_id: '5103', nama: 'Kuta Utara' },
+  { id: '510304', kabupaten_id: '5103', nama: 'Mengwi' },
+  { id: '510305', kabupaten_id: '5103', nama: 'Abiansemal' },
+  { id: '510306', kabupaten_id: '5103', nama: 'Petang' },
+  
+  // SULAWESI SELATAN
+  
+  // Kota Makassar (7371)
+  { id: '737101', kabupaten_id: '7371', nama: 'Mariso' },
+  { id: '737102', kabupaten_id: '7371', nama: 'Mamajang' },
+  { id: '737103', kabupaten_id: '7371', nama: 'Tamalate' },
+  { id: '737104', kabupaten_id: '7371', nama: 'Rappocini' },
+  { id: '737105', kabupaten_id: '7371', nama: 'Makassar' },
+  { id: '737106', kabupaten_id: '7371', nama: 'Ujung Pandang' },
+  { id: '737107', kabupaten_id: '7371', nama: 'Wajo' },
+  { id: '737108', kabupaten_id: '7371', nama: 'Bontoala' },
+  { id: '737109', kabupaten_id: '7371', nama: 'Ujung Tanah' },
+  { id: '737110', kabupaten_id: '7371', nama: 'Tallo' },
+  { id: '737111', kabupaten_id: '7371', nama: 'Panakkukang' },
+  { id: '737112', kabupaten_id: '7371', nama: 'Manggala' },
+  { id: '737113', kabupaten_id: '7371', nama: 'Biringkanaya' },
+  { id: '737114', kabupaten_id: '7371', nama: 'Tamalanrea' },
+  { id: '737115', kabupaten_id: '7371', nama: 'Kepulauan Sangkarang' },
+  
+  // KALIMANTAN TIMUR
+  
+  // Kota Balikpapan (6471)
+  { id: '647101', kabupaten_id: '6471', nama: 'Balikpapan Selatan' },
+  { id: '647102', kabupaten_id: '6471', nama: 'Balikpapan Timur' },
+  { id: '647103', kabupaten_id: '6471', nama: 'Balikpapan Utara' },
+  { id: '647104', kabupaten_id: '6471', nama: 'Balikpapan Tengah' },
+  { id: '647105', kabupaten_id: '6471', nama: 'Balikpapan Barat' },
+  { id: '647106', kabupaten_id: '6471', nama: 'Balikpapan Kota' },
+  
+  // Kota Samarinda (6472)
+  { id: '647201', kabupaten_id: '6472', nama: 'Samarinda Ilir' },
+  { id: '647202', kabupaten_id: '6472', nama: 'Samarinda Ulu' },
+  { id: '647203', kabupaten_id: '6472', nama: 'Samarinda Utara' },
+  { id: '647204', kabupaten_id: '6472', nama: 'Samarinda Seberang' },
+  { id: '647205', kabupaten_id: '6472', nama: 'Palaran' },
+  { id: '647206', kabupaten_id: '6472', nama: 'Sambutan' },
+  { id: '647207', kabupaten_id: '6472', nama: 'Sungai Pinang' },
+  { id: '647208', kabupaten_id: '6472', nama: 'Sungai Kunjang' },
+  { id: '647209', kabupaten_id: '6472', nama: 'Samarinda Kota' },
+  { id: '647210', kabupaten_id: '6472', nama: 'Loa Janan Ilir' },
+  
+  // LAMPUNG
+  
+  // Kota Bandar Lampung (1871)
+  { id: '187101', kabupaten_id: '1871', nama: 'Telukbetung Selatan' },
+  { id: '187102', kabupaten_id: '1871', nama: 'Telukbetung Utara' },
+  { id: '187103', kabupaten_id: '1871', nama: 'Telukbetung Barat' },
+  { id: '187104', kabupaten_id: '1871', nama: 'Telukbetung Timur' },
+  { id: '187105', kabupaten_id: '1871', nama: 'Panjang' },
+  { id: '187106', kabupaten_id: '1871', nama: 'Tanjung Karang Pusat' },
+  { id: '187107', kabupaten_id: '1871', nama: 'Tanjung Karang Barat' },
+  { id: '187108', kabupaten_id: '1871', nama: 'Tanjung Karang Timur' },
+  { id: '187109', kabupaten_id: '1871', nama: 'Rajabasa' },
+  { id: '187110', kabupaten_id: '1871', nama: 'Tanjung Senang' },
+  { id: '187111', kabupaten_id: '1871', nama: 'Sukabumi' },
+  { id: '187112', kabupaten_id: '1871', nama: 'Sukarame' },
+  { id: '187113', kabupaten_id: '1871', nama: 'Way Halim' },
+  { id: '187114', kabupaten_id: '1871', nama: 'Langkapura' },
+  { id: '187115', kabupaten_id: '1871', nama: 'Enggal' },
+  { id: '187116', kabupaten_id: '1871', nama: 'Kedamaian' },
+  { id: '187117', kabupaten_id: '1871', nama: 'Kedaton' },
+  { id: '187118', kabupaten_id: '1871', nama: 'Labuhan Ratu' },
+  { id: '187119', kabupaten_id: '1871', nama: 'Kemiling' },
+  { id: '187120', kabupaten_id: '1871', nama: 'Bumi Waras' },
+  
+  // RIAU
+  
+  // Kota Pekanbaru (1471)
+  { id: '147101', kabupaten_id: '1471', nama: 'Sukajadi' },
+  { id: '147102', kabupaten_id: '1471', nama: 'Pekanbaru Kota' },
+  { id: '147103', kabupaten_id: '1471', nama: 'Sail' },
+  { id: '147104', kabupaten_id: '1471', nama: 'Lima Puluh' },
+  { id: '147105', kabupaten_id: '1471', nama: 'Senapelan' },
+  { id: '147106', kabupaten_id: '1471', nama: 'Rumbai' },
+  { id: '147107', kabupaten_id: '1471', nama: 'Rumbai Pesisir' },
+  { id: '147108', kabupaten_id: '1471', nama: 'Bukit Raya' },
+  { id: '147109', kabupaten_id: '1471', nama: 'Marpoyan Damai' },
+  { id: '147110', kabupaten_id: '1471', nama: 'Tenayan Raya' },
+  { id: '147111', kabupaten_id: '1471', nama: 'Payung Sekaki' },
+  { id: '147112', kabupaten_id: '1471', nama: 'Tampan' },
+  
+  // SUMATERA SELATAN
+  
+  // Kota Palembang (1671)
+  { id: '167101', kabupaten_id: '1671', nama: 'Ilir Barat I' },
+  { id: '167102', kabupaten_id: '1671', nama: 'Ilir Barat II' },
+  { id: '167103', kabupaten_id: '1671', nama: 'Ilir Timur I' },
+  { id: '167104', kabupaten_id: '1671', nama: 'Ilir Timur II' },
+  { id: '167105', kabupaten_id: '1671', nama: 'Ilir Timur III' },
+  { id: '167106', kabupaten_id: '1671', nama: 'Alang-alang Lebar' },
+  { id: '167107', kabupaten_id: '1671', nama: 'Sako' },
+  { id: '167108', kabupaten_id: '1671', nama: 'Sematang Borang' },
+  { id: '167109', kabupaten_id: '1671', nama: 'Kertapati' },
+  { id: '167110', kabupaten_id: '1671', nama: 'Plaju' },
+  { id: '167111', kabupaten_id: '1671', nama: 'Gandus' },
+  { id: '167112', kabupaten_id: '1671', nama: 'Seberang Ulu I' },
+  { id: '167113', kabupaten_id: '1671', nama: 'Seberang Ulu II' },
+  { id: '167114', kabupaten_id: '1671', nama: 'Kalidoni' },
+  { id: '167115', kabupaten_id: '1671', nama: 'Bukit Kecil' },
+  { id: '167116', kabupaten_id: '1671', nama: 'Kemuning' },
+  { id: '167117', kabupaten_id: '1671', nama: 'Sukarami' },
+  { id: '167118', kabupaten_id: '1671', nama: 'Jakabaring' },
+  
+  // DI YOGYAKARTA
+  
+  // Kota Yogyakarta (3471)
+  { id: '347101', kabupaten_id: '3471', nama: 'Mantrijeron' },
+  { id: '347102', kabupaten_id: '3471', nama: 'Kraton' },
+  { id: '347103', kabupaten_id: '3471', nama: 'Mergangsan' },
+  { id: '347104', kabupaten_id: '3471', nama: 'Umbulharjo' },
+  { id: '347105', kabupaten_id: '3471', nama: 'Kotagede' },
+  { id: '347106', kabupaten_id: '3471', nama: 'Gondokusuman' },
+  { id: '347107', kabupaten_id: '3471', nama: 'Danurejan' },
+  { id: '347108', kabupaten_id: '3471', nama: 'Pakualaman' },
+  { id: '347109', kabupaten_id: '3471', nama: 'Gondomanan' },
+  { id: '347110', kabupaten_id: '3471', nama: 'Ngampilan' },
+  { id: '347111', kabupaten_id: '3471', nama: 'Wirobrajan' },
+  { id: '347112', kabupaten_id: '3471', nama: 'Gedongtengen' },
+  { id: '347113', kabupaten_id: '3471', nama: 'Jetis' },
+  { id: '347114', kabupaten_id: '3471', nama: 'Tegalrejo' },
+  
+  // Kabupaten Sleman (3404)
+  { id: '340401', kabupaten_id: '3404', nama: 'Gamping' },
+  { id: '340402', kabupaten_id: '3404', nama: 'Godean' },
+  { id: '340403', kabupaten_id: '3404', nama: 'Moyudan' },
+  { id: '340404', kabupaten_id: '3404', nama: 'Minggir' },
+  { id: '340405', kabupaten_id: '3404', nama: 'Seyegan' },
+  { id: '340406', kabupaten_id: '3404', nama: 'Mlati' },
+  { id: '340407', kabupaten_id: '3404', nama: 'Depok' },
+  { id: '340408', kabupaten_id: '3404', nama: 'Berbah' },
+  { id: '340409', kabupaten_id: '3404', nama: 'Prambanan' },
+  { id: '340410', kabupaten_id: '3404', nama: 'Kalasan' },
+  { id: '340411', kabupaten_id: '3404', nama: 'Ngemplak' },
+  { id: '340412', kabupaten_id: '3404', nama: 'Ngaglik' },
+  { id: '340413', kabupaten_id: '3404', nama: 'Sleman' },
+  { id: '340414', kabupaten_id: '3404', nama: 'Tempel' },
+  { id: '340415', kabupaten_id: '3404', nama: 'Turi' },
+  { id: '340416', kabupaten_id: '3404', nama: 'Pakem' },
+  { id: '340417', kabupaten_id: '3404', nama: 'Cangkringan' },
+  
+  // BANTEN
+  
+  // Kota Tangerang (3671)
+  { id: '367101', kabupaten_id: '3671', nama: 'Tangerang' },
+  { id: '367102', kabupaten_id: '3671', nama: 'Jatiuwung' },
+  { id: '367103', kabupaten_id: '3671', nama: 'Batuceper' },
+  { id: '367104', kabupaten_id: '3671', nama: 'Benda' },
+  { id: '367105', kabupaten_id: '3671', nama: 'Cipondoh' },
+  { id: '367106', kabupaten_id: '3671', nama: 'Ciledug' },
+  { id: '367107', kabupaten_id: '3671', nama: 'Karawaci' },
+  { id: '367108', kabupaten_id: '3671', nama: 'Periuk' },
+  { id: '367109', kabupaten_id: '3671', nama: 'Cibodas' },
+  { id: '367110', kabupaten_id: '3671', nama: 'Neglasari' },
+  { id: '367111', kabupaten_id: '3671', nama: 'Pinang' },
+  { id: '367112', kabupaten_id: '3671', nama: 'Karang Tengah' },
+  { id: '367113', kabupaten_id: '3671', nama: 'Larangan' },
+  
+  // Kota Tangerang Selatan (3674)
+  { id: '367401', kabupaten_id: '3674', nama: 'Serpong' },
+  { id: '367402', kabupaten_id: '3674', nama: 'Serpong Utara' },
+  { id: '367403', kabupaten_id: '3674', nama: 'Pondok Aren' },
+  { id: '367404', kabupaten_id: '3674', nama: 'Ciputat' },
+  { id: '367405', kabupaten_id: '3674', nama: 'Ciputat Timur' },
+  { id: '367406', kabupaten_id: '3674', nama: 'Pamulang' },
+  { id: '367407', kabupaten_id: '3674', nama: 'Setu' }
 ]
 
 // Helper functions

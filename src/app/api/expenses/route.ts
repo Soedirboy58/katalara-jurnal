@@ -1,10 +1,36 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
+import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
+// Force dynamic rendering to fix cookies issue
+export const dynamic = 'force-dynamic'
+
 // POST: Create new expense
 export async function POST(request: Request) {
-  const supabase = createRouteHandlerClient({ cookies })
+  const cookieStore = await cookies()
+  
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll()
+        },
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
+            )
+          } catch {
+            // The `setAll` method was called from a Server Component.
+            // This can be ignored if you have middleware refreshing
+            // user sessions.
+          }
+        },
+      },
+    }
+  )
   
   try {
     const body = await request.json()
@@ -12,6 +38,9 @@ export async function POST(request: Request) {
       expense_date, 
       amount, 
       category, 
+      expense_type,
+      asset_category,
+      is_capital_expenditure,
       description,
       notes,
       payment_method, 
@@ -46,6 +75,9 @@ export async function POST(request: Request) {
         expense_date: expense_date || new Date().toISOString().split('T')[0],
         amount: parseFloat(amount),
         category,
+        expense_type: expense_type || 'operating',
+        asset_category: asset_category || null,
+        is_capital_expenditure: is_capital_expenditure || false,
         description: description || null,
         notes: notes || null,
         payment_method,
@@ -73,7 +105,26 @@ export async function POST(request: Request) {
 
 // GET: Fetch expenses with filters
 export async function GET(request: Request) {
-  const supabase = createRouteHandlerClient({ cookies })
+  const cookieStore = await cookies()
+  
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll()
+        },
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
+            )
+          } catch {}
+        },
+      },
+    }
+  )
   
   try {
     const { searchParams } = new URL(request.url)
@@ -135,7 +186,26 @@ export async function GET(request: Request) {
 
 // DELETE: Delete multiple expenses
 export async function DELETE(request: Request) {
-  const supabase = createRouteHandlerClient({ cookies })
+  const cookieStore = await cookies()
+  
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll()
+        },
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
+            )
+          } catch {}
+        },
+      },
+    }
+  )
   
   try {
     const { ids } = await request.json()
