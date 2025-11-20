@@ -1580,7 +1580,7 @@ export default function InputExpensesPage() {
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && deleteTarget && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-lg max-w-md w-full p-6 shadow-xl">
             <div className="flex items-center gap-3 mb-4">
               <div className="flex-shrink-0 w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
@@ -1625,7 +1625,7 @@ export default function InputExpensesPage() {
 
       {/* Preview Modal */}
       {showPreviewModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-lg max-w-4xl w-full max-h-[80vh] overflow-hidden">
             <div className="p-6 border-b border-gray-200">
               <div className="flex items-center justify-between">
@@ -1695,7 +1695,7 @@ export default function InputExpensesPage() {
 
       {/* Edit Expense Modal */}
       {showEditModal && editingExpense && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-hidden">
             <div className="p-6 border-b border-gray-200">
               <div className="flex items-center justify-between">
@@ -1746,13 +1746,52 @@ export default function InputExpensesPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Kategori Pengeluaran
                 </label>
-                <input
-                  type="text"
+                <select
                   value={editingExpense.category}
                   onChange={(e) => setEditingExpense({...editingExpense, category: e.target.value})}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-gray-900"
-                  placeholder="Kategori"
-                />
+                >
+                  <option value="">Pilih kategori...</option>
+                  
+                  {editingExpense.expense_type === 'operating' && (
+                    <>
+                      <optgroup label="Pembelian Stok">
+                        <option value="raw_materials">Bahan Baku</option>
+                        <option value="finished_goods">Produk Jadi</option>
+                      </optgroup>
+                      
+                      <optgroup label="Operasional">
+                        <option value="salary">Gaji Karyawan</option>
+                        <option value="rent">Sewa Tempat</option>
+                        <option value="utilities">Listrik & Air</option>
+                        <option value="communication">Internet & Komunikasi</option>
+                        <option value="transportation">Transportasi</option>
+                        <option value="maintenance">Perawatan & Maintenance</option>
+                        <option value="marketing">Marketing & Promosi</option>
+                        <option value="tax">Pajak & Perizinan</option>
+                        <option value="other">Lain-lain</option>
+                      </optgroup>
+                    </>
+                  )}
+                  
+                  {editingExpense.expense_type === 'investing' && (
+                    <optgroup label="Investasi Aset">
+                      <option value="office_equipment">Peralatan Kantor</option>
+                      <option value="production_equipment">Alat Produksi</option>
+                      <option value="vehicle">Kendaraan Operasional</option>
+                      <option value="building_renovation">Renovasi Bangunan</option>
+                      <option value="other_assets">Peralatan Lainnya</option>
+                    </optgroup>
+                  )}
+                  
+                  {editingExpense.expense_type === 'financing' && (
+                    <optgroup label="Pendanaan">
+                      <option value="loan_principal">Pembayaran Pokok Pinjaman</option>
+                      <option value="loan_interest">Pembayaran Bunga Pinjaman</option>
+                      <option value="owner_withdrawal">Prive Pemilik</option>
+                    </optgroup>
+                  )}
+                </select>
               </div>
 
               <div>
@@ -1762,13 +1801,23 @@ export default function InputExpensesPage() {
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">Rp</span>
                   <input
-                    type="number"
-                    value={editingExpense.amount}
-                    onChange={(e) => setEditingExpense({...editingExpense, amount: e.target.value})}
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9.]*"
+                    value={parseFloat(editingExpense.amount || 0).toLocaleString('id-ID')}
+                    onChange={(e) => {
+                      const rawValue = e.target.value.replace(/\./g, '')
+                      setEditingExpense({...editingExpense, amount: rawValue})
+                    }}
                     className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-gray-900"
                     placeholder="0"
                   />
                 </div>
+                {editingExpense.amount && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Rp {parseFloat(editingExpense.amount || 0).toLocaleString('id-ID')}
+                  </p>
+                )}
               </div>
 
               <div>
