@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { useProducts } from '@/hooks/useProducts'
+import { InvoiceModal } from '@/components/sales/InvoiceModal'
+import { createClient } from '@/lib/supabase/client'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,9 +15,36 @@ export default function InputSalesPage() {
   const [quantity, setQuantity] = useState('')
   const [pricePerUnit, setPricePerUnit] = useState('')
   const [selectedProductId, setSelectedProductId] = useState('')
+  const [customerName, setCustomerName] = useState('')
+  const [notes, setNotes] = useState('')
+  const [showInvoice, setShowInvoice] = useState(false)
+  const [invoiceData, setInvoiceData] = useState<any>(null)
+  const [businessName, setBusinessName] = useState('Bisnis Saya')
+  const [saving, setSaving] = useState(false)
+
+  const supabase = createClient()
 
   // Fetch products from database
   const { products, loading: loadingProducts } = useProducts()
+
+  // Load business name
+  useEffect(() => {
+    const loadBusinessName = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('business_name')
+          .eq('user_id', user.id)
+          .single()
+        
+        if (profile?.business_name) {
+          setBusinessName(profile.business_name)
+        }
+      }
+    }
+    loadBusinessName()
+  }, [supabase])
 
   // Format number with thousand separator
   const formatNumber = (value: string): string => {
@@ -60,6 +89,74 @@ export default function InputSalesPage() {
     }
   }
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    if (!selectedProductId || !quantity || !pricePerUnit) {
+      alert('Mohon lengkapi produk, jumlah, dan harga')
+      return
+    }
+
+    setSaving(true)
+
+    try {
+      const product = products.find(p => p.id === selectedProductId)
+      const qtyNum = parseInt(quantity.replace(/\./g, ''))
+      const priceNum = parseInt(pricePerUnit.replace(/\./g, ''))
+      const total = qtyNum * priceNum
+
+      // Generate invoice number
+      const invoiceNumber = `INV-${Date.now()}-${Math.random().toString(36).substr(2, 5).toUpperCase()}`
+
+      // Prepare invoice data
+      const invoice = {
+        invoiceNumber,
+        date: transactionDate,
+        customerName: customerName || undefined,
+        items: [{
+          productName: product?.name || 'Produk',
+          quantity: qtyNum,
+          pricePerUnit: priceNum,
+          total: total
+        }],
+        subtotal: total,
+        tax: 0,
+        total: total,
+        paymentMethod,
+        dueDate: paymentMethod === 'Kredit/Tempo' ? dueDate : undefined
+      }
+
+      setInvoiceData(invoice)
+      setShowInvoice(true)
+
+      // Reset form
+      setSelectedProductId('')
+      setQuantity('')
+      setPricePerUnit('')
+      setCustomerName('')
+      setNotes('')
+      setPaymentMethod('Tunai')
+      setDueDate('')
+
+    } catch (error) {
+      console.error('Error saving transaction:', error)
+      alert('Gagal menyimpan transaksi')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const resetForm = () => {
+    setSelectedProductId('')
+    setQuantity('')
+    setPricePerUnit('')
+    setCustomerName('')
+    setNotes('')
+    setPaymentMethod('Tunai')
+    setDueDate('')
+    setTransactionDate(new Date().toISOString().split('T')[0])
+  }
+
   return (
     <div className="p-4 sm:p-6 lg:p-8">
       {/* Page Header */}
@@ -93,7 +190,7 @@ export default function InputSalesPage() {
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Transaksi Baru</h2>
         
-        <form className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Tanggal Transaksi
@@ -190,6 +287,8 @@ export default function InputSalesPage() {
             <input
               type="text"
               placeholder="Nama pelanggan"
+              value={customerName}
+              onChange={(e) => setCustomerName(e.target.value)}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
@@ -302,6 +401,8 @@ export default function InputSalesPage() {
             <textarea
               rows={3}
               placeholder="Catatan tambahan..."
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
@@ -309,12 +410,14 @@ export default function InputSalesPage() {
           <div className="flex gap-3 pt-4">
             <button
               type="submit"
-              className="flex-1 sm:flex-none px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors"
+              disabled={saving || !selectedProductId || !quantity || !pricePerUnit}
+              className="flex-1 sm:flex-none px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
             >
-              Simpan Transaksi
+              {saving ? 'Menyimpan...' : '💾 Simpan Transaksi'}
             </button>
             <button
               type="button"
+              onClick={resetForm}
               className="px-6 py-3 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors"
             >
               Reset
@@ -322,6 +425,16 @@ export default function InputSalesPage() {
           </div>
         </form>
       </div>
+
+      {/* Invoice Modal */}
+      {invoiceData && (
+        <InvoiceModal
+          isOpen={showInvoice}
+          onClose={() => setShowInvoice(false)}
+          invoiceData={invoiceData}
+          businessName={businessName}
+        />
+      )}
 
       {/* Recent Transactions */}
       <div className="mt-6 bg-white rounded-lg shadow-sm border border-gray-200 p-6">
