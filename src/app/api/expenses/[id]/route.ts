@@ -7,9 +7,10 @@ export const dynamic = 'force-dynamic'
 // PATCH: Update an expense
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const cookieStore = await cookies()
+  const { id } = await params
   
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -69,7 +70,7 @@ export async function PATCH(
         payment_status: payment_status || undefined,
         due_date: due_date !== undefined ? due_date : undefined
       })
-      .eq('id', params.id)
+      .eq('id', id)
       .select()
       .single()
 
