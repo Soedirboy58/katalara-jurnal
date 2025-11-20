@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import QRCode from 'react-qr-code';
-import { Storefront, StorefrontProduct, THEME_PRESETS, PRODUCT_CATEGORIES } from '@/types/lapak';
+import { Storefront, StorefrontProduct, THEME_PRESETS, PRODUCT_TYPES, BARANG_CATEGORIES, JASA_CATEGORIES } from '@/types/lapak';
 
 export default function LapakPage() {
   const router = useRouter();
@@ -31,6 +31,7 @@ export default function LapakPage() {
   const [productForm, setProductForm] = useState<Partial<StorefrontProduct>>({
     name: '',
     description: '',
+    product_type: 'barang',
     category: '',
     price: 0,
     compare_at_price: 0,
@@ -39,6 +40,8 @@ export default function LapakPage() {
     is_visible: true,
     is_featured: false,
   });
+  const [priceInput, setPriceInput] = useState('');
+  const [compareAtPriceInput, setCompareAtPriceInput] = useState('');
 
   // Load data
   useEffect(() => {
@@ -159,6 +162,7 @@ export default function LapakPage() {
     setProductForm({
       name: '',
       description: '',
+      product_type: 'barang',
       category: '',
       price: 0,
       compare_at_price: 0,
@@ -167,6 +171,26 @@ export default function LapakPage() {
       is_visible: true,
       is_featured: false,
     } as Partial<StorefrontProduct>);
+    setPriceInput('');
+    setCompareAtPriceInput('');
+  };
+
+  // Format number with thousand separators for display
+  const formatNumber = (num: number | string): string => {
+    if (!num) return '';
+    const numStr = num.toString().replace(/\D/g, '');
+    return numStr.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  };
+
+  // Parse formatted number back to integer
+  const parseFormattedNumber = (str: string): number => {
+    if (!str) return 0;
+    return parseInt(str.replace(/\./g, ''), 10) || 0;
+  };
+
+  // Get categories based on product type
+  const getAvailableCategories = () => {
+    return productForm.product_type === 'jasa' ? JASA_CATEGORIES : BARANG_CATEGORIES;
   };
 
   const getStorefrontUrl = () => {
@@ -485,7 +509,13 @@ export default function LapakPage() {
                               <button
                                 onClick={() => {
                                   setEditingProduct(product);
-                                  setProductForm(product);
+                                  setProductForm({
+                                    ...product,
+                                    product_type: product.product_type || 'barang',
+                                  });
+                                  // Set formatted price inputs for editing
+                                  setPriceInput(formatNumber(product.price));
+                                  setCompareAtPriceInput(product.compare_at_price ? formatNumber(product.compare_at_price) : '');
                                   setShowProductForm(true);
                                 }}
                                 className="flex-1 py-2 bg-blue-50 text-blue-600 rounded hover:bg-blue-100"
@@ -517,6 +547,9 @@ export default function LapakPage() {
                             onClick={() => {
                               setShowProductForm(false);
                               setEditingProduct(null);
+                              // Reset formatted inputs
+                              setPriceInput('');
+                              setCompareAtPriceInput('');
                             }}
                             className="p-2 hover:bg-gray-100 rounded-full"
                           >
@@ -525,87 +558,169 @@ export default function LapakPage() {
                         </div>
 
                         <div className="p-6 space-y-4">
+                          {/* Jenis Produk */}
+                          <div>
+                            <label className="block font-medium text-gray-900 mb-2">Jenis Produk *</label>
+                            <div className="grid grid-cols-2 gap-3">
+                              {PRODUCT_TYPES.map((type) => (
+                                <button
+                                  key={type.value}
+                                  type="button"
+                                  onClick={() => {
+                                    setProductForm({ 
+                                      ...productForm, 
+                                      product_type: type.value,
+                                      category: '', // Reset category when type changes
+                                    });
+                                  }}
+                                  className={`p-4 border-2 rounded-lg font-medium transition-all ${
+                                    productForm.product_type === type.value
+                                      ? 'border-blue-600 bg-blue-50 text-blue-700'
+                                      : 'border-gray-300 hover:border-gray-400'
+                                  }`}
+                                >
+                                  <div className="text-2xl mb-1">
+                                    {type.value === 'barang' ? '📦' : '🛠️'}
+                                  </div>
+                                  {type.label}
+                                </button>
+                              ))}
+                            </div>
+                            <p className="text-xs text-gray-500 mt-2">
+                              {productForm.product_type === 'barang' 
+                                ? 'Barang fisik yang dijual (makanan, pakaian, elektronik, dll)'
+                                : 'Layanan/jasa yang ditawarkan (catering, desain, konsultasi, dll)'}
+                            </p>
+                          </div>
+
+                          {/* Nama Produk */}
                           <div>
                             <label className="block font-medium mb-2">Nama Produk *</label>
                             <input
                               type="text"
                               value={productForm.name}
                               onChange={(e) => setProductForm({ ...productForm, name: e.target.value })}
-                              className="w-full px-4 py-2 border rounded-lg"
+                              placeholder={productForm.product_type === 'barang' ? 'Contoh: Kue Nastar Premium' : 'Contoh: Jasa Desain Logo Profesional'}
+                              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent"
                             />
                           </div>
 
+                          {/* Deskripsi */}
                           <div>
                             <label className="block font-medium mb-2">Deskripsi</label>
                             <textarea
                               value={productForm.description}
                               onChange={(e) => setProductForm({ ...productForm, description: e.target.value })}
                               rows={3}
-                              className="w-full px-4 py-2 border rounded-lg resize-none"
+                              placeholder={productForm.product_type === 'barang' 
+                                ? 'Jelaskan detail produk, bahan, ukuran, dll'
+                                : 'Jelaskan layanan yang diberikan, benefit, dll'}
+                              className="w-full px-4 py-2 border rounded-lg resize-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
                             />
                           </div>
 
+                          {/* Kategori - Dynamic based on product type */}
                           <div>
                             <label className="block font-medium mb-2">Kategori</label>
                             <select
                               value={productForm.category}
                               onChange={(e) => setProductForm({ ...productForm, category: e.target.value })}
-                              className="w-full px-4 py-2 border rounded-lg"
+                              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent"
                             >
                               <option value="">Pilih Kategori</option>
-                              {PRODUCT_CATEGORIES.map((cat) => (
+                              {getAvailableCategories().map((cat) => (
                                 <option key={cat} value={cat}>{cat}</option>
                               ))}
                             </select>
+                            <p className="text-xs text-gray-500 mt-1">
+                              Kategori akan membantu pembeli menemukan produk Anda
+                            </p>
                           </div>
 
+                          {/* Harga */}
                           <div className="grid grid-cols-2 gap-4">
                             <div>
-                              <label className="block font-medium mb-2">Harga *</label>
-                              <input
-                                type="number"
-                                value={productForm.price}
-                                onChange={(e) => setProductForm({ ...productForm, price: Number(e.target.value) })}
-                                className="w-full px-4 py-2 border rounded-lg"
-                              />
+                              <label className="block font-medium mb-2">Harga {productForm.product_type === 'jasa' ? 'Mulai' : ''} *</label>
+                              <div className="relative">
+                                <span className="absolute left-3 top-2.5 text-gray-500">Rp</span>
+                                <input
+                                  type="text"
+                                  inputMode="numeric"
+                                  value={priceInput}
+                                  onChange={(e) => {
+                                    const value = e.target.value.replace(/\D/g, '');
+                                    setPriceInput(formatNumber(value));
+                                    setProductForm({ ...productForm, price: parseFormattedNumber(value) });
+                                  }}
+                                  placeholder="0"
+                                  className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+                                />
+                              </div>
+                              {productForm.product_type === 'jasa' && (
+                                <p className="text-xs text-gray-500 mt-1">Harga mulai dari</p>
+                              )}
                             </div>
                             <div>
                               <label className="block font-medium mb-2">Harga Coret</label>
-                              <input
-                                type="number"
-                                value={productForm.compare_at_price}
-                                onChange={(e) => setProductForm({ ...productForm, compare_at_price: Number(e.target.value) })}
-                                className="w-full px-4 py-2 border rounded-lg"
-                              />
+                              <div className="relative">
+                                <span className="absolute left-3 top-2.5 text-gray-500">Rp</span>
+                                <input
+                                  type="text"
+                                  inputMode="numeric"
+                                  value={compareAtPriceInput}
+                                  onChange={(e) => {
+                                    const value = e.target.value.replace(/\D/g, '');
+                                    setCompareAtPriceInput(formatNumber(value));
+                                    setProductForm({ ...productForm, compare_at_price: parseFormattedNumber(value) });
+                                  }}
+                                  placeholder="0"
+                                  className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+                                />
+                              </div>
+                              <p className="text-xs text-gray-500 mt-1">Opsional (untuk diskon)</p>
                             </div>
                           </div>
 
-                          <div>
-                            <label className="block font-medium mb-2">Stok</label>
-                            <input
-                              type="number"
-                              value={productForm.stock_quantity}
-                              onChange={(e) => setProductForm({ ...productForm, stock_quantity: Number(e.target.value) })}
-                              className="w-full px-4 py-2 border rounded-lg"
-                            />
-                          </div>
-
-                          <div className="space-y-2">
-                            <label className="flex items-center gap-2">
+                          {/* Stok - Only for Barang */}
+                          {productForm.product_type === 'barang' && (
+                            <div>
+                              <label className="block font-medium mb-2">Stok</label>
                               <input
-                                type="checkbox"
-                                checked={productForm.track_inventory}
-                                onChange={(e) => setProductForm({ ...productForm, track_inventory: e.target.checked })}
-                                className="w-5 h-5"
+                                type="text"
+                                inputMode="numeric"
+                                value={productForm.stock_quantity || ''}
+                                onChange={(e) => {
+                                  const value = e.target.value.replace(/\D/g, '');
+                                  setProductForm({ ...productForm, stock_quantity: parseInt(value) || 0 });
+                                }}
+                                placeholder="0"
+                                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent"
                               />
-                              <span>Lacak Stok</span>
-                            </label>
+                              <p className="text-xs text-gray-500 mt-1">
+                                Jumlah stok yang tersedia. Kosongkan jika stok tidak terbatas.
+                              </p>
+                            </div>
+                          )}
+
+                          {/* Opsi */}
+                          <div className="space-y-2">
+                            {productForm.product_type === 'barang' && (
+                              <label className="flex items-center gap-2">
+                                <input
+                                  type="checkbox"
+                                  checked={productForm.track_inventory}
+                                  onChange={(e) => setProductForm({ ...productForm, track_inventory: e.target.checked })}
+                                  className="w-5 h-5 rounded"
+                                />
+                                <span>Lacak Stok (tampilkan info ketersediaan)</span>
+                              </label>
+                            )}
                             <label className="flex items-center gap-2">
                               <input
                                 type="checkbox"
                                 checked={productForm.is_visible}
                                 onChange={(e) => setProductForm({ ...productForm, is_visible: e.target.checked })}
-                                className="w-5 h-5"
+                                className="w-5 h-5 rounded"
                               />
                               <span>Tampilkan di Lapak</span>
                             </label>
@@ -614,16 +729,17 @@ export default function LapakPage() {
                                 type="checkbox"
                                 checked={productForm.is_featured}
                                 onChange={(e) => setProductForm({ ...productForm, is_featured: e.target.checked })}
-                                className="w-5 h-5"
+                                className="w-5 h-5 rounded"
                               />
-                              <span>⭐ Produk Unggulan</span>
+                              <span>⭐ Produk Unggulan (tampil di atas)</span>
                             </label>
                           </div>
 
+                          {/* Submit Button */}
                           <button
                             onClick={handleSaveProduct}
                             disabled={!productForm.name || !productForm.price}
-                            className="w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                            className="w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors"
                           >
                             {editingProduct ? 'Perbarui Produk' : 'Tambah Produk'}
                           </button>

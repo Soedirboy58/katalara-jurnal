@@ -42,6 +42,7 @@ export interface StorefrontProduct {
   // Product Info
   name: string;
   description?: string;
+  product_type?: 'barang' | 'jasa'; // Type of product
   category?: string;
   
   // Pricing
@@ -169,17 +170,68 @@ export const THEME_PRESETS = [
   { name: 'Orange Warm', color: '#F59E0B', description: 'Hangat dan ramah' },
 ] as const;
 
-// Product categories (common for UMKM)
-export const PRODUCT_CATEGORIES = [
+// Product types
+export const PRODUCT_TYPES = [
+  { value: 'barang', label: 'Produk Barang' },
+  { value: 'jasa', label: 'Produk Jasa' },
+] as const;
+
+// Product categories for Barang (Physical Products)
+export const BARANG_CATEGORIES = [
   'Makanan & Minuman',
   'Kue & Roti',
-  'Fashion',
+  'Snack & Cemilan',
+  'Frozen Food',
+  'Fashion Pria',
+  'Fashion Wanita',
+  'Fashion Anak',
   'Aksesoris',
+  'Tas & Dompet',
+  'Sepatu & Sandal',
   'Kerajinan Tangan',
-  'Kosmetik & Perawatan',
+  'Dekorasi Rumah',
+  'Kosmetik & Skincare',
+  'Perawatan Tubuh',
+  'Kesehatan',
   'Elektronik',
+  'Gadget & Aksesoris',
   'Mainan Anak',
-  'Alat Tulis',
+  'Perlengkapan Bayi',
+  'Alat Tulis & Kantor',
+  'Buku & Majalah',
+  'Tanaman & Bunga',
+  'Hewan Peliharaan',
+  'Otomotif',
+  'Lainnya',
+] as const;
+
+// Product categories for Jasa (Services)
+export const JASA_CATEGORIES = [
+  'Jasa Makanan (Catering)',
+  'Jasa Kue Custom',
+  'Desain Grafis',
+  'Desain Interior',
+  'Fotografi',
+  'Videografi',
+  'Editing Video/Foto',
+  'Web Development',
+  'Social Media Management',
+  'Digital Marketing',
+  'Konsultasi Bisnis',
+  'Konsultasi Keuangan',
+  'Les Privat',
+  'Kursus Online',
+  'Jasa Jahit',
+  'Jasa Sablon',
+  'Jasa Laundry',
+  'Jasa Cuci Kendaraan',
+  'Jasa Kebersihan',
+  'Jasa Perbaikan',
+  'Jasa Maintenance',
+  'Event Organizer',
+  'MC & Host',
+  'Make Up Artist',
+  'Jasa Pengiriman',
   'Lainnya',
 ] as const;
 
