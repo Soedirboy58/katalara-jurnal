@@ -1,18 +1,37 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useProducts } from '@/hooks/useProducts'
 import { Button } from '@/components/ui/Button'
-import { ProductTable } from './ProductTable'
+import { ProductKPICards } from './ProductKPICards'
+import { ProductCategoryTabs } from './ProductCategoryTabs'
+import { ProductTableAdvanced } from './ProductTableAdvanced'
+import { ProductCardView } from './ProductCardView'
+import { BulkActionsBar } from './BulkActionsBar'
 import { ProductModal } from './ProductModal'
 import { StockAdjustModal } from './StockAdjustModal'
+import { 
+  MagnifyingGlassIcon,
+  Squares2X2Icon,
+  TableCellsIcon,
+  FunnelIcon
+} from '@heroicons/react/24/outline'
 import type { Product, ProductFilters } from '@/types'
+
+type ViewMode = 'table' | 'card'
+type CategoryFilter = 'all' | 'best-seller' | 'low-stock' | 'high-value' | 'new'
 
 export function ProductsView() {
   const [filters, setFilters] = useState<ProductFilters>({})
   const [isProductModalOpen, setIsProductModalOpen] = useState(false)
   const [isStockModalOpen, setIsStockModalOpen] = useState(false)
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
+  const [viewMode, setViewMode] = useState<ViewMode>('table')
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [selectedProducts, setSelectedProducts] = useState<string[]>([])
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage, setItemsPerPage] = useState(10)
 
   const { 
     products, 
@@ -20,9 +39,119 @@ export function ProductsView() {
     error, 
     refresh,
     deleteProduct,
-    adjustStock 
+    adjustStock,
+    getStockStatus
   } = useProducts(filters)
 
+  // Computed values for KPIs
+  const kpiData = useMemo(() => {
+    const totalProducts = products.length
+    const totalStockValue = products.reduce((sum, p) => sum + (p.stock_quantity * p.sell_price), 0)
+    const lowStockCount = products.filter(p => {
+      if (!p.track_inventory) return false
+      return p.stock_quantity <= p.min_stock_alert
+    }).length
+
+    // Best seller (placeholder - would need sales data)
+    const bestSeller = products[0]?.name || 'N/A'
+    const topRevenueProduct = products[0]?.name || 'N/A'
+    const topRevenue = 0 // Would calculate from sales data
+
+    return {
+      totalProducts,
+      totalStockValue,
+      bestSellerName: bestSeller,
+      lowStockCount,
+      topRevenueProduct,
+      topRevenueAmount: topRevenue
+    }
+  }, [products])
+
+  // Filter products based on category and search
+  const filteredProducts = useMemo(() => {
+    let filtered = [...products]
+
+    // Apply category filter
+    switch (categoryFilter) {
+      case 'low-stock':
+        filtered = filtered.filter(p => {
+          if (!p.track_inventory) return false
+          return p.stock_quantity <= p.min_stock_alert
+        })
+        break
+      case 'high-value':
+        filtered = filtered.filter(p => p.sell_price >= 50000)
+        break
+      case 'best-seller':
+        // Would filter based on sales data
+        filtered = filtered.slice(0, 10)
+        break
+      case 'new':
+        // Would filter based on created_at
+        filtered = filtered.slice(0, 20)
+        break
+    }
+
+    // Apply search filter
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase()
+      filtered = filtered.filter(p => 
+        p.name.toLowerCase().includes(query) ||
+        p.sku?.toLowerCase().includes(query) ||
+        p.category?.toLowerCase().includes(query)
+      )
+    }
+
+    return filtered
+  }, [products, categoryFilter, searchQuery])
+
+  // Pagination
+  const totalPages = Math.ceil(filteredProducts.length / itemsPerPage)
+  const paginatedProducts = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage
+    return filteredProducts.slice(start, start + itemsPerPage)
+  }, [filteredProducts, currentPage, itemsPerPage])
+
+  // Category tabs
+  const categoryTabs = [
+    {
+      id: 'all' as CategoryFilter,
+      label: 'Semua',
+      icon: '📦',
+      count: products.length,
+      color: 'bg-blue-600'
+    },
+    {
+      id: 'best-seller' as CategoryFilter,
+      label: 'Best Seller',
+      icon: '🔥',
+      count: Math.min(10, products.length),
+      color: 'bg-red-600'
+    },
+    {
+      id: 'low-stock' as CategoryFilter,
+      label: 'Stok Rendah',
+      icon: '⚠️',
+      count: kpiData.lowStockCount,
+      color: 'bg-yellow-600'
+    },
+    {
+      id: 'high-value' as CategoryFilter,
+      label: 'High Value',
+      icon: '💰',
+      count: products.filter(p => p.sell_price >= 50000).length,
+      color: 'bg-purple-600'
+    },
+    {
+      id: 'new' as CategoryFilter,
+      label: 'Baru',
+      icon: '🆕',
+      count: Math.min(20, products.length),
+      color: 'bg-green-600'
+    }
+  ]
+
+  // Handlers
   const handleEdit = (product: Product) => {
     setSelectedProduct(product)
     setIsProductModalOpen(true)
@@ -41,26 +170,70 @@ export function ProductsView() {
       alert('Gagal menghapus: ' + error)
     } else {
       alert('Produk berhasil dihapus')
+      setSelectedProducts(prev => prev.filter(id => id !== product.id))
     }
   }
 
-  const lowStockCount = products.filter(p => {
-    if (!p.track_inventory) return false
-    return p.stock_quantity <= p.min_stock_alert
-  }).length
+  const handleSelectProduct = (productId: string) => {
+    setSelectedProducts(prev => 
+      prev.includes(productId) 
+        ? prev.filter(id => id !== productId)
+        : [...prev, productId]
+    )
+  }
+
+  const handleSelectAll = () => {
+    if (selectedProducts.length === paginatedProducts.length) {
+      setSelectedProducts([])
+    } else {
+      setSelectedProducts(paginatedProducts.map(p => p.id))
+    }
+  }
+
+  const handleBulkDelete = async () => {
+    if (!confirm(`Hapus ${selectedProducts.length} produk yang dipilih?`)) return
+
+    for (const id of selectedProducts) {
+      await deleteProduct(id)
+    }
+    setSelectedProducts([])
+    alert('Produk berhasil dihapus')
+  }
+
+  const handleBulkExport = () => {
+    const selectedData = products.filter(p => selectedProducts.includes(p.id))
+    const csv = [
+      ['Nama', 'SKU', 'Kategori', 'Stok', 'Harga Beli', 'Harga Jual'].join(','),
+      ...selectedData.map(p => 
+        [p.name, p.sku, p.category, p.stock_quantity, p.buy_price, p.sell_price].join(',')
+      )
+    ].join('\n')
+
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'produk-export.csv'
+    a.click()
+  }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 pb-20">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Produk</h1>
-          <p className="text-gray-600 mt-1">Kelola katalog produk dan inventory</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Produk Saya</h1>
+          <p className="text-sm sm:text-base text-gray-600 mt-1">
+            Kelola katalog produk dan inventory bisnis Anda
+          </p>
         </div>
-        <Button onClick={() => {
-          setSelectedProduct(null)
-          setIsProductModalOpen(true)
-        }}>
+        <Button 
+          onClick={() => {
+            setSelectedProduct(null)
+            setIsProductModalOpen(true)
+          }}
+          className="w-full sm:w-auto"
+        >
           <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
@@ -68,57 +241,121 @@ export function ProductsView() {
         </Button>
       </div>
 
-      {/* Low Stock Alert */}
-      {lowStockCount > 0 && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <div className="flex items-center gap-3">
-            <span className="text-2xl">⚠️</span>
-            <div className="flex-1">
-              <p className="font-semibold text-red-900">Peringatan Stok!</p>
-              <p className="text-sm text-red-700">
-                {lowStockCount} produk memiliki stok rendah atau habis. Segera restock!
-              </p>
-            </div>
-          </div>
+      {/* KPI Cards */}
+      <ProductKPICards {...kpiData} />
+
+      {/* Search and View Controls */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+          <input
+            type="search"
+            placeholder="Cari produk, SKU, atau kategori..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
         </div>
-      )}
 
-      {/* Filters */}
-      <div className="flex gap-3">
-        <select
-          value={filters.status || ''}
-          onChange={(e) => setFilters({ ...filters, status: e.target.value as any })}
-          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-        >
-          <option value="">Semua Status</option>
-          <option value="HEALTHY">✅ Stok Sehat</option>
-          <option value="LOW">⚠️ Stok Rendah</option>
-          <option value="CRITICAL">🔴 Stok Kritis</option>
-          <option value="OUT_OF_STOCK">❌ Habis</option>
-        </select>
-
-        <input
-          type="search"
-          placeholder="Cari produk..."
-          value={filters.search || ''}
-          onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-          className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-        />
+        {/* View Mode Toggle */}
+        <div className="flex gap-2 bg-gray-100 p-1 rounded-lg">
+          <button
+            onClick={() => setViewMode('table')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-md font-medium text-sm transition-colors ${
+              viewMode === 'table'
+                ? 'bg-white text-gray-900 shadow-sm'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <TableCellsIcon className="w-4 h-4" />
+            <span className="hidden sm:inline">Table</span>
+          </button>
+          <button
+            onClick={() => setViewMode('card')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-md font-medium text-sm transition-colors ${
+              viewMode === 'card'
+                ? 'bg-white text-gray-900 shadow-sm'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <Squares2X2Icon className="w-4 h-4" />
+            <span className="hidden sm:inline">Cards</span>
+          </button>
+        </div>
       </div>
 
-      {/* Table */}
+      {/* Category Tabs */}
+      <ProductCategoryTabs
+        tabs={categoryTabs}
+        activeTab={categoryFilter}
+        onTabChange={(tabId) => {
+          setCategoryFilter(tabId as CategoryFilter)
+          setCurrentPage(1)
+        }}
+      />
+
+      {/* Error Display */}
       {error && (
-        <div className="bg-red-50 text-red-700 px-4 py-3 rounded-lg">
-          Error: {error}
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+          <p className="font-semibold">Error:</p>
+          <p className="text-sm">{error}</p>
         </div>
       )}
 
-      <ProductTable
-        products={products}
-        loading={loading}
-        onEdit={handleEdit}
-        onAdjustStock={handleAdjustStock}
-        onDelete={handleDelete}
+      {/* Results Info */}
+      {!loading && filteredProducts.length > 0 && (
+        <div className="flex items-center justify-between text-sm text-gray-600">
+          <span>
+            Menampilkan {paginatedProducts.length} dari {filteredProducts.length} produk
+          </span>
+          {selectedProducts.length > 0 && (
+            <span className="font-semibold text-blue-600">
+              {selectedProducts.length} produk dipilih
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Product Display */}
+      {viewMode === 'table' ? (
+        <ProductTableAdvanced
+          products={paginatedProducts}
+          loading={loading}
+          selectedProducts={selectedProducts}
+          onSelectProduct={handleSelectProduct}
+          onSelectAll={handleSelectAll}
+          onEdit={handleEdit}
+          onAdjustStock={handleAdjustStock}
+          onDelete={handleDelete}
+          currentPage={currentPage}
+          totalPages={totalPages}
+          itemsPerPage={itemsPerPage}
+          onPageChange={setCurrentPage}
+          onItemsPerPageChange={(count) => {
+            setItemsPerPage(count)
+            setCurrentPage(1)
+          }}
+        />
+      ) : (
+        <ProductCardView
+          products={paginatedProducts}
+          loading={loading}
+          selectedProducts={selectedProducts}
+          onSelectProduct={handleSelectProduct}
+          onEdit={handleEdit}
+          onAdjustStock={handleAdjustStock}
+          onDelete={handleDelete}
+        />
+      )}
+
+      {/* Bulk Actions Bar */}
+      <BulkActionsBar
+        selectedCount={selectedProducts.length}
+        onClearSelection={() => setSelectedProducts([])}
+        onBulkCategory={() => alert('Bulk category change coming soon!')}
+        onBulkAdjustStock={() => alert('Bulk stock adjustment coming soon!')}
+        onBulkExport={handleBulkExport}
+        onBulkDelete={handleBulkDelete}
       />
 
       {/* Modals */}
