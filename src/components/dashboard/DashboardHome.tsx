@@ -45,6 +45,35 @@ export function DashboardHome() {
   // Settings & ROI
   const [settings, setSettings] = useState<any>(null)
   const [roi, setRoi] = useState<number | null>(null)
+  
+  // Health Score State
+  const [healthScore, setHealthScore] = useState<any>(null)
+  const [loadingHealthScore, setLoadingHealthScore] = useState(true)
+
+  // Fetch Health Score
+  useEffect(() => {
+    const fetchHealthScore = async () => {
+      try {
+        setLoadingHealthScore(true)
+        const response = await fetch('/api/health-score')
+        const result = await response.json()
+        
+        if (result.success) {
+          setHealthScore(result.data)
+        }
+      } catch (error) {
+        console.error('Failed to load health score:', error)
+      } finally {
+        setLoadingHealthScore(false)
+      }
+    }
+    
+    fetchHealthScore()
+    
+    // Refresh every 5 minutes
+    const interval = setInterval(fetchHealthScore, 5 * 60 * 1000)
+    return () => clearInterval(interval)
+  }, [])
 
   useEffect(() => {
     const loadData = async () => {
@@ -455,12 +484,21 @@ export function DashboardHome() {
       )}
       
       {/* Business Health Score */}
-      <HealthScoreCard 
-        cashFlowHealth={kpiData?.today?.netProfit >= 0 ? 85 : 45}
-        profitabilityHealth={kpiData?.month?.sales > 0 ? Math.min(100, ((kpiData.month.netProfit / kpiData.month.sales) * 100) + 50) : 50}
-        growthHealth={kpiData?.products?.total > 0 ? Math.min(100, 50 + kpiData.products.total) : 50}
-        efficiencyHealth={kpiData?.products?.lowStock === 0 ? 90 : Math.max(30, 90 - (kpiData?.products?.lowStock * 10))}
-      />
+      {loadingHealthScore ? (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="animate-pulse">
+            <div className="h-4 bg-gray-200 rounded w-1/3 mb-4"></div>
+            <div className="h-32 bg-gray-200 rounded"></div>
+          </div>
+        </div>
+      ) : (
+        <HealthScoreCard 
+          cashFlowHealth={healthScore?.cashFlowHealth}
+          profitabilityHealth={healthScore?.profitabilityHealth}
+          growthHealth={healthScore?.growthHealth}
+          efficiencyHealth={healthScore?.efficiencyHealth}
+        />
+      )}
 
       {/* AI Insights Panel */}
       <InsightsPanel 

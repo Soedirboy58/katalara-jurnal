@@ -1204,69 +1204,104 @@ export default function InputExpensesPage() {
             </div>
 
             {/* Content */}
-            <div className="p-6 space-y-4">
-              {/* Pembelian Stok */}
+            <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
+              {/* 3 TIPE TRANSAKSI */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                <p className="text-sm text-blue-900 font-medium">
+                  📊 Sistem menggunakan <strong>3 Tipe Transaksi</strong> sesuai standar Laporan Arus Kas UMKM
+                </p>
+              </div>
+
+              {/* OPERASIONAL */}
               <div className="border-l-4 border-blue-500 pl-4 py-2">
-                <h3 className="font-semibold text-gray-900 mb-1">📦 Pembelian Stok</h3>
+                <h3 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
+                  <span>💼</span> 1. OPERASIONAL
+                </h3>
                 <p className="text-sm text-gray-700 mb-2">
-                  Uang yang dikeluarkan untuk membeli barang yang akan dijual atau diproduksi.
+                  Pengeluaran rutin bisnis sehari-hari untuk menjalankan usaha.
                 </p>
-                <ul className="text-xs text-gray-600 space-y-1 ml-4">
-                  <li>• <strong>Bahan Baku:</strong> Tepung, gula, bumbu (untuk produksi)</li>
-                  <li>• <strong>Produk Jadi:</strong> Beli barang jadi untuk dijual lagi (reseller)</li>
-                </ul>
-              </div>
-
-              {/* Operasional */}
-              <div className="border-l-4 border-green-500 pl-4 py-2">
-                <h3 className="font-semibold text-gray-900 mb-1">💼 Operasional</h3>
-                <p className="text-sm text-gray-700 mb-2">
-                  Biaya rutin untuk menjalankan bisnis sehari-hari.
-                </p>
-                <ul className="text-xs text-gray-600 space-y-1 ml-4">
-                  <li>• Gaji karyawan, sewa tempat, listrik & air</li>
-                  <li>• Internet, transportasi, maintenance</li>
-                </ul>
-              </div>
-
-              {/* Marketing */}
-              <div className="border-l-4 border-amber-500 pl-4 py-2">
-                <h3 className="font-semibold text-gray-900 mb-1">📢 Marketing & Lainnya</h3>
-                <p className="text-sm text-gray-700 mb-2">
-                  Biaya promosi dan administrasi bisnis.
-                </p>
-                <ul className="text-xs text-gray-600 space-y-1 ml-4">
-                  <li>• Iklan, promosi, pajak, perizinan</li>
-                </ul>
-              </div>
-
-              {/* Prive - HIGHLIGHTED */}
-              <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border-2 border-purple-300 rounded-lg p-4">
-                <div className="flex items-start gap-2">
-                  <span className="text-3xl">🏦</span>
+                
+                <div className="space-y-2 ml-4">
                   <div>
-                    <h3 className="font-bold text-purple-900 mb-2">💰 Prive (Ambil Pribadi)</h3>
-                    <p className="text-sm text-purple-800 font-medium mb-2">
-                      <strong>PENTING:</strong> Prive adalah uang bisnis yang Anda ambil untuk keperluan pribadi.
+                    <p className="text-xs font-semibold text-gray-800">📦 Pembelian Stok:</p>
+                    <ul className="text-xs text-gray-600 space-y-0.5 ml-3">
+                      <li>• <strong>Bahan Baku:</strong> Tepung, telur, bumbu (untuk produksi)</li>
+                      <li>• <strong>Produk Jadi:</strong> Beli barang jadi untuk reseller</li>
+                    </ul>
+                  </div>
+                  
+                  <div>
+                    <p className="text-xs font-semibold text-gray-800">🏢 Biaya Rutin:</p>
+                    <ul className="text-xs text-gray-600 space-y-0.5 ml-3">
+                      <li>• Gaji karyawan, sewa tempat, listrik & air</li>
+                      <li>• Internet, transportasi, maintenance</li>
+                      <li>• Marketing & promosi, pajak & perizinan</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+
+              {/* INVESTASI */}
+              <div className="border-l-4 border-purple-500 pl-4 py-2">
+                <h3 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
+                  <span>🏗️</span> 2. INVESTASI
+                </h3>
+                <p className="text-sm text-gray-700 mb-2">
+                  Pembelian aset atau peralatan jangka panjang (digunakan &gt; 1 tahun).
+                </p>
+                <ul className="text-xs text-gray-600 space-y-1 ml-4">
+                  <li>• <strong>Peralatan Kantor:</strong> Laptop, printer, AC, meja kursi</li>
+                  <li>• <strong>Alat Produksi:</strong> Oven, mixer, mesin jahit, kompor</li>
+                  <li>• <strong>Kendaraan:</strong> Motor/mobil untuk delivery bisnis</li>
+                  <li>• <strong>Renovasi:</strong> Bangun dapur, partisi ruangan</li>
+                </ul>
+                <div className="bg-purple-50 rounded-lg p-2 mt-2">
+                  <p className="text-xs text-purple-800">
+                    💡 Aset &gt; Rp 1 juta dan umur ekonomis &gt; 1 tahun masuk kategori ini
+                  </p>
+                </div>
+              </div>
+
+              {/* PENDANAAN */}
+              <div className="border-l-4 border-green-500 pl-4 py-2">
+                <h3 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
+                  <span>💰</span> 3. PENDANAAN
+                </h3>
+                <p className="text-sm text-gray-700 mb-2">
+                  Transaksi terkait modal pemilik dan pinjaman/hutang usaha.
+                </p>
+                <ul className="text-xs text-gray-600 space-y-1 ml-4">
+                  <li>• <strong>Pembayaran Pokok Pinjaman:</strong> Cicilan KUR, P2P lending</li>
+                  <li>• <strong>Pembayaran Bunga:</strong> Bunga bank, bunga pinjaman</li>
+                  <li>• <strong>Prive Pemilik:</strong> Ambil uang untuk keperluan pribadi</li>
+                </ul>
+              </div>
+
+              {/* Prive - SPECIAL HIGHLIGHT */}
+              <div className="bg-gradient-to-r from-orange-50 to-red-50 border-2 border-orange-300 rounded-lg p-4">
+                <div className="flex items-start gap-2">
+                  <span className="text-3xl">💸</span>
+                  <div>
+                    <h3 className="font-bold text-orange-900 mb-2">⚠️ PRIVE (Ambil Pribadi) - PENTING!</h3>
+                    <p className="text-sm text-orange-800 font-medium mb-2">
+                      Prive adalah uang bisnis yang Anda ambil untuk <strong>keperluan pribadi</strong>.
                     </p>
-                    <div className="bg-white rounded-lg p-3 mb-3">
-                      <p className="text-xs text-gray-800 mb-2">
-                        <strong>Contoh Prive:</strong>
-                      </p>
-                      <ul className="text-xs text-gray-700 space-y-1 ml-4">
+                    <div className="bg-white rounded-lg p-3 mb-2">
+                      <p className="text-xs text-gray-800 font-semibold mb-1">Contoh Prive:</p>
+                      <ul className="text-xs text-gray-700 space-y-0.5 ml-4">
                         <li>✓ Belanja bulanan keluarga</li>
                         <li>✓ Biaya sekolah anak</li>
                         <li>✓ Bayar cicilan rumah pribadi</li>
                         <li>✓ Jalan-jalan keluarga</li>
                       </ul>
                     </div>
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                      <p className="text-xs text-red-800">
-                        ⚠️ <strong>Prive BUKAN pengeluaran bisnis!</strong> Ini adalah pengambilan modal owner. Pisahkan agar profit bisnis terlihat jelas.
+                    <div className="bg-red-100 border border-red-300 rounded-lg p-2">
+                      <p className="text-xs text-red-900 font-semibold">
+                        🚫 Prive <strong>BUKAN pengeluaran bisnis!</strong> Ini pengambilan modal owner.
                       </p>
-                    </div>
-                    <div className="mt-3 text-xs text-purple-700">
-                      💡 <strong>Kenapa penting?</strong> Dengan memisahkan Prive, Anda bisa tahu profit sebenarnya dan membuat keputusan bisnis yang lebih baik.
+                      <p className="text-xs text-red-800 mt-1">
+                        Pisahkan agar profit bisnis terlihat jelas & keputusan bisnis lebih akurat.
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -1824,13 +1859,17 @@ export default function InputExpensesPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Metode Pembayaran
                 </label>
-                <input
-                  type="text"
-                  value={editingExpense.payment_method || ''}
+                <select
+                  value={editingExpense.payment_method || 'Tunai'}
                   onChange={(e) => setEditingExpense({...editingExpense, payment_method: e.target.value})}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-gray-900"
-                  placeholder="Tunai / Transfer / Tempo"
-                />
+                >
+                  <option>Tunai</option>
+                  <option>Transfer Bank</option>
+                  <option>E-Wallet</option>
+                  <option>Kartu Kredit/Debit</option>
+                  <option>Tempo/Hutang</option>
+                </select>
               </div>
 
               <div>

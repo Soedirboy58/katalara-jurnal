@@ -60,8 +60,7 @@ const menuItems = [
     name: 'Pelanggan', 
     href: '/dashboard/customers', 
     icon: UserGroupIcon,
-    description: 'Data pelanggan & piutang',
-    badge: 'New'
+    description: 'Data pelanggan & piutang'
   },
   { 
     name: 'Laporan', 
@@ -74,14 +73,14 @@ const menuItems = [
     href: '/dashboard/level-up', 
     icon: RocketLaunchIcon,
     description: 'Mentoring & pembelajaran',
-    badge: 'New'
+    badge: 'Soon'
   },
   { 
     name: 'Community', 
     href: '/dashboard/community', 
     icon: ChatBubbleLeftRightIcon,
     description: 'Forum & diskusi',
-    badge: 'New'
+    badge: 'Soon'
   },
   { 
     name: 'Pengaturan', 
@@ -208,7 +207,9 @@ export function Sidebar({ isOpen, onClose, collapsed, onToggleCollapse }: Sideba
                         {item.badge && (
                           <span className={`
                             ml-2 px-1.5 py-0.5 text-[10px] font-bold rounded uppercase tracking-wide
-                            ${item.badge === 'Hot' ? 'bg-red-500 text-white' : 'bg-green-500 text-white'}
+                            ${item.badge === 'Hot' ? 'bg-red-500 text-white' : 
+                              item.badge === 'Soon' ? 'bg-orange-500 text-white' : 
+                              'bg-green-500 text-white'}
                           `}>
                             {item.badge}
                           </span>
