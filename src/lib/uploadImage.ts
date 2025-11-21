@@ -18,16 +18,19 @@ export async function uploadImage(
   userId: string
 ): Promise<UploadResult> {
   try {
+    console.log('🔧 uploadImage called:', { fileName: file.name, fileSize: file.size, folder, userId });
     const supabase = createClient();
 
     // Validate file type
     if (!file.type.startsWith('image/')) {
-      return { success: false, error: 'File harus berupa gambar' };
+      console.error('❌ Invalid file type:', file.type);
+      return { success: false, error: 'File harus berupa gambar (JPG, PNG, WebP)' };
     }
 
     // Validate file size (max 5MB)
     const maxSize = 5 * 1024 * 1024;
     if (file.size > maxSize) {
+      console.error('❌ File too large:', file.size);
       return { success: false, error: 'Ukuran file maksimal 5MB' };
     }
 
@@ -36,8 +39,10 @@ export async function uploadImage(
     const timestamp = Date.now();
     const random = Math.random().toString(36).substring(7);
     const fileName = `${userId}/${folder}/${timestamp}_${random}.${fileExt}`;
+    console.log('📁 Generated fileName:', fileName);
 
     // Upload to Supabase Storage
+    console.log('☁️ Uploading to bucket:', BUCKET_NAME);
     const { data, error } = await supabase.storage
       .from(BUCKET_NAME)
       .upload(fileName, file, {
@@ -46,22 +51,37 @@ export async function uploadImage(
       });
 
     if (error) {
-      console.error('Upload error:', error);
-      return { success: false, error: 'Gagal upload gambar' };
+      console.error('❌ Supabase upload error:', error);
+      
+      // More specific error messages
+      if (error.message.includes('row-level security')) {
+        return { success: false, error: 'Akses ditolak. Pastikan Anda sudah login dan bucket sudah dikonfigurasi.' };
+      } else if (error.message.includes('not found')) {
+        return { success: false, error: 'Bucket storage belum dibuat. Hubungi admin untuk setup.' };
+      } else if (error.message.includes('duplicate')) {
+        return { success: false, error: 'File dengan nama sama sudah ada. Coba lagi.' };
+      }
+      
+      return { success: false, error: `Gagal upload: ${error.message}` };
     }
+
+    console.log('✅ Upload success:', data);
 
     // Get public URL
     const { data: urlData } = supabase.storage
       .from(BUCKET_NAME)
       .getPublicUrl(data.path);
 
+    console.log('🔗 Public URL:', urlData.publicUrl);
+
     return {
       success: true,
       url: urlData.publicUrl,
     };
-  } catch (error) {
-    console.error('Upload exception:', error);
-    return { success: false, error: 'Terjadi kesalahan saat upload' };
+  } catch (error: any) {
+    console.error('💥 Upload exception:', error);
+    const errorMsg = error?.message || error?.toString() || 'Unknown error';
+    return { success: false, error: `Error: ${errorMsg}` };
   }
 }
 

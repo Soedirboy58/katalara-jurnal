@@ -179,8 +179,8 @@ export default function LapakPage() {
       category: '',
       price: 0,
       compare_at_price: 0,
-      stock_quantity: 0,
-      track_inventory: true,
+      stock_quantity: 999999, // Set high number for unlimited stock (especially for jasa)
+      track_inventory: false, // Default to not track inventory
       is_visible: true,
       is_featured: false,
     } as Partial<StorefrontProduct>);
@@ -703,6 +703,9 @@ export default function LapakPage() {
                                       ...productForm, 
                                       product_type: type.value,
                                       category: '', // Reset category when type changes
+                                      // For jasa: unlimited stock, don't track inventory
+                                      stock_quantity: type.value === 'jasa' ? 999999 : (productForm.stock_quantity || 0),
+                                      track_inventory: type.value === 'barang',
                                     });
                                   }}
                                   className={`p-4 border-2 rounded-lg font-medium transition-all ${
