@@ -10,14 +10,15 @@ async function calculateCashFlowHealth(supabase: any, userId: string) {
   const startOfMonth = new Date(thisMonth.getFullYear(), thisMonth.getMonth(), 1).toISOString().split('T')[0]
   
   try {
-    // Total Revenue from transactions
-    const { data: transactions } = await supabase
-      .from('transactions')
-      .select('total_amount')
-      .or(`owner_id.eq.${userId},user_id.eq.${userId}`)
-      .gte('transaction_date', startOfMonth)
+    // Total Revenue from incomes
+    const { data: incomes } = await supabase
+      .from('incomes')
+      .select('amount')
+      .eq('user_id', userId)
+      .eq('payment_status', 'Lunas')
+      .gte('income_date', startOfMonth)
     
-    const totalRevenue = transactions?.reduce((sum: number, t: any) => sum + parseFloat(t.total_amount || 0), 0) || 0
+    const totalRevenue = incomes?.reduce((sum: number, t: any) => sum + parseFloat(t.amount || 0), 0) || 0
     
     // Total Expenses
     const { data: expenses } = await supabase
@@ -52,13 +53,14 @@ async function calculateProfitabilityHealth(supabase: any, userId: string) {
   
   try {
     // Get Revenue & Expenses
-    const { data: transactions } = await supabase
-      .from('transactions')
-      .select('total_amount')
-      .or(`owner_id.eq.${userId},user_id.eq.${userId}`)
-      .gte('transaction_date', startOfMonth)
+    const { data: incomes } = await supabase
+      .from('incomes')
+      .select('amount')
+      .eq('user_id', userId)
+      .eq('payment_status', 'Lunas')
+      .gte('income_date', startOfMonth)
     
-    const totalRevenue = transactions?.reduce((sum: number, t: any) => sum + parseFloat(t.total_amount || 0), 0) || 0
+    const totalRevenue = incomes?.reduce((sum: number, t: any) => sum + parseFloat(t.amount || 0), 0) || 0
     
     const { data: expenses } = await supabase
       .from('expenses')
@@ -95,22 +97,24 @@ async function calculateGrowthHealth(supabase: any, userId: string) {
   try {
     // This month revenue
     const { data: thisMonthData } = await supabase
-      .from('transactions')
-      .select('total_amount')
-      .or(`owner_id.eq.${userId},user_id.eq.${userId}`)
-      .gte('transaction_date', startOfThisMonth)
+      .from('incomes')
+      .select('amount')
+      .eq('user_id', userId)
+      .eq('payment_status', 'Lunas')
+      .gte('income_date', startOfThisMonth)
     
-    const thisMonthRevenue = thisMonthData?.reduce((sum: number, t: any) => sum + parseFloat(t.total_amount || 0), 0) || 0
+    const thisMonthRevenue = thisMonthData?.reduce((sum: number, t: any) => sum + parseFloat(t.amount || 0), 0) || 0
     
     // Last month revenue
     const { data: lastMonthData } = await supabase
-      .from('transactions')
-      .select('total_amount')
-      .or(`owner_id.eq.${userId},user_id.eq.${userId}`)
-      .gte('transaction_date', startOfLastMonth)
-      .lte('transaction_date', endOfLastMonth)
+      .from('incomes')
+      .select('amount')
+      .eq('user_id', userId)
+      .eq('payment_status', 'Lunas')
+      .gte('income_date', startOfLastMonth)
+      .lte('income_date', endOfLastMonth)
     
-    const lastMonthRevenue = lastMonthData?.reduce((sum: number, t: any) => sum + parseFloat(t.total_amount || 0), 0) || 0
+    const lastMonthRevenue = lastMonthData?.reduce((sum: number, t: any) => sum + parseFloat(t.amount || 0), 0) || 0
     
     // Default for new business
     if (lastMonthRevenue === 0 && thisMonthRevenue === 0) return 70
@@ -136,14 +140,15 @@ async function calculateEfficiencyHealth(supabase: any, userId: string) {
   const startOfMonth = new Date(thisMonth.getFullYear(), thisMonth.getMonth(), 1).toISOString().split('T')[0]
   
   try {
-    // Total Revenue
-    const { data: transactions } = await supabase
-      .from('transactions')
-      .select('total_amount')
-      .or(`owner_id.eq.${userId},user_id.eq.${userId}`)
-      .gte('transaction_date', startOfMonth)
+    // Total Revenue (only paid)
+    const { data: incomes } = await supabase
+      .from('incomes')
+      .select('amount')
+      .eq('user_id', userId)
+      .eq('payment_status', 'Lunas')
+      .gte('income_date', startOfMonth)
     
-    const totalRevenue = transactions?.reduce((sum: number, t: any) => sum + parseFloat(t.total_amount || 0), 0) || 0
+    const totalRevenue = incomes?.reduce((sum: number, t: any) => sum + parseFloat(t.amount || 0), 0) || 0
     
     // Operating Expenses only
     const { data: operatingExpenses } = await supabase

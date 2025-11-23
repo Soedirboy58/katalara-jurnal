@@ -1,6 +1,13 @@
+'use client'
+
+import BugReportButton from '@/components/BugReportButton'
+import { useState } from 'react'
+
 export const dynamic = 'force-dynamic'
 
 export default function HelpPage() {
+  const [showBugReport, setShowBugReport] = useState(false)
+
   return (
     <div className="p-4 sm:p-6 lg:p-8">
       {/* Page Header */}
@@ -10,6 +17,34 @@ export default function HelpPage() {
           Panduan lengkap dan dukungan untuk memaksimalkan penggunaan platform
         </p>
       </div>
+
+      {/* Bug Report Banner - Prominent */}
+      <div className="bg-gradient-to-r from-red-500 to-orange-500 rounded-xl p-6 mb-8 text-white shadow-lg">
+        <div className="flex items-start gap-4">
+          <div className="text-4xl">🐛</div>
+          <div className="flex-1">
+            <h2 className="text-xl font-bold mb-2">Laporkan Bug atau Kirim Feedback</h2>
+            <p className="text-white/90 mb-4">
+              Bantu kami meningkatkan platform dengan melaporkan masalah atau memberikan saran. 
+              Setiap laporan sangat berarti bagi kami!
+            </p>
+            <button
+              onClick={() => setShowBugReport(true)}
+              className="bg-white text-orange-600 px-6 py-2 rounded-lg font-semibold hover:bg-gray-100 transition-colors inline-flex items-center gap-2"
+            >
+              <span>🐛</span>
+              Laporkan Bug / Feedback
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Bug Report Modal - Conditionally Rendered */}
+      {showBugReport && (
+        <div onClick={() => setShowBugReport(false)}>
+          <BugReportButton />
+        </div>
+      )}
 
       {/* Quick Support Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">

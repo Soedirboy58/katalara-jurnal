@@ -7,7 +7,7 @@ import { Sidebar, MobileMenuButton } from '@/components/dashboard/Sidebar'
 import { createClient } from '@/lib/supabase/client'
 import { Bars3Icon, ChevronDoubleLeftIcon, ChevronDoubleRightIcon, BellIcon, UserCircleIcon, Cog6ToothIcon } from '@heroicons/react/24/outline'
 import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard'
-import BugReportButton from '@/components/BugReportButton'
+import WhatsAppGroupButton from '@/components/WhatsAppGroupButton'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -207,16 +207,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   <span className="ml-2 text-sm font-medium hidden sm:inline">Dashboard</span>
                 </button>
                 
-                {/* Input Penjualan Button */}
+                {/* Input Pendapatan Button */}
                 <button
-                  onClick={() => router.push('/dashboard/input-sales')}
+                  onClick={() => router.push('/dashboard/input-income')}
                   className="flex items-center justify-center p-2 sm:px-4 sm:py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                  title="Input Penjualan"
+                  title="Input Pendapatan"
                 >
                   <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                   </svg>
-                  <span className="ml-2 text-sm font-medium hidden sm:inline">Penjualan</span>
+                  <span className="ml-2 text-sm font-medium hidden sm:inline">Pendapatan</span>
                 </button>
                 
                 {/* Input Pengeluaran Button */}
@@ -428,8 +428,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </main>
       </div>
 
-      {/* Bug Report Floating Button */}
-      <BugReportButton />
+      {/* WhatsApp Community Floating Button */}
+      <WhatsAppGroupButton />
     </div>
     </>
   )

@@ -84,6 +84,7 @@ export default function ProductDetailModal({
                     fill
                     className="object-cover"
                     sizes="(max-width: 768px) 100vw, 50vw"
+                    unoptimized
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
@@ -123,6 +124,7 @@ export default function ProductDetailModal({
                         fill
                         className="object-cover"
                         sizes="80px"
+                        unoptimized
                       />
                     </button>
                   ))}

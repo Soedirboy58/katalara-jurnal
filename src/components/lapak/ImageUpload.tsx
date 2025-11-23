@@ -2,6 +2,10 @@
 
 import React, { useState, useRef } from 'react';
 import { uploadImage, deleteImage, compressImage } from '@/lib/uploadImage';
+import { showToast } from '@/components/ui/Toast';
+import dynamic from 'next/dynamic';
+
+const ImageCropper = dynamic(() => import('@/components/ui/ImageCropper'), { ssr: false });
 
 interface ImageUploadProps {
   currentImageUrl?: string;
@@ -11,6 +15,7 @@ interface ImageUploadProps {
   label: string;
   aspectRatio?: 'square' | 'wide' | 'auto';
   maxSizeMB?: number;
+  enableCrop?: boolean;
 }
 
 export default function ImageUpload({
@@ -21,9 +26,12 @@ export default function ImageUpload({
   label,
   aspectRatio = 'auto',
   maxSizeMB = 5,
+  enableCrop = false,
 }: ImageUploadProps) {
   const [uploading, setUploading] = useState(false);
   const [preview, setPreview] = useState<string | undefined>(currentImageUrl);
+  const [showCropper, setShowCropper] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -32,23 +40,42 @@ export default function ImageUpload({
 
     // Validate file type
     if (!file.type.startsWith('image/')) {
-      alert('❌ File harus berupa gambar (JPG, PNG, dll)');
+      showToast('File harus berupa gambar (JPG, PNG, dll)', 'error');
       return;
     }
 
     // Validate file size
     const maxBytes = maxSizeMB * 1024 * 1024;
     if (file.size > maxBytes) {
-      alert(`❌ Ukuran file maksimal ${maxSizeMB}MB`);
+      showToast(`Ukuran file maksimal ${maxSizeMB}MB`, 'error');
       return;
     }
 
+    // If crop enabled, show cropper first
+    if (enableCrop && (folder === 'logos' || folder === 'products')) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        setSelectedImage(reader.result as string);
+        setShowCropper(true);
+      };
+      reader.readAsDataURL(file);
+      return;
+    }
+
+    // Otherwise, upload directly
+    await uploadImageFile(file);
+  };
+
+  const uploadImageFile = async (file: File | Blob) => {
     setUploading(true);
 
     try {
+      // Convert Blob to File if needed
+      const fileToUpload = file instanceof File ? file : new File([file], 'image.jpg', { type: 'image/jpeg' });
+      
       // Compress image for mobile photos
-      console.log('🖼️ Compressing image...', { fileName: file.name, fileSize: file.size });
-      const compressedFile = await compressImage(file, 1024);
+      console.log('🖼️ Compressing image...', { fileSize: fileToUpload.size });
+      const compressedFile = await compressImage(fileToUpload, 1024);
       console.log('✅ Image compressed:', { newSize: compressedFile.size });
       
       // Show preview immediately
@@ -63,16 +90,16 @@ export default function ImageUpload({
       if (result.success && result.url) {
         onImageUploaded(result.url);
         setPreview(result.url);
-        alert('✅ Foto berhasil diupload!');
+        showToast('Foto berhasil diupload!', 'success');
       } else {
         console.error('❌ Upload failed:', result.error);
-        alert(`❌ Gagal upload: ${result.error || 'Error tidak diketahui'}\n\nCoba lagi atau hubungi admin.`);
+        showToast(result.error || 'Gagal upload foto', 'error');
         setPreview(currentImageUrl);
       }
     } catch (error: any) {
       console.error('💥 Upload error:', error);
       const errorMsg = error?.message || error?.toString() || 'Error tidak diketahui';
-      alert(`❌ Terjadi kesalahan saat upload:\n\n${errorMsg}\n\nCoba lagi atau hubungi admin.`);
+      showToast(errorMsg, 'error');
       setPreview(currentImageUrl);
     } finally {
       setUploading(false);
@@ -80,6 +107,20 @@ export default function ImageUpload({
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
+    }
+  };
+
+  const handleCropComplete = async (croppedBlob: Blob) => {
+    setShowCropper(false);
+    setSelectedImage(null);
+    await uploadImageFile(croppedBlob);
+  };
+
+  const handleCropCancel = () => {
+    setShowCropper(false);
+    setSelectedImage(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
   };
 
@@ -98,10 +139,10 @@ export default function ImageUpload({
 
       setPreview(undefined);
       onImageUploaded('');
-      alert('✅ Foto berhasil dihapus');
+      showToast('Foto berhasil dihapus', 'success');
     } catch (error) {
       console.error('Delete error:', error);
-      alert('❌ Gagal menghapus foto');
+      showToast('Gagal menghapus foto', 'error');
     } finally {
       setUploading(false);
     }
@@ -222,7 +263,19 @@ export default function ImageUpload({
       
       <p className="text-xs text-gray-500 mt-2">
         💡 Foto akan otomatis dikompres untuk menghemat storage
+        {enableCrop && ' • Anda bisa crop gambar sebelum upload'}
       </p>
+
+      {/* Image Cropper Modal */}
+      {showCropper && selectedImage && (
+        <ImageCropper
+          imageSrc={selectedImage}
+          onCropComplete={handleCropComplete}
+          onCancel={handleCropCancel}
+          aspectRatio={folder === 'logos' ? 1 : folder === 'products' ? 1 : 16 / 9}
+          circularCrop={folder === 'logos'}
+        />
+      )}
     </div>
   );
 }

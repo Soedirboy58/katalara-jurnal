@@ -1,26 +1,59 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 
+interface SalesData {
+  date: string
+  sales: number
+}
+
 interface SalesChartProps {
-  data?: Array<{
-    date: string
-    sales: number
-  }>
+  data?: SalesData[]
 }
 
 export function SalesChart({ data }: SalesChartProps) {
-  // Default data for the last 7 days if no data provided
-  const defaultData = Array.from({ length: 7 }, (_, i) => {
-    const date = new Date()
-    date.setDate(date.getDate() - (6 - i))
-    return {
-      date: date.toLocaleDateString('id-ID', { weekday: 'short' }),
-      sales: Math.floor(Math.random() * 5000000) + 1000000 // Random data for demo
-    }
-  })
+  const [chartData, setChartData] = useState<SalesData[]>([])
+  const [loading, setLoading] = useState(true)
 
-  const chartData = data || defaultData
+  useEffect(() => {
+    if (data) {
+      setChartData(data)
+      setLoading(false)
+    } else {
+      fetchSalesData()
+    }
+  }, [data])
+
+  const fetchSalesData = async () => {
+    try {
+      const response = await fetch('/api/sales-7days')
+      const result = await response.json()
+      
+      if (result.success && result.data) {
+        setChartData(result.data)
+      } else {
+        // Fallback to empty data
+        setChartData(generateEmptyData())
+      }
+    } catch (error) {
+      console.error('Error fetching sales data:', error)
+      setChartData(generateEmptyData())
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const generateEmptyData = () => {
+    return Array.from({ length: 7 }, (_, i) => {
+      const date = new Date()
+      date.setDate(date.getDate() - (6 - i))
+      return {
+        date: date.toLocaleDateString('id-ID', { weekday: 'short' }),
+        sales: 0
+      }
+    })
+  }
 
   const formatCurrency = (value: number) => {
     if (value >= 1000000) {
@@ -31,6 +64,17 @@ export function SalesChart({ data }: SalesChartProps) {
     return value.toString()
   }
 
+  if (loading) {
+    return (
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
+        <div className="animate-pulse">
+          <div className="h-4 bg-gray-200 rounded w-1/3 mb-4"></div>
+          <div className="h-64 bg-gray-200 rounded"></div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
       <div className="mb-4">
@@ -38,7 +82,7 @@ export function SalesChart({ data }: SalesChartProps) {
           Penjualan 7 Hari Terakhir
         </h3>
         <p className="text-xs sm:text-sm text-gray-600 mt-1">
-          Tren penjualan harian dalam seminggu terakhir
+          Tren penjualan harian dalam seminggu terakhir (hanya yang lunas)
         </p>
       </div>
 

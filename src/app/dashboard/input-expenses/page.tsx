@@ -1,1968 +1,2249 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+// ============================================
+// 🔴 EXPENSE INPUT - REDESIGNED (MVP)
+// Pattern: Copy from Income Input (Professional Multi-Items)
+// Theme: RED (vs Income: BLUE)
+// ============================================
+import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { TablePagination } from '@/components/ui/TablePagination'
-import { BulkActionsBar } from '@/components/ui/BulkActionsBar'
-// import { ReceiptScanner } from '@/components/expenses/ReceiptScanner' // FUTURE: AI Receipt Scanner
+import { useProducts } from '@/hooks/useProducts'
+import SupplierModal from '@/components/modals/SupplierModal'
+
+interface Product {
+  id: string
+  name: string
+  price: number
+  stock?: number
+  unit?: string
+}
+
+interface Supplier {
+  id: string
+  name: string
+  supplier_type: 'raw_materials' | 'finished_goods' | 'both' | 'services'
+  phone?: string
+  email?: string
+  address?: string
+  total_purchases?: number
+  total_payables?: number
+  is_active: boolean
+}
+
+interface LineItem {
+  id: string
+  product_id: string | null
+  product_name: string
+  quantity: number
+  unit: string
+  price_per_unit: number
+  subtotal: number
+  notes?: string
+}
 
 export const dynamic = 'force-dynamic'
 
-export default function InputExpensesPage() {
+// Utility: Format currency with thousand separators
+const formatCurrency = (num: number) => {
+  return new Intl.NumberFormat('id-ID').format(num)
+}
+
+export default function InputExpensesPageRedesigned() {
   const supabase = createClient()
-  const [paymentMethod, setPaymentMethod] = useState('Tunai')
-  const [tempoType, setTempoType] = useState('7')
+  
+  // ============================================
+  // 📋 STATE: TRANSACTION HEADER
+  // ============================================
+  const [poNumber, setPoNumber] = useState(`PO/${new Date().getFullYear()}/${String(Date.now()).slice(-6)}`)
   const [transactionDate, setTransactionDate] = useState(new Date().toISOString().split('T')[0])
-  const [dueDate, setDueDate] = useState('')
-  const [amount, setAmount] = useState('')
-  const [category, setCategory] = useState('')
-  const [expenseType, setExpenseType] = useState<'operating' | 'investing' | 'financing'>('operating')
-  const [assetCategory, setAssetCategory] = useState('')
-  const [showBatchPurchase, setShowBatchPurchase] = useState(false)
-  const [batchOutputs, setBatchOutputs] = useState<Array<{productId: string, productName: string, units: number}>>([])
   const [notes, setNotes] = useState('')
   const [description, setDescription] = useState('')
+  
+  // ============================================
+  // 👤 STATE: SUPPLIER
+  // ============================================
+  const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null)
+  const [showSupplierModal, setShowSupplierModal] = useState(false)
+  
+  // ============================================
+  // 📦 STATE: MULTI-ITEMS
+  // ============================================
+  const [lineItems, setLineItems] = useState<LineItem[]>([])
+  const [currentItem, setCurrentItem] = useState({
+    product_id: '',
+    product_name: '',
+    quantity: '',
+    unit: 'pcs',
+    price_per_unit: '',
+    notes: ''
+  })
+  
+  // ============================================
+  // 💰 STATE: SUMMARY & CALCULATIONS
+  // ============================================
+  const [subtotal, setSubtotal] = useState(0)
+  const [discountPercent, setDiscountPercent] = useState(0)
+  const [discountAmount, setDiscountAmount] = useState(0)
+  const [taxAmount, setTaxAmount] = useState(0)
+  const [otherFees, setOtherFees] = useState(0)
+  const [grandTotal, setGrandTotal] = useState(0)
+  
+  // ============================================
+  // 💳 STATE: PAYMENT
+  // ============================================
+  const [paymentStatus, setPaymentStatus] = useState<'Lunas' | 'Tempo'>('Lunas')
+  const [paymentMethod, setPaymentMethod] = useState('Tunai')
+  const [downPayment, setDownPayment] = useState(0)
+  const [remainingPayment, setRemainingPayment] = useState(0)
+  const [dueDate, setDueDate] = useState('')
+  const [tempoDays, setTempoDays] = useState(7)
+  
+  // ============================================
+  // 🏷️ STATE: CATEGORY & TYPE
+  // ============================================
+  const [category, setCategory] = useState('')
+  const [expenseType, setExpenseType] = useState<'operating' | 'investing' | 'financing'>('operating')
+  
+  // ============================================
+  // 🎛️ STATE: UI CONTROLS
+  // ============================================
   const [submitting, setSubmitting] = useState(false)
-  
-  // Educational modal & help states
   const [showEducationalModal, setShowEducationalModal] = useState(false)
-  const [showHelpDrawer, setShowHelpDrawer] = useState(false)
-  const [userQuestion, setUserQuestion] = useState('')
-  const [aiResponse, setAiResponse] = useState('')
-  const [askingAI, setAskingAI] = useState(false)
-  
-  // Toast notification state
   const [toast, setToast] = useState<{show: boolean, type: 'success' | 'error' | 'warning', message: string}>({
     show: false,
     type: 'success',
     message: ''
   })
-
-  const showToast = (type: 'success' | 'error' | 'warning', message: string) => {
-    setToast({ show: true, type, message })
-    setTimeout(() => setToast({ show: false, type, message: '' }), 4000)
-  }
+  const [showNotes, setShowNotes] = useState(false)
   
-  // KPI stats state
+  // Quick Add Product Modal
+  const [showQuickAddProduct, setShowQuickAddProduct] = useState(false)
+  const [quickProductName, setQuickProductName] = useState('')
+  const [quickProductPrice, setQuickProductPrice] = useState('')
+  const [quickProductUnit, setQuickProductUnit] = useState('pcs')
+  const [quickProductStock, setQuickProductStock] = useState('0')
+  const [savingQuickProduct, setSavingQuickProduct] = useState(false)
+  
+  // Preview Modal
+  const [showPreviewModal, setShowPreviewModal] = useState(false)
+  const [previewExpense, setPreviewExpense] = useState<any>(null)
+  
+  // ============================================
+  // 📊 STATE: KPI & TRANSACTIONS LIST
+  // ============================================
   const [kpiStats, setKpiStats] = useState({
     today: { amount: 0, count: 0 },
     week: { amount: 0, count: 0 },
     month: { amount: 0, count: 0 }
   })
   const [loadingKpi, setLoadingKpi] = useState(true)
-  
-  // Expenses list & pagination
   const [expenses, setExpenses] = useState<any[]>([])
   const [loadingExpenses, setLoadingExpenses] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
-  const [totalPages, setTotalPages] = useState(1)
-  const [totalItems, setTotalItems] = useState(0)
   const [itemsPerPage, setItemsPerPage] = useState(10)
-  
-  // Bulk selection
+  const [totalItems, setTotalItems] = useState(0)
   const [selectedExpenses, setSelectedExpenses] = useState<string[]>([])
-  const [showPreviewModal, setShowPreviewModal] = useState(false)
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-  const [deleteTarget, setDeleteTarget] = useState<{type: 'single' | 'bulk', id?: string} | null>(null)
+  const [filterCategory, setFilterCategory] = useState('')
+  const [filterPaymentStatus, setFilterPaymentStatus] = useState('')
+  const [filterExpenseType, setFilterExpenseType] = useState('')
+  const [filterDateStart, setFilterDateStart] = useState('')
+  const [filterDateEnd, setFilterDateEnd] = useState('')
+  const [showBulkActions, setShowBulkActions] = useState(false)
   
-  // Edit expense
-  const [editingExpense, setEditingExpense] = useState<any>(null)
-  const [showEditModal, setShowEditModal] = useState(false)
+  // ============================================
+  // 🔌 HOOKS: PRODUCTS
+  // ============================================
+  const { products, loading: loadingProducts } = useProducts()
   
-  // Expense limit settings
-  const [dailyExpenseLimit, setDailyExpenseLimit] = useState<number | null>(null)
-  const [notificationThreshold, setNotificationThreshold] = useState(80)
-  const [enableNotifications, setEnableNotifications] = useState(true)
-
-  // Check if user has seen educational modal
+  // ============================================
+  // 🎯 EFFECTS: CALCULATIONS
+  // ============================================
+  
+  // Calculate subtotal from line items
   useEffect(() => {
-    const hasSeenModal = localStorage.getItem('katalara_expenses_education_seen')
-    if (!hasSeenModal) {
-      setShowEducationalModal(true)
+    const total = lineItems.reduce((sum, item) => sum + item.subtotal, 0)
+    setSubtotal(total)
+  }, [lineItems])
+  
+  // Calculate discount
+  useEffect(() => {
+    if (discountPercent > 0) {
+      const discount = (subtotal * discountPercent) / 100
+      setDiscountAmount(discount)
     }
-    loadSettings()
+  }, [subtotal, discountPercent])
+  
+  // Calculate grand total
+  useEffect(() => {
+    const total = subtotal - discountAmount + taxAmount + otherFees
+    setGrandTotal(total)
+  }, [subtotal, discountAmount, taxAmount, otherFees])
+  
+  // Calculate remaining payment
+  useEffect(() => {
+    const remaining = grandTotal - downPayment
+    setRemainingPayment(remaining > 0 ? remaining : 0)
+  }, [grandTotal, downPayment])
+  
+  // ============================================
+  // 🎯 EFFECTS: LOAD DATA
+  // ============================================
+  
+  useEffect(() => {
+    const initPage = async () => {
+      loadKpiStats()
+      await loadExpenses()
+      
+      // Check if user has seen modal before (localStorage)
+      const hasSeenModal = localStorage.getItem('expense_modal_seen')
+      if (!hasSeenModal) {
+        setShowEducationalModal(true)
+        localStorage.setItem('expense_modal_seen', 'true')
+      }
+    }
+    initPage()
   }, [])
   
-  const loadSettings = async () => {
-    try {
-      const response = await fetch('/api/settings')
-      const result = await response.json()
-      
-      if (result.success && result.data) {
-        setDailyExpenseLimit(result.data.daily_expense_limit)
-        setNotificationThreshold(result.data.notification_threshold || 80)
-        setEnableNotifications(result.data.enable_expense_notifications ?? true)
-      }
-    } catch (error) {
-      console.error('Failed to load settings:', error)
-    }
-  }
-  
-  const checkExpenseLimit = (newAmount: number) => {
-    if (!dailyExpenseLimit || !enableNotifications) return
-    
-    const totalToday = kpiStats.today.amount + newAmount
-    const percentage = (totalToday / dailyExpenseLimit) * 100
-    
-    if (percentage >= notificationThreshold && percentage < 100) {
-      showToast('warning', `⚠️ Peringatan: Pengeluaran hari ini sudah mencapai ${percentage.toFixed(0)}% dari limit (Rp ${totalToday.toLocaleString('id-ID')} / Rp ${dailyExpenseLimit.toLocaleString('id-ID')})`)
-    } else if (percentage >= 100) {
-      showToast('error', `🚨 OVER LIMIT! Pengeluaran hari ini (Rp ${totalToday.toLocaleString('id-ID')}) melebihi limit harian (Rp ${dailyExpenseLimit.toLocaleString('id-ID')})`)
-    }
-  }
-  
-  // Fetch KPI stats and expenses
+  // Reload when filters or pagination change
   useEffect(() => {
-    fetchKpiStats()
-    fetchExpenses()
-  }, [currentPage, itemsPerPage])
+    loadExpenses()
+  }, [currentPage, filterCategory, filterPaymentStatus, filterExpenseType, filterDateStart, filterDateEnd])
   
-  const fetchKpiStats = async () => {
+  // ============================================
+  // 📡 FUNCTIONS: DATA LOADING
+  // ============================================
+  
+  const loadKpiStats = async () => {
+    setLoadingKpi(true)
     try {
-      setLoadingKpi(true)
       const today = new Date().toISOString().split('T')[0]
       const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
       const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]
       
-      // Fetch today
-      const todayRes = await fetch(`/api/expenses?start_date=${today}&end_date=${today}`)
-      const todayData = await todayRes.json()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
       
-      // Fetch week
-      const weekRes = await fetch(`/api/expenses?start_date=${weekAgo}&end_date=${today}`)
-      const weekData = await weekRes.json()
+      // Today
+      const { data: todayData } = await supabase
+        .from('expenses')
+        .select('amount')
+        .eq('owner_id', user.id)
+        .eq('expense_date', today)
       
-      // Fetch month
-      const monthRes = await fetch(`/api/expenses?start_date=${monthStart}&end_date=${today}`)
-      const monthData = await monthRes.json()
+      // Week
+      const { data: weekData } = await supabase
+        .from('expenses')
+        .select('amount')
+        .eq('owner_id', user.id)
+        .gte('expense_date', weekAgo)
+      
+      // Month
+      const { data: monthData } = await supabase
+        .from('expenses')
+        .select('amount')
+        .eq('owner_id', user.id)
+        .gte('expense_date', monthStart)
       
       setKpiStats({
         today: {
-          amount: todayData.data?.reduce((sum: number, exp: any) => sum + exp.amount, 0) || 0,
-          count: todayData.data?.length || 0
+          amount: todayData?.reduce((sum, e) => sum + (e.amount || 0), 0) || 0,
+          count: todayData?.length || 0
         },
         week: {
-          amount: weekData.data?.reduce((sum: number, exp: any) => sum + exp.amount, 0) || 0,
-          count: weekData.data?.length || 0
+          amount: weekData?.reduce((sum, e) => sum + (e.amount || 0), 0) || 0,
+          count: weekData?.length || 0
         },
         month: {
-          amount: monthData.data?.reduce((sum: number, exp: any) => sum + exp.amount, 0) || 0,
-          count: monthData.data?.length || 0
+          amount: monthData?.reduce((sum, e) => sum + (e.amount || 0), 0) || 0,
+          count: monthData?.length || 0
         }
       })
     } catch (error) {
-      console.error('Failed to fetch KPI:', error)
+      console.error('Error loading KPI:', error)
     } finally {
       setLoadingKpi(false)
     }
   }
   
-  const fetchExpenses = async () => {
+  const loadExpenses = async () => {
+    setLoadingExpenses(true)
     try {
-      setLoadingExpenses(true)
       const offset = (currentPage - 1) * itemsPerPage
-      const response = await fetch(`/api/expenses?limit=${itemsPerPage}&offset=${offset}`)
-      const result = await response.json()
       
-      if (result.success && result.data) {
-        setExpenses(result.data)
-        setTotalItems(result.count || result.data.length)
-        setTotalPages(Math.ceil((result.count || result.data.length) / itemsPerPage))
+      // Build query params with filters
+      const params = new URLSearchParams({
+        limit: itemsPerPage.toString(),
+        offset: offset.toString(),
+        include_items: 'true'
+      })
+      
+      if (filterCategory) params.append('category', filterCategory)
+      if (filterPaymentStatus) params.append('payment_status', filterPaymentStatus)
+      if (filterExpenseType) params.append('expense_type', filterExpenseType)
+      if (filterDateStart) params.append('start_date', filterDateStart)
+      if (filterDateEnd) params.append('end_date', filterDateEnd)
+      
+      const res = await fetch(`/api/expenses?${params.toString()}`)
+      const json = await res.json()
+      
+      if (json.success) {
+        setExpenses(json.data || [])
+        setTotalItems(json.count || 0)
       }
     } catch (error) {
-      console.error('Failed to fetch expenses:', error)
+      console.error('Error loading expenses:', error)
     } finally {
       setLoadingExpenses(false)
     }
   }
-
-  const closeEducationalModal = (dontShowAgain: boolean) => {
-    if (dontShowAgain) {
-      localStorage.setItem('katalara_expenses_education_seen', 'true')
+  
+  // ============================================
+  // 🎨 FUNCTIONS: LINE ITEMS MANAGEMENT
+  // ============================================
+  
+  const handleAddItem = () => {
+    // Validation
+    if (!currentItem.product_name.trim()) {
+      showToast('error', 'Nama produk wajib diisi')
+      return
     }
-    setShowEducationalModal(false)
-  }
-
-  // Format number with thousand separator
-  const formatNumber = (value: string): string => {
-    const numbers = value.replace(/\D/g, '')
-    if (!numbers) return ''
-    return numbers.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
-  }
-
-  // Handle number input
-  const handleNumberInput = (value: string, setter: (val: string) => void) => {
-    setter(formatNumber(value))
-  }
-
-  // Calculate due date based on transaction date and tempo days
-  const calculateDueDate = (txnDate: string, days: number) => {
-    const date = new Date(txnDate)
-    date.setDate(date.getDate() + days)
-    return date.toISOString().split('T')[0]
-  }
-
-  // Update due date when transaction date or tempo type changes
-  const handleTransactionDateChange = (date: string) => {
-    setTransactionDate(date)
-    if (paymentMethod === 'Tempo/Hutang') {
-      setDueDate(calculateDueDate(date, parseInt(tempoType)))
-    }
-  }
-
-  const handleTempoTypeChange = (days: string) => {
-    setTempoType(days)
-    if (paymentMethod === 'Tempo/Hutang') {
-      setDueDate(calculateDueDate(transactionDate, parseInt(days)))
-    }
-  }
-
-  const handlePaymentMethodChange = (method: string) => {
-    setPaymentMethod(method)
-    if (method === 'Tempo/Hutang') {
-      setDueDate(calculateDueDate(transactionDate, parseInt(tempoType)))
-    } else {
-      setDueDate('')
-    }
-  }
-
-  const handleCategoryChange = (cat: string) => {
-    setCategory(cat)
-    // Show batch purchase untuk raw_materials (bahan baku produksi) dan finished_goods (produk jadi reseller)
-    setShowBatchPurchase(cat === 'raw_materials' || cat === 'finished_goods')
-    if (cat !== 'raw_materials' && cat !== 'finished_goods') {
-      setBatchOutputs([])
-    }
-  }
-
-  const addBatchOutput = () => {
-    setBatchOutputs([...batchOutputs, { productId: '', productName: '', units: 0 }])
-  }
-
-  const removeBatchOutput = (index: number) => {
-    setBatchOutputs(batchOutputs.filter((_, i) => i !== index))
-  }
-
-  const updateBatchOutput = (index: number, field: string, value: string | number) => {
-    const updated = [...batchOutputs]
-    updated[index] = { ...updated[index], [field]: value }
-    setBatchOutputs(updated)
-  }
-
-  const calculateCostPerUnit = () => {
-    if (!amount || batchOutputs.length === 0) return 0
-    const totalUnits = batchOutputs.reduce((sum, output) => sum + (output.units || 0), 0)
-    if (totalUnits === 0) return 0
-    const numAmount = parseFloat(amount.replace(/\./g, ''))
-    return Math.round(numAmount / totalUnits)
-  }
-
-  const handleAutoStock = async (outputs: Array<{productId: string, productName: string, units: number}>, totalCost: number) => {
-    try {
-      const costPerUnit = totalCost / outputs.reduce((sum, o) => sum + o.units, 0)
-      
-      for (const output of outputs) {
-        if (!output.productName || output.units <= 0) continue
-        
-        // Check if product already exists
-        const { data: existingProduct } = await supabase
-          .from('products')
-          .select('*')
-          .eq('name', output.productName)
-          .single()
-        
-        if (existingProduct) {
-          // Update existing product - add to stock
-          await supabase
-            .from('products')
-            .update({
-              stock_quantity: existingProduct.stock_quantity + output.units,
-              buy_price: costPerUnit, // Update with latest cost
-              last_restock_date: new Date().toISOString()
-            })
-            .eq('id', existingProduct.id)
-        } else {
-          // Create new product
-          const { data: userData } = await supabase.auth.getUser()
-          if (userData.user) {
-            await supabase
-              .from('products')
-              .insert({
-                owner_id: userData.user.id,
-                name: output.productName,
-                category: 'finished_goods',
-                stock_quantity: output.units,
-                stock_unit: 'pcs',
-                buy_price: costPerUnit,
-                sell_price: costPerUnit * 1.3, // Default 30% markup
-                min_stock_alert: 10,
-                track_inventory: true,
-                last_restock_date: new Date().toISOString()
-              })
-          }
-        }
-      }
-      
-      console.log('✅ Auto-stock berhasil: produk ditambahkan ke inventory')
-    } catch (error) {
-      console.error('Auto-stock error:', error)
-      // Don't show error to user, as the expense was saved successfully
-    }
-  }
-
-  // Bulk actions handlers
-  const handleSelectExpense = (expenseId: string) => {
-    setSelectedExpenses(prev =>
-      prev.includes(expenseId)
-        ? prev.filter(id => id !== expenseId)
-        : [...prev, expenseId]
-    )
-  }
-
-  const handleSelectAll = () => {
-    if (selectedExpenses.length === expenses.length) {
-      setSelectedExpenses([])
-    } else {
-      setSelectedExpenses(expenses.map(e => e.id))
-    }
-  }
-
-  const handleBulkDelete = async () => {
-    if (selectedExpenses.length === 0) return
-    setDeleteTarget({ type: 'bulk' })
-    setShowDeleteConfirm(true)
-  }
-
-  const confirmDelete = async () => {
-    if (!deleteTarget) return
     
-    setShowDeleteConfirm(false)
-
-    try {
-      const idsToDelete = deleteTarget.type === 'bulk' 
-        ? selectedExpenses 
-        : [deleteTarget.id]
-
-      const response = await fetch('/api/expenses', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids: idsToDelete })
-      })
-
-      const result = await response.json()
-      
-      if (result.success) {
-        const count = deleteTarget.type === 'bulk' ? selectedExpenses.length : 1
-        showToast('success', `✅ ${count} pengeluaran berhasil dihapus`)
-        setSelectedExpenses([])
-        setDeleteTarget(null)
-        fetchExpenses()
-        fetchKpiStats()
-      } else {
-        throw new Error(result.error)
-      }
-    } catch (error: any) {
-      showToast('error', `❌ Gagal menghapus: ${error.message}`)
-      setDeleteTarget(null)
-    }
-  }
-
-  const handleSingleDelete = (expenseId: string) => {
-    setDeleteTarget({ type: 'single', id: expenseId })
-    setShowDeleteConfirm(true)
-  }
-
-  const handleEditExpense = async (e: React.FormEvent) => {
-    e.preventDefault()
+    const qty = parseFloat(currentItem.quantity)
+    const price = parseFloat(currentItem.price_per_unit)
     
-    if (!editingExpense) return
-
-    try {
-      const response = await fetch(`/api/expenses/${editingExpense.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          expense_date: editingExpense.expense_date,
-          amount: parseFloat(editingExpense.amount),
-          category: editingExpense.category,
-          expense_type: editingExpense.expense_type,
-          payment_method: editingExpense.payment_method,
-          description: editingExpense.description || '',
-          notes: editingExpense.notes || ''
-        })
+    if (isNaN(qty) || qty <= 0) {
+      showToast('error', 'Jumlah harus lebih dari 0')
+      return
+    }
+    
+    if (isNaN(price) || price < 0) {
+      showToast('error', 'Harga tidak valid')
+      return
+    }
+    
+    const newItem: LineItem = {
+      id: Date.now().toString(),
+      product_id: currentItem.product_id || null,
+      product_name: currentItem.product_name,
+      quantity: qty,
+      unit: currentItem.unit,
+      price_per_unit: price,
+      subtotal: qty * price,
+      notes: currentItem.notes
+    }
+    
+    setLineItems([...lineItems, newItem])
+    
+    // Reset form
+    setCurrentItem({
+      product_id: '',
+      product_name: '',
+      quantity: '',
+      unit: 'pcs',
+      price_per_unit: '',
+      notes: ''
+    })
+    
+    showToast('success', 'Item ditambahkan')
+  }
+  
+  const handleRemoveItem = (id: string) => {
+    setLineItems(lineItems.filter(item => item.id !== id))
+    showToast('warning', 'Item dihapus')
+  }
+  
+  const handleProductSelect = (productId: string) => {
+    const product = products.find(p => p.id === productId)
+    if (product) {
+      setCurrentItem({
+        ...currentItem,
+        product_id: product.id,
+        product_name: product.name,
+        price_per_unit: product.price.toString(),
+        unit: product.unit || 'pcs'
       })
-
-      const result = await response.json()
-
-      if (result.success) {
-        showToast('success', '✅ Pengeluaran berhasil diupdate')
-        setShowEditModal(false)
-        setEditingExpense(null)
-        fetchExpenses()
-        fetchKpiStats()
-      } else {
-        throw new Error(result.error)
-      }
-    } catch (error: any) {
-      showToast('error', `❌ Gagal update: ${error.message}`)
     }
   }
-
+  
+  // ============================================
+  // 💾 FUNCTIONS: SUBMIT EXPENSE
+  // ============================================
+  
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!amount || !category || !paymentMethod) {
-      showToast('warning', '⚠️ Mohon lengkapi semua field yang wajib diisi')
+    // Validation
+    if (lineItems.length === 0) {
+      showToast('error', 'Minimal 1 item harus ditambahkan')
       return
     }
-
+    
+    if (paymentStatus === 'Tempo' && downPayment > grandTotal) {
+      showToast('error', 'DP tidak boleh melebihi Total')
+      return
+    }
+    
+    if (paymentStatus === 'Tempo' && !dueDate) {
+      showToast('error', 'Tanggal jatuh tempo wajib diisi untuk pembayaran tempo')
+      return
+    }
+    
     setSubmitting(true)
-
+    
     try {
-      const numAmount = parseFloat(amount.replace(/\./g, ''))
-      
-      // Check expense limit before submitting
-      checkExpenseLimit(numAmount)
-      
-      // Determine payment type
-      let paymentType = 'cash'
-      if (paymentMethod === 'Tempo/Hutang') {
-        paymentType = `tempo_${tempoType}`
-      }
-
-      const payload = {
+      const expenseData = {
         expense_date: transactionDate,
-        amount: numAmount,
         category,
         expense_type: expenseType,
-        asset_category: expenseType === 'investing' ? category : null,
-        is_capital_expenditure: expenseType === 'investing',
-        description: description || null,
-        notes: notes || null,
+        description: description || `Pembelian ${lineItems.length} item`,
+        notes,
         payment_method: paymentMethod,
-        payment_type: paymentType,
-        payment_status: paymentMethod === 'Tempo/Hutang' ? 'Pending' : 'Lunas',
-        due_date: paymentMethod === 'Tempo/Hutang' ? dueDate : null
+        payment_type: paymentStatus === 'Lunas' ? 'cash' : 'tempo',
+        payment_status: paymentStatus,
+        due_date: paymentStatus === 'Tempo' ? dueDate : null,
+        
+        // Multi-items data
+        supplier_id: selectedSupplier?.id || null,
+        line_items: lineItems.map(item => ({
+          product_id: item.product_id,
+          product_name: item.product_name,
+          quantity: item.quantity,
+          unit: item.unit,
+          price_per_unit: item.price_per_unit,
+          subtotal: item.subtotal,
+          notes: item.notes
+        })),
+        
+        // Financial breakdown
+        subtotal,
+        discount_percent: discountPercent,
+        discount_amount: discountAmount,
+        tax_amount: taxAmount,
+        other_fees: otherFees,
+        down_payment: paymentStatus === 'Tempo' ? downPayment : 0,
+        remaining_payment: paymentStatus === 'Tempo' ? remainingPayment : 0,
+        grand_total: grandTotal
       }
-
-      const response = await fetch('/api/expenses', {
+      
+      const res = await fetch('/api/expenses', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(expenseData)
       })
-
-      const result = await response.json()
-
-      if (response.ok && result.success) {
-        // Auto-add batch production outputs to products/stock
-        if (category === 'Beli Bahan Baku' && batchOutputs.length > 0) {
-          await handleAutoStock(batchOutputs, numAmount)
-        }
-        
-        showToast('success', '✅ Pengeluaran berhasil disimpan!')
+      
+      if (!res.ok) {
+        const json = await res.json()
+        throw new Error(json.error || `HTTP error! status: ${res.status}`)
+      }
+      
+      const json = await res.json()
+      
+      if (json.success) {
+        showToast('success', `✓ Pengeluaran berhasil disimpan! ${json.data?.purchase_order_number || ''}`)
         
         // Reset form
-        setAmount('')
-        setCategory('')
-        setDescription('')
-        setNotes('')
-        setBatchOutputs([])
-        setShowBatchPurchase(false)
-        setPaymentMethod('Tunai')
-        setTransactionDate(new Date().toISOString().split('T')[0])
-        
-        // Refresh KPI stats and expenses list
-        fetchKpiStats()
-        fetchExpenses()
+        setTimeout(() => {
+          resetForm()
+          loadKpiStats()
+          loadExpenses()
+        }, 500)
       } else {
-        throw new Error(result.error || 'Failed to save expense')
+        throw new Error(json.error || 'Gagal menyimpan pengeluaran')
       }
     } catch (error: any) {
-      console.error('Submit error:', error)
-      showToast('error', '❌ Gagal menyimpan: ' + error.message)
+      console.error('Error submitting expense:', error)
+      showToast('error', `❌ ${error.message || 'Terjadi kesalahan saat menyimpan'}`)
     } finally {
       setSubmitting(false)
     }
   }
-
-  const handleReset = () => {
-    setAmount('')
-    setCategory('')
+  
+  const resetForm = () => {
+    setLineItems([])
+    setCurrentItem({
+      product_id: '',
+      product_name: '',
+      quantity: '',
+      unit: 'pcs',
+      price_per_unit: '',
+      notes: ''
+    })
+    setSelectedSupplier(null)
     setDescription('')
     setNotes('')
-    setBatchOutputs([])
-    setShowBatchPurchase(false)
-    setPaymentMethod('Tunai')
+    setDiscountPercent(0)
+    setDiscountAmount(0)
+    setTaxAmount(0)
+    setOtherFees(0)
+    setDownPayment(0)
+    setPaymentStatus('Lunas')
     setTransactionDate(new Date().toISOString().split('T')[0])
-    setDueDate('')
+    setPoNumber(`PO/${new Date().getFullYear()}/${String(Date.now()).slice(-6)}`)
   }
-
+  
+  // ============================================
+  // 🔔 FUNCTIONS: TOAST
+  // ============================================
+  
+  const showToast = (type: 'success' | 'error' | 'warning', message: string) => {
+    setToast({ show: true, type, message })
+    setTimeout(() => setToast({ show: false, type, message: '' }), 4000)
+  }
+  
+  // ============================================
+  // 🆕 FUNCTIONS: QUICK ADD PRODUCT
+  // ============================================
+  
+  const handleQuickAddProduct = async () => {
+    if (!quickProductName.trim()) {
+      showToast('error', 'Nama produk wajib diisi')
+      return
+    }
+    
+    const price = parseFloat(quickProductPrice)
+    if (isNaN(price) || price < 0) {
+      showToast('error', 'Harga tidak valid')
+      return
+    }
+    
+    setSavingQuickProduct(true)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('User not authenticated')
+      
+      const { data: newProduct, error } = await supabase
+        .from('products')
+        .insert({
+          owner_id: user.id,
+          name: quickProductName,
+          price: price,
+          stock_quantity: parseFloat(quickProductStock) || 0,
+          unit: quickProductUnit,
+          product_type: 'physical'
+        })
+        .select()
+        .single()
+      
+      if (error) throw error
+      
+      showToast('success', `✓ Produk "${quickProductName}" berhasil ditambahkan dan siap digunakan`)
+      
+      // Auto-fill form with new product
+      setCurrentItem({
+        ...currentItem,
+        product_id: newProduct.id,
+        product_name: newProduct.name,
+        price_per_unit: newProduct.price.toString(),
+        unit: newProduct.unit || 'pcs'
+      })
+      
+      // Close modal and reset
+      setShowQuickAddProduct(false)
+      setQuickProductName('')
+      setQuickProductPrice('')
+      setQuickProductUnit('pcs')
+      setQuickProductStock('0')
+      
+      // Refresh products list without reload (prevent modal restart)
+      const { data: updatedProducts } = await supabase
+        .from('products')
+        .select('*')
+        .eq('owner_id', user.id)
+        .order('created_at', { ascending: false })
+      
+      if (updatedProducts) {
+        // Update products state if available (Note: products comes from useProducts hook)
+        // The new product is already filled in currentItem, so user can continue
+      }
+    } catch (error: any) {
+      console.error('Error adding product:', error)
+      showToast('error', error.message || 'Gagal menambahkan produk')
+    } finally {
+      setSavingQuickProduct(false)
+    }
+  }
+  
+  // ============================================
+  // 🎨 RENDER: MAIN UI
+  // ============================================
+  
   return (
-    <div className="p-4 sm:p-6 lg:p-8">
-      {/* Page Header */}
-      <div className="mb-6 flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Input Pengeluaran</h1>
-          <p className="text-sm sm:text-base text-gray-600 mt-1">
-            Catat setiap pengeluaran untuk kontrol keuangan yang lebih baik
-          </p>
-        </div>
-        <button
-          onClick={() => setShowEducationalModal(true)}
-          className="flex items-center gap-2 bg-[#1088ff] hover:bg-[#0d6ecc] text-white px-4 py-2 rounded-lg font-medium transition-all shadow-md hover:shadow-lg whitespace-nowrap"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-          </svg>
-          <span className="hidden sm:inline">Panduan Kategori</span>
-          <span className="sm:hidden">📚</span>
-        </button>
-      </div>
-
-      {/* Quick Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-        <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
-          <div className="text-sm text-gray-600">Hari Ini</div>
-          {loadingKpi ? (
-            <div className="text-2xl font-bold text-gray-400 animate-pulse">Loading...</div>
-          ) : (
-            <div className="text-2xl font-bold text-red-600">
-              Rp {kpiStats.today.amount.toLocaleString('id-ID')}
-            </div>
-          )}
-          <div className="text-xs text-gray-500">{kpiStats.today.count} transaksi</div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
-          <div className="text-sm text-gray-600">Minggu Ini</div>
-          {loadingKpi ? (
-            <div className="text-2xl font-bold text-gray-400 animate-pulse">Loading...</div>
-          ) : (
-            <div className="text-2xl font-bold text-orange-600">
-              Rp {kpiStats.week.amount.toLocaleString('id-ID')}
-            </div>
-          )}
-          <div className="text-xs text-gray-500">{kpiStats.week.count} transaksi</div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
-          <div className="text-sm text-gray-600">Bulan Ini</div>
-          {loadingKpi ? (
-            <div className="text-2xl font-bold text-gray-400 animate-pulse">Loading...</div>
-          ) : (
-            <div className="text-2xl font-bold text-yellow-600">
-              Rp {kpiStats.month.amount.toLocaleString('id-ID')}
-            </div>
-          )}
-          <div className="text-xs text-gray-500">{kpiStats.month.count} transaksi</div>
-        </div>
-      </div>
-
-      {/* Input Form */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Pengeluaran Baru</h2>
+    <div className="min-h-screen bg-gray-50 p-4 md:p-6">
+      <div className="max-w-7xl mx-auto">
         
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Tanggal Pengeluaran
-            </label>
-            <input
-              type="date"
-              value={transactionDate}
-              onChange={(e) => handleTransactionDateChange(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-gray-900"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Tipe Transaksi
-            </label>
-            <select
-              value={expenseType}
-              onChange={(e) => {
-                setExpenseType(e.target.value as 'operating' | 'investing' | 'financing')
-                setCategory('') // Reset category when type changes
-              }}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-gray-900"
-            >
-              <option value="operating">Operasional</option>
-              <option value="investing">Investasi</option>
-              <option value="financing">Pendanaan</option>
-            </select>
-            <p className="text-xs text-gray-500 mt-1">
-              {expenseType === 'operating' && 'Pengeluaran rutin bisnis sehari-hari'}
-              {expenseType === 'investing' && 'Pembelian aset atau peralatan jangka panjang'}
-              {expenseType === 'financing' && 'Pembayaran pinjaman atau penarikan modal'}
-            </p>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Kategori Pengeluaran
-            </label>
-            <select 
-              value={category}
-              onChange={(e) => handleCategoryChange(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-gray-900"
-            >
-              <option value="">Pilih kategori...</option>
-              
-              {expenseType === 'operating' && (
-                <>
-                  <optgroup label="Pembelian Stok">
-                    <option value="raw_materials">Bahan Baku</option>
-                    <option value="finished_goods">Produk Jadi</option>
-                  </optgroup>
-                  
-                  <optgroup label="Operasional">
-                    <option value="salary">Gaji Karyawan</option>
-                    <option value="rent">Sewa Tempat</option>
-                    <option value="utilities">Listrik & Air</option>
-                    <option value="communication">Internet & Komunikasi</option>
-                    <option value="transportation">Transportasi</option>
-                    <option value="maintenance">Perawatan & Maintenance</option>
-                    <option value="marketing">Marketing & Promosi</option>
-                    <option value="tax">Pajak & Perizinan</option>
-                    <option value="other">Lain-lain</option>
-                  </optgroup>
-                </>
-              )}
-              
-              {expenseType === 'investing' && (
-                <optgroup label="Investasi Aset">
-                  <option value="office_equipment">Peralatan Kantor</option>
-                  <option value="production_equipment">Alat Produksi</option>
-                  <option value="vehicle">Kendaraan Operasional</option>
-                  <option value="building_renovation">Renovasi Bangunan</option>
-                  <option value="other_assets">Peralatan Lainnya</option>
-                </optgroup>
-              )}
-              
-              {expenseType === 'financing' && (
-                <optgroup label="Pendanaan">
-                  <option value="loan_principal">Pembayaran Pokok Pinjaman</option>
-                  <option value="loan_interest">Pembayaran Bunga Pinjaman</option>
-                  <option value="owner_withdrawal">Prive Pemilik</option>
-                </optgroup>
-              )}
-            </select>
-          </div>
-
-          {/* Dynamic Info Box for Prive */}
-          {category === 'prive' && (
-            <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-lg p-4">
-              <div className="flex items-start gap-3">
-                <span className="text-2xl">💡</span>
-                <div>
-                  <h4 className="text-sm font-semibold text-purple-900 mb-1">Apa itu Prive?</h4>
-                  <p className="text-xs text-purple-800 mb-2">
-                    <strong>Prive</strong> adalah uang bisnis yang Anda ambil untuk keperluan pribadi (belanja bulanan, biaya sekolah, dll).
-                  </p>
-                  <p className="text-xs text-purple-700">
-                    ⚠️ <strong>Penting:</strong> Prive <strong>BUKAN pengeluaran bisnis</strong>, tapi pengambilan modal. Catat terpisah agar laporan keuangan akurat!
-                  </p>
-                </div>
+        {/* ============================================ */}
+        {/* 📊 KPI STATS SECTION */}
+        {/* ============================================ */}
+        <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4 max-w-7xl mx-auto">
+          {/* Today */}
+          <div className="bg-white rounded-xl shadow-md p-5 border-l-4 border-red-500">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-500 font-medium">Hari Ini</p>
+                <p className="text-2xl font-bold text-gray-800 mt-1">
+                  {loadingKpi ? '...' : `Rp ${formatCurrency(kpiStats.today.amount)}`}
+                </p>
+                <p className="text-xs text-gray-400 mt-1">{kpiStats.today.count} transaksi</p>
               </div>
             </div>
-          )}
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Jumlah Pengeluaran
-            </label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">Rp</span>
-              <input
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9.]*"
-                placeholder="0"
-                value={amount}
-                onChange={(e) => handleNumberInput(e.target.value, setAmount)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-              />
-            </div>
-            {amount && (
-              <p className="text-xs text-gray-500 mt-1">Rp {amount}</p>
-            )}
           </div>
-
-          {/* FUTURE FEATURE: AI Receipt Scanner 
-          {showBatchPurchase && (
-            <div className="mb-6">
-              <ReceiptScanner 
-                onDataExtracted={(data) => {
-                  setAmount(data.total.toLocaleString('id-ID'))
-                  setNotes(data.notes)
-                }}
-              />
-            </div>
-          )}
-          */}
-
-          {/* Batch Purchase Section - Show when category is raw_materials or finished_goods */}
-          {showBatchPurchase && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-4">
-              <div className="flex items-start gap-2 mb-3">
-                <span className="text-2xl">🧠</span>
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-900">Smart Learning System</h3>
-                  <p className="text-xs text-gray-600">
-                    {category === 'raw_materials' 
-                      ? 'Belanjaan bahan baku ini menghasilkan berapa unit produk? Sistem akan hitung cost per unit otomatis!'
-                      : 'Beli produk jadi untuk dijual lagi? Input jumlah unit yang dibeli, sistem akan hitung harga modal per unit!'}
-                  </p>
-                </div>
-              </div>
-
+          
+          {/* Week */}
+          <div className="bg-white rounded-xl shadow-md p-5 border-l-4 border-orange-500">
+            <div className="flex items-center justify-between">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  📝 Catatan Belanjaan
-                </label>
-                <textarea
-                  rows={2}
-                  placeholder={
-                    category === 'raw_materials' 
-                      ? "Contoh: Beli beras 5kg, telur 2kg, mie 4 bungkus, bumbu-bumbu"
-                      : category === 'finished_goods'
-                      ? "Contoh: Beli 50 kaos polos ukuran M dari supplier Tanah Abang"
-                      : "Catatan tambahan..."
-                  }
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm text-gray-900"
-                />
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="block text-sm font-medium text-gray-700">
-                    {category === 'raw_materials' ? '🎯 Output Produksi' : '📦 Produk yang Dibeli'}
-                  </label>
-                  <button
-                    type="button"
-                    onClick={addBatchOutput}
-                    className="text-xs px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-                  >
-                    + Tambah Produk
-                  </button>
-                </div>
-
-                {batchOutputs.length === 0 ? (
-                  <div className="text-center py-4 bg-white rounded-lg border-2 border-dashed border-gray-300">
-                    <p className="text-sm text-gray-500">
-                      {category === 'raw_materials' 
-                        ? 'Klik "Tambah Produk" untuk input hasil produksi' 
-                        : 'Klik "Tambah Produk" untuk input produk yang dibeli'}
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {batchOutputs.map((output, index) => (
-                      <div key={index} className="bg-white p-3 rounded-lg border border-gray-200 flex gap-2 items-start">
-                        <div className="flex-1 space-y-2">
-                          <input
-                            type="text"
-                            placeholder={
-                              category === 'raw_materials'
-                                ? "Nama produk hasil produksi (ex: Nasi Goreng)"
-                                : "Nama produk yang dibeli (ex: Kaos Polos Putih M)"
-                            }
-                            value={output.productName}
-                            onChange={(e) => updateBatchOutput(index, 'productName', e.target.value)}
-                            className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
-                          />
-                          <div className="flex gap-2 items-center">
-                            <input
-                              type="number"
-                              inputMode="numeric"
-                              placeholder="Jumlah unit"
-                              value={output.units || ''}
-                              onChange={(e) => updateBatchOutput(index, 'units', parseInt(e.target.value) || 0)}
-                              className="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
-                            />
-                            <span className="text-xs text-gray-500">unit</span>
-                          </div>
-                          {output.units > 0 && amount && (
-                            <p className="text-xs text-green-600 font-medium">
-                              💰 Cost per Unit: Rp {calculateCostPerUnit().toLocaleString('id-ID')}
-                            </p>
-                          )}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => removeBatchOutput(index)}
-                          className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
-                          title="Hapus"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {batchOutputs.length > 0 && amount && (
-                  <div className="mt-3 bg-gradient-to-r from-green-50 to-blue-50 rounded-lg p-3 border border-green-200">
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div>
-                        <p className="text-gray-600 text-xs">Total Belanja:</p>
-                        <p className="font-bold text-gray-900">Rp {amount}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-600 text-xs">Total Unit:</p>
-                        <p className="font-bold text-gray-900">
-                          {batchOutputs.reduce((sum, o) => sum + (o.units || 0), 0)} unit
-                        </p>
-                      </div>
-                      <div className="col-span-2">
-                        <p className="text-gray-600 text-xs">Rata-rata Cost/Unit:</p>
-                        <p className="font-bold text-green-600 text-lg">
-                          Rp {calculateCostPerUnit().toLocaleString('id-ID')}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="bg-white rounded-lg p-3 border border-blue-300">
-                <div className="flex items-start gap-2">
-                  <span className="text-blue-600 text-lg">💡</span>
-                  <div>
-                    <p className="text-xs font-medium text-gray-900">Sistem akan otomatis:</p>
-                    <ul className="text-xs text-gray-600 mt-1 space-y-0.5">
-                      <li>✅ Hitung cost per unit produk</li>
-                      <li>✅ Belajar pattern belanja Anda</li>
-                      <li>✅ Suggest restock optimal</li>
-                    </ul>
-                  </div>
-                </div>
+                <p className="text-sm text-gray-500 font-medium">7 Hari</p>
+                <p className="text-2xl font-bold text-gray-800 mt-1">
+                  {loadingKpi ? '...' : `Rp ${formatCurrency(kpiStats.week.amount)}`}
+                </p>
+                <p className="text-xs text-gray-400 mt-1">{kpiStats.week.count} transaksi</p>
               </div>
             </div>
-          )}
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Penerima / Vendor (Opsional)
-            </label>
-            <input
-              type="text"
-              placeholder="Nama penerima atau toko"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-            />
           </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Metode Pembayaran
-            </label>
-            <select 
-              value={paymentMethod}
-              onChange={(e) => handlePaymentMethodChange(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-            >
-              <option>Tunai</option>
-              <option>Transfer Bank</option>
-              <option>E-Wallet</option>
-              <option>Kartu Kredit/Debit</option>
-              <option>Tempo/Hutang</option>
-            </select>
-          </div>
-
-          {/* Tempo Options - Show when payment method is Tempo/Hutang */}
-          {paymentMethod === 'Tempo/Hutang' && (
-            <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 space-y-4">
+          
+          {/* Month */}
+          <div className="bg-white rounded-xl shadow-md p-5 border-l-4 border-yellow-500">
+            <div className="flex items-center justify-between">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Jangka Waktu Tempo
-                </label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleTempoTypeChange('7')}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      tempoType === '7'
-                        ? 'bg-red-600 text-white'
-                        : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
-                    }`}
-                  >
-                    7 Hari
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleTempoTypeChange('14')}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      tempoType === '14'
-                        ? 'bg-red-600 text-white'
-                        : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
-                    }`}
-                  >
-                    14 Hari
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleTempoTypeChange('30')}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      tempoType === '30'
-                        ? 'bg-red-600 text-white'
-                        : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
-                    }`}
-                  >
-                    30 Hari
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleTempoTypeChange('60')}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      tempoType === '60'
-                        ? 'bg-red-600 text-white'
-                        : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
-                    }`}
-                  >
-                    60 Hari
-                  </button>
-                </div>
+                <p className="text-sm text-gray-500 font-medium">Bulan Ini</p>
+                <p className="text-2xl font-bold text-gray-800 mt-1">
+                  {loadingKpi ? '...' : `Rp ${formatCurrency(kpiStats.month.amount)}`}
+                </p>
+                <p className="text-xs text-gray-400 mt-1">{kpiStats.month.count} transaksi</p>
               </div>
-
+            </div>
+          </div>
+        </div>
+        
+        {/* ============================================ */}
+        {/* 📝 MAIN FORM SECTION */}
+        {/* ============================================ */}
+        <div className="max-w-7xl mx-auto space-y-6">
+            
+            {/* PAGE HEADER */}
+            <div className="flex items-start justify-between gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Tanggal Jatuh Tempo
-                </label>
-                <input
-                  type="date"
-                  value={dueDate}
-                  onChange={(e) => setDueDate(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent bg-white"
-                />
-                <p className="text-xs text-gray-600 mt-1">
-                  💡 Tanggal otomatis dihitung berdasarkan jangka waktu tempo. Anda bisa edit manual jika perlu.
+                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Input Pengeluaran</h1>
+                <p className="text-sm sm:text-base text-gray-600 mt-1">
+                  Purchase Order dengan sistem multi-items
                 </p>
               </div>
+              <button
+                onClick={() => setShowEducationalModal(true)}
+                className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium transition-all shadow-md hover:shadow-lg whitespace-nowrap"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                </svg>
+                <span className="hidden sm:inline">Panduan Kategori</span>
+                <span className="sm:hidden">📚</span>
+              </button>
+            </div>
 
-              <div className="bg-white rounded-lg p-3 border border-orange-300">
-                <div className="flex items-start gap-2">
-                  <span className="text-orange-600 text-lg">⚠️</span>
+            {/* KPI CARDS */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Today */}
+              <div className="bg-white rounded-xl shadow-md p-5 border-l-4 border-red-500 hover:shadow-lg transition-shadow">
+                <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-gray-900">Hutang Aktif</p>
-                    <p className="text-xs text-gray-600">
-                      Transaksi ini akan masuk ke daftar hutang dan sistem akan mengirim reminder mendekati jatuh tempo.
-                    </p>
+                    <p className="text-sm text-gray-500 font-medium">Hari Ini</p>
+                    <p className="text-2xl font-bold text-gray-800 mt-1">Rp 0</p>
+                    <p className="text-xs text-gray-400 mt-1">0 transaksi</p>
+                  </div>
+                  <div className="bg-red-100 rounded-full p-3">
+                    <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
                   </div>
                 </div>
               </div>
-            </div>
-          )}
-
-          {!showBatchPurchase && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Deskripsi
-              </label>
-              <textarea
-                rows={3}
-                placeholder="Jelaskan pengeluaran ini..."
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-              />
-            </div>
-          )}
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Upload Bukti (Opsional)
-            </label>
-            <input
-              type="file"
-              accept="image/*,.pdf"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-            />
-            <p className="text-xs text-gray-500 mt-1">Format: JPG, PNG, PDF (Max 5MB)</p>
-          </div>
-
-          <div className="flex gap-3 pt-4">
-            <button
-              type="submit"
-              disabled={submitting}
-              className="flex-1 sm:flex-none px-6 py-3 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {submitting ? 'Menyimpan...' : 'Simpan Pengeluaran'}
-            </button>
-            <button
-              type="button"
-              onClick={handleReset}
-              disabled={submitting}
-              className="px-6 py-3 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
-            >
-              Reset
-            </button>
-          </div>
-        </form>
-      </div>
-
-      {/* Expenses Table with Pagination */}
-      <div className="mt-6 bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-900">Rincian Pengeluaran</h2>
-          <span className="text-sm text-gray-500">{expenses.length} total transaksi</span>
-        </div>
-        
-        {loadingExpenses ? (
-          <div className="text-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="text-sm text-gray-500 mt-2">Memuat data...</p>
-          </div>
-        ) : expenses.length === 0 ? (
-          <div className="text-center py-12 text-gray-500">
-            <p>Belum ada pengeluaran tercatat</p>
-            <p className="text-sm mt-1">Mulai catat pengeluaran pertama Anda di atas</p>
-          </div>
-        ) : (
-          <>
-            {/* Desktop Table */}
-            <div className="hidden sm:block overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th className="w-12 px-4 py-3">
-                      <input
-                        type="checkbox"
-                        checked={selectedExpenses.length === expenses.length && expenses.length > 0}
-                        onChange={handleSelectAll}
-                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                      />
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase">Tanggal</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase">Tipe</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase">Kategori</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase">Deskripsi</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase">Pembayaran</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-600 uppercase">Jumlah</th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-600 uppercase">Aksi</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {expenses.map((expense) => (
-                    <tr key={expense.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3">
-                        <input
-                          type="checkbox"
-                          checked={selectedExpenses.includes(expense.id)}
-                          onChange={() => handleSelectExpense(expense.id)}
-                          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                        />
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-900">
-                        {new Date(expense.expense_date).toLocaleDateString('id-ID', {
-                          day: 'numeric',
-                          month: 'short'
-                        })}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                          expense.expense_type === 'operating' ? 'bg-blue-50 text-blue-700' :
-                          expense.expense_type === 'investing' ? 'bg-purple-50 text-purple-700' :
-                          'bg-green-50 text-green-700'
-                        }`}>
-                          {expense.expense_type === 'operating' ? 'Operasional' :
-                           expense.expense_type === 'investing' ? 'Investasi' : 'Pendanaan'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-700">
-                        {expense.category}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-600 max-w-xs truncate">
-                        {expense.description || '-'}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-600">
-                        {expense.payment_method}
-                      </td>
-                      <td className="px-4 py-3 text-sm font-semibold text-red-600 text-right">
-                        Rp {parseFloat(expense.amount).toLocaleString('id-ID')}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center justify-center gap-2">
-                          <button
-                            onClick={() => {
-                              setEditingExpense(expense)
-                              setShowEditModal(true)
-                            }}
-                            className="text-blue-600 hover:text-blue-800 transition-colors"
-                            title="Edit"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                            </svg>
-                          </button>
-                          <button
-                            onClick={() => handleSingleDelete(expense.id)}
-                            className="text-red-600 hover:text-red-800 transition-colors"
-                            title="Hapus"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              
+              {/* Week */}
+              <div className="bg-white rounded-xl shadow-md p-5 border-l-4 border-orange-500 hover:shadow-lg transition-shadow">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-500 font-medium">Minggu Ini</p>
+                    <p className="text-2xl font-bold text-gray-800 mt-1">Rp 0</p>
+                    <p className="text-xs text-gray-400 mt-1">0 transaksi</p>
+                  </div>
+                  <div className="bg-orange-100 rounded-full p-3">
+                    <svg className="w-8 h-8 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Month */}
+              <div className="bg-white rounded-xl shadow-md p-5 border-l-4 border-purple-500 hover:shadow-lg transition-shadow">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-500 font-medium">Bulan Ini</p>
+                    <p className="text-2xl font-bold text-gray-800 mt-1">Rp 0</p>
+                    <p className="text-xs text-gray-400 mt-1">0 transaksi</p>
+                  </div>
+                  <div className="bg-purple-100 rounded-full p-3">
+                    <svg className="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
             </div>
             
-            {/* Mobile Cards */}
-            <div className="sm:hidden space-y-3">
-              {expenses.map((expense) => (
-                <div key={expense.id} className="bg-gray-50 rounded-lg p-4 space-y-2">
-                  <div className="flex items-start gap-3">
-                    <input
-                      type="checkbox"
-                      checked={selectedExpenses.includes(expense.id)}
-                      onChange={() => handleSelectExpense(expense.id)}
-                      className="mt-1 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                    />
-                    <div className="flex-1">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <p className="font-medium text-gray-900">
-                            {expense.description || 'Pengeluaran'}
-                          </p>
-                          <p className="text-xs text-gray-500 mt-1">
-                            {new Date(expense.expense_date).toLocaleDateString('id-ID', {
-                              day: 'numeric',
-                              month: 'short'
-                            })}
-                          </p>
-                        </div>
-                        <p className="text-sm font-bold text-red-600">
-                          Rp {parseFloat(expense.amount).toLocaleString('id-ID')}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2 mt-2">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                          expense.expense_type === 'operating' ? 'bg-blue-50 text-blue-700' :
-                          expense.expense_type === 'investing' ? 'bg-purple-50 text-purple-700' :
-                          'bg-green-50 text-green-700'
-                        }`}>
-                          {expense.expense_type === 'operating' ? 'Operasional' :
-                           expense.expense_type === 'investing' ? 'Investasi' : 'Pendanaan'}
-                        </span>
-                        <span className="text-xs text-gray-500">{expense.payment_method}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <TablePagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              totalItems={totalItems}
-              itemsPerPage={itemsPerPage}
-              onPageChange={setCurrentPage}
-              onItemsPerPageChange={setItemsPerPage}
-            />
-          </>
-        )}
-      </div>
-
-      {/* Bulk Actions Bar */}
-      <BulkActionsBar
-        selectedCount={selectedExpenses.length}
-        onPreview={() => setShowPreviewModal(true)}
-        onDelete={handleBulkDelete}
-        onClearSelection={() => setSelectedExpenses([])}
-      />
-
-      {/* Help Button - Floating */}
-      <button
-        onClick={() => setShowHelpDrawer(true)}
-        className="fixed bottom-6 right-6 bg-[#1088ff] hover:bg-[#0d6ecc] text-white p-4 rounded-full shadow-lg transition-all hover:scale-110 focus:outline-none focus:ring-4 focus:ring-blue-300 z-40"
-        title="Butuh bantuan?"
-      >
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-      </button>
-
-      {/* Educational Modal - First Time Only */}
-      {showEducationalModal && (
-        <div className="fixed inset-0 bg-black/10 backdrop-blur-xl flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            {/* Header */}
-            <div className="bg-[#1088ff] text-white p-6 rounded-t-2xl">
-              <div className="flex items-center gap-3">
-                <span className="text-4xl">🎓</span>
+            {/* HEADER CARD (Gradient Red) */}
+            <div className="bg-gradient-to-r from-red-600 to-red-500 rounded-xl shadow-lg p-6 text-white">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                {/* PO Number */}
                 <div>
-                  <h2 className="text-2xl font-bold">Panduan Kategori Pengeluaran</h2>
-                  <p className="text-blue-100 text-sm">Pahami setiap kategori untuk pencatatan yang akurat</p>
+                  <label className="block text-sm font-medium text-red-100 mb-2">PO Number</label>
+                  <input
+                    type="text"
+                    value={poNumber}
+                    readOnly
+                    className="w-full px-3 py-2 bg-white/20 border border-white/30 rounded-lg text-white placeholder-red-200 font-mono text-sm cursor-not-allowed"
+                  />
                 </div>
-              </div>
-            </div>
-
-            {/* Content */}
-            <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
-              {/* 3 TIPE TRANSAKSI */}
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
-                <p className="text-sm text-blue-900 font-medium">
-                  📊 Sistem menggunakan <strong>3 Tipe Transaksi</strong> sesuai standar Laporan Arus Kas UMKM
-                </p>
-              </div>
-
-              {/* OPERASIONAL */}
-              <div className="border-l-4 border-blue-500 pl-4 py-2">
-                <h3 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
-                  <span>💼</span> 1. OPERASIONAL
-                </h3>
-                <p className="text-sm text-gray-700 mb-2">
-                  Pengeluaran rutin bisnis sehari-hari untuk menjalankan usaha.
-                </p>
                 
-                <div className="space-y-2 ml-4">
-                  <div>
-                    <p className="text-xs font-semibold text-gray-800">📦 Pembelian Stok:</p>
-                    <ul className="text-xs text-gray-600 space-y-0.5 ml-3">
-                      <li>• <strong>Bahan Baku:</strong> Tepung, telur, bumbu (untuk produksi)</li>
-                      <li>• <strong>Produk Jadi:</strong> Beli barang jadi untuk reseller</li>
-                    </ul>
-                  </div>
-                  
-                  <div>
-                    <p className="text-xs font-semibold text-gray-800">🏢 Biaya Rutin:</p>
-                    <ul className="text-xs text-gray-600 space-y-0.5 ml-3">
-                      <li>• Gaji karyawan, sewa tempat, listrik & air</li>
-                      <li>• Internet, transportasi, maintenance</li>
-                      <li>• Marketing & promosi, pajak & perizinan</li>
-                    </ul>
-                  </div>
+                {/* Supplier Button */}
+                <div>
+                  <label className="block text-sm font-medium text-red-100 mb-2">Supplier</label>
+                  <button
+                    type="button"
+                    onClick={() => setShowSupplierModal(true)}
+                    className="w-full px-3 py-2 bg-white/20 hover:bg-white/30 border border-white/30 rounded-lg text-white font-medium transition-colors text-left flex items-center gap-2"
+                  >
+                    {selectedSupplier ? (
+                      <>
+                        <span className="flex-1 truncate">{selectedSupplier.name}</span>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                      </>
+                    ) : (
+                      <>
+                        <span className="flex-1">Pilih Supplier</span>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                        </svg>
+                      </>
+                    )}
+                  </button>
+                </div>
+                
+                {/* Date */}
+                <div>
+                  <label className="block text-sm font-medium text-red-100 mb-2">Tanggal</label>
+                  <input
+                    type="date"
+                    value={transactionDate}
+                    onChange={(e) => setTransactionDate(e.target.value)}
+                    className="w-full px-3 py-2 bg-white/20 border border-white/30 rounded-lg text-white [color-scheme:dark]"
+                  />
+                </div>
+                
+                {/* Notes Toggle */}
+                <div>
+                  <label className="block text-sm font-medium text-red-100 mb-2">Catatan</label>
+                  <button
+                    type="button"
+                    onClick={() => setShowNotes(!showNotes)}
+                    className="w-full px-3 py-2 bg-white/20 hover:bg-white/30 border border-white/30 rounded-lg text-white font-medium transition-colors flex items-center justify-center gap-2"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={showNotes ? "M15 12H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" : "M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"} />
+                    </svg>
+                    {showNotes ? 'Sembunyikan' : 'Tambah'} Catatan
+                  </button>
                 </div>
               </div>
-
-              {/* INVESTASI */}
-              <div className="border-l-4 border-purple-500 pl-4 py-2">
-                <h3 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
-                  <span>🏗️</span> 2. INVESTASI
-                </h3>
-                <p className="text-sm text-gray-700 mb-2">
-                  Pembelian aset atau peralatan jangka panjang (digunakan &gt; 1 tahun).
-                </p>
-                <ul className="text-xs text-gray-600 space-y-1 ml-4">
-                  <li>• <strong>Peralatan Kantor:</strong> Laptop, printer, AC, meja kursi</li>
-                  <li>• <strong>Alat Produksi:</strong> Oven, mixer, mesin jahit, kompor</li>
-                  <li>• <strong>Kendaraan:</strong> Motor/mobil untuk delivery bisnis</li>
-                  <li>• <strong>Renovasi:</strong> Bangun dapur, partisi ruangan</li>
-                </ul>
-                <div className="bg-purple-50 rounded-lg p-2 mt-2">
-                  <p className="text-xs text-purple-800">
-                    💡 Aset &gt; Rp 1 juta dan umur ekonomis &gt; 1 tahun masuk kategori ini
-                  </p>
+              
+              {/* Expandable Notes Section */}
+              {showNotes && (
+                <div className="mt-4 space-y-3">
+                  <textarea
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder="Catatan tambahan (opsional)..."
+                    rows={2}
+                    className="w-full px-3 py-2 bg-white/20 border border-white/30 rounded-lg text-white placeholder-red-200 resize-none focus:outline-none focus:ring-2 focus:ring-white/50"
+                  />
                 </div>
-              </div>
-
-              {/* PENDANAAN */}
-              <div className="border-l-4 border-green-500 pl-4 py-2">
-                <h3 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
-                  <span>💰</span> 3. PENDANAAN
-                </h3>
-                <p className="text-sm text-gray-700 mb-2">
-                  Transaksi terkait modal pemilik dan pinjaman/hutang usaha.
-                </p>
-                <ul className="text-xs text-gray-600 space-y-1 ml-4">
-                  <li>• <strong>Pembayaran Pokok Pinjaman:</strong> Cicilan KUR, P2P lending</li>
-                  <li>• <strong>Pembayaran Bunga:</strong> Bunga bank, bunga pinjaman</li>
-                  <li>• <strong>Prive Pemilik:</strong> Ambil uang untuk keperluan pribadi</li>
-                </ul>
-              </div>
-
-              {/* Prive - SPECIAL HIGHLIGHT */}
-              <div className="bg-gradient-to-r from-orange-50 to-red-50 border-2 border-orange-300 rounded-lg p-4">
-                <div className="flex items-start gap-2">
-                  <span className="text-3xl">💸</span>
-                  <div>
-                    <h3 className="font-bold text-orange-900 mb-2">⚠️ PRIVE (Ambil Pribadi) - PENTING!</h3>
-                    <p className="text-sm text-orange-800 font-medium mb-2">
-                      Prive adalah uang bisnis yang Anda ambil untuk <strong>keperluan pribadi</strong>.
-                    </p>
-                    <div className="bg-white rounded-lg p-3 mb-2">
-                      <p className="text-xs text-gray-800 font-semibold mb-1">Contoh Prive:</p>
-                      <ul className="text-xs text-gray-700 space-y-0.5 ml-4">
-                        <li>✓ Belanja bulanan keluarga</li>
-                        <li>✓ Biaya sekolah anak</li>
-                        <li>✓ Bayar cicilan rumah pribadi</li>
-                        <li>✓ Jalan-jalan keluarga</li>
-                      </ul>
-                    </div>
-                    <div className="bg-red-100 border border-red-300 rounded-lg p-2">
-                      <p className="text-xs text-red-900 font-semibold">
-                        🚫 Prive <strong>BUKAN pengeluaran bisnis!</strong> Ini pengambilan modal owner.
-                      </p>
-                      <p className="text-xs text-red-800 mt-1">
-                        Pisahkan agar profit bisnis terlihat jelas & keputusan bisnis lebih akurat.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* AI Chat Feature */}
-            <div className="bg-blue-50 border-t-2 border-[#1088ff] p-4">
-              <div className="flex items-start gap-2 mb-3">
-                <span className="text-2xl">🤖</span>
-                <div className="flex-1">
-                  <h3 className="font-semibold text-[#1088ff] text-sm mb-1">Asisten Kategori Katalara</h3>
-                  <p className="text-xs text-gray-700 mb-3">
-                    Ketik pengeluaran Anda, sistem akan sarankan kategori yang tepat
-                  </p>
-                  <div className="space-y-2">
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={userQuestion}
-                        onChange={(e) => setUserQuestion(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && userQuestion.trim()) {
-                            setAskingAI(true)
-                            setTimeout(() => {
-                              const q = userQuestion.toLowerCase()
-                              let response = ''
-                              let category = ''
-                              
-                              // KEYWORD DICTIONARY - Comprehensive expense categorization
-                              
-                              // PRIVE (Ambil Pribadi) - Personal withdrawals
-                              const priveKeywords = ['belanja bulanan', 'belanja keluarga', 'belanja pribadi', 'sekolah anak', 
-                                'uang sekolah', 'spp', 'cicilan rumah pribadi', 'cicilan motor pribadi', 'jalan-jalan', 
-                                'liburan keluarga', 'ambil pribadi', 'untuk sendiri', 'keperluan pribadi', 'bayar utang pribadi',
-                                'beli hp pribadi', 'beli laptop pribadi', 'renovasi rumah pribadi']
-                              
-                              // BAHAN BAKU (Raw Materials) - Production inputs
-                              const bahanBakuKeywords = ['tepung', 'gula', 'garam', 'bumbu', 'rempah', 'beras', 'minyak goreng',
-                                'telur', 'susu', 'coklat', 'keju', 'daging', 'ayam', 'ikan', 'sayur', 'buah untuk jus',
-                                'kain', 'benang', 'cat', 'kayu', 'paku', 'lem', 'plastik kemasan', 'kardus', 'kertas',
-                                'bahan produksi', 'bahan mentah', 'bahan baku']
-                              
-                              // PRODUK JADI (Finished Goods) - Reseller inventory
-                              const produkJadiKeywords = ['beli produk jadi', 'stock reseller', 'barang dagangan', 
-                                'produk supplier', 'produk grosir', 'barang titipan', 'ready stock']
-                              
-                              // GAJI KARYAWAN (Salary)
-                              const gajiKeywords = ['gaji', 'upah', 'karyawan', 'pegawai', 'staff', 'thr', 'bonus karyawan',
-                                'lembur', 'insentif']
-                              
-                              // SEWA TEMPAT (Rent)
-                              const sewaKeywords = ['sewa toko', 'sewa ruko', 'sewa kios', 'sewa tempat', 'sewa gudang',
-                                'kontrak tempat', 'sewa lapak', 'biaya sewa']
-                              
-                              // LISTRIK & AIR (Utilities)
-                              const utilitiesKeywords = ['listrik', 'pln', 'token listrik', 'air', 'pdam', 'rekening air']
-                              
-                              // INTERNET & KOMUNIKASI (Communication)
-                              const komunikasiKeywords = ['internet', 'wifi', 'paket data', 'pulsa', 'telepon', 'kuota',
-                                'indihome', 'first media', 'biznet']
-                              
-                              // TRANSPORTASI (Transportation)
-                              const transportasiKeywords = ['bensin', 'bbm', 'pertamax', 'pertalite', 'solar', 'ongkir',
-                                'ongkos kirim', 'grab', 'gojek', 'ojek online', 'ekspedisi', 'jne', 'jnt', 'sicepat',
-                                'parkir', 'tol', 'servis motor', 'servis mobil', 'ganti oli', 'ban', 'sparepart']
-                              
-                              // MAINTENANCE (Perawatan)
-                              const maintenanceKeywords = ['maintenance', 'perawatan', 'perbaikan', 'service', 'reparasi',
-                                'renovasi toko', 'cat ulang', 'ganti atap']
-                              
-                              // MARKETING & PROMOSI
-                              const marketingKeywords = ['iklan', 'ads', 'facebook ads', 'google ads', 'instagram ads',
-                                'promosi', 'marketing', 'brosur', 'spanduk', 'banner', 'poster', 'flyer', 'katalog',
-                                'endorse', 'influencer', 'sponsor', 'sampling']
-                              
-                              // PAJAK & PERIZINAN (Tax & Permits)
-                              const pajakKeywords = ['pajak', 'ppn', 'pph', 'izin usaha', 'siup', 'npwp', 'perizinan',
-                                'retribusi', 'bpjs', 'jamsostek']
-                              
-                              // Check keywords
-                              if (priveKeywords.some(keyword => q.includes(keyword))) {
-                                category = 'prive'
-                                response = '💰 **Prive (Ambil Pribadi)**\n\n⚠️ Ini BUKAN pengeluaran bisnis! Uang untuk keperluan pribadi/keluarga harus dicatat terpisah agar profit bisnis terlihat jelas.'
-                              } else if (bahanBakuKeywords.some(keyword => q.includes(keyword))) {
-                                category = 'raw_materials'
-                                response = '📦 **Pembelian Stok → Bahan Baku**\n\nBahan untuk produksi. Sistem akan tracking cost per produk otomatis!'
-                              } else if (produkJadiKeywords.some(keyword => q.includes(keyword))) {
-                                category = 'finished_goods'
-                                response = '📦 **Pembelian Stok → Produk Jadi**\n\nBarang ready untuk dijual lagi (reseller). Catat harga modal per unit!'
-                              } else if (gajiKeywords.some(keyword => q.includes(keyword))) {
-                                category = 'salary'
-                                response = '💼 **Operasional → Gaji Karyawan**\n\nBiaya rutin untuk pegawai/karyawan Anda.'
-                              } else if (sewaKeywords.some(keyword => q.includes(keyword))) {
-                                category = 'rent'
-                                response = '💼 **Operasional → Sewa Tempat**\n\nBiaya sewa toko/ruko/kios untuk operasional bisnis.'
-                              } else if (utilitiesKeywords.some(keyword => q.includes(keyword))) {
-                                category = 'utilities'
-                                response = '💼 **Operasional → Listrik & Air**\n\nTagihan listrik (PLN/token) dan air (PDAM) untuk bisnis.'
-                              } else if (komunikasiKeywords.some(keyword => q.includes(keyword))) {
-                                category = 'communication'
-                                response = '💼 **Operasional → Internet & Komunikasi**\n\nBiaya internet, WiFi, pulsa, atau paket data untuk bisnis.'
-                              } else if (transportasiKeywords.some(keyword => q.includes(keyword))) {
-                                category = 'transportation'
-                                response = '💼 **Operasional → Transportasi**\n\nBBM, ongkir, ekspedisi, servis kendaraan operasional, parkir, tol.'
-                              } else if (maintenanceKeywords.some(keyword => q.includes(keyword))) {
-                                category = 'maintenance'
-                                response = '💼 **Operasional → Perawatan & Maintenance**\n\nBiaya perbaikan, perawatan rutin, atau renovasi tempat usaha.'
-                              } else if (marketingKeywords.some(keyword => q.includes(keyword))) {
-                                category = 'marketing'
-                                response = '📢 **Marketing & Promosi**\n\nBiaya iklan online/offline, promosi, atau endorsement untuk meningkatkan penjualan.'
-                              } else if (pajakKeywords.some(keyword => q.includes(keyword))) {
-                                category = 'tax'
-                                response = '📢 **Marketing & Lainnya → Pajak & Perizinan**\n\nPajak usaha, NPWP, SIUP, retribusi, atau izin operasional lainnya.'
-                              } else {
-                                response = '🤔 **Tidak ditemukan kategori yang cocok**\n\nCoba lebih spesifik, contoh:\n• "Bensin untuk delivery"\n• "Beli tepung 10kg"\n• "Gaji karyawan bulan ini"\n• "Belanja bulanan keluarga"'
-                              }
-                              
-                              setAiResponse(response)
-                              setAskingAI(false)
-                            }, 800)
-                          }
-                        }}
-                        placeholder="Contoh: Beli tepung untuk bikin kue"
-                        className="flex-1 px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                        disabled={askingAI}
-                      />
-                      <button
-                        onClick={() => {
-                          if (!userQuestion.trim()) return
-                          setAskingAI(true)
-                          setTimeout(() => {
-                            const q = userQuestion.toLowerCase()
-                            let response = ''
-                            
-                            const priveKeywords = ['belanja bulanan', 'belanja keluarga', 'belanja pribadi', 'sekolah anak', 
-                              'uang sekolah', 'spp', 'cicilan rumah pribadi', 'cicilan motor pribadi', 'jalan-jalan', 
-                              'liburan keluarga', 'ambil pribadi', 'untuk sendiri', 'keperluan pribadi', 'bayar utang pribadi',
-                              'beli hp pribadi', 'beli laptop pribadi', 'renovasi rumah pribadi']
-                            const bahanBakuKeywords = ['tepung', 'gula', 'garam', 'bumbu', 'rempah', 'beras', 'minyak goreng',
-                              'telur', 'susu', 'coklat', 'keju', 'daging', 'ayam', 'ikan', 'sayur', 'buah untuk jus',
-                              'kain', 'benang', 'cat', 'kayu', 'paku', 'lem', 'plastik kemasan', 'kardus', 'kertas',
-                              'bahan produksi', 'bahan mentah', 'bahan baku']
-                            const produkJadiKeywords = ['beli produk jadi', 'stock reseller', 'barang dagangan', 
-                              'produk supplier', 'produk grosir', 'barang titipan', 'ready stock']
-                            const gajiKeywords = ['gaji', 'upah', 'karyawan', 'pegawai', 'staff', 'thr', 'bonus karyawan', 'lembur', 'insentif']
-                            const sewaKeywords = ['sewa toko', 'sewa ruko', 'sewa kios', 'sewa tempat', 'sewa gudang', 'kontrak tempat', 'sewa lapak', 'biaya sewa']
-                            const utilitiesKeywords = ['listrik', 'pln', 'token listrik', 'air', 'pdam', 'rekening air']
-                            const komunikasiKeywords = ['internet', 'wifi', 'paket data', 'pulsa', 'telepon', 'kuota', 'indihome', 'first media', 'biznet']
-                            const transportasiKeywords = ['bensin', 'bbm', 'pertamax', 'pertalite', 'solar', 'ongkir', 'ongkos kirim', 'grab', 'gojek', 'ojek online', 'ekspedisi', 'jne', 'jnt', 'sicepat', 'parkir', 'tol', 'servis motor', 'servis mobil', 'ganti oli', 'ban', 'sparepart']
-                            const maintenanceKeywords = ['maintenance', 'perawatan', 'perbaikan', 'service', 'reparasi', 'renovasi toko', 'cat ulang', 'ganti atap']
-                            const marketingKeywords = ['iklan', 'ads', 'facebook ads', 'google ads', 'instagram ads', 'promosi', 'marketing', 'brosur', 'spanduk', 'banner', 'poster', 'flyer', 'katalog', 'endorse', 'influencer', 'sponsor', 'sampling']
-                            const pajakKeywords = ['pajak', 'ppn', 'pph', 'izin usaha', 'siup', 'npwp', 'perizinan', 'retribusi', 'bpjs', 'jamsostek']
-                            
-                            if (priveKeywords.some(keyword => q.includes(keyword))) {
-                              response = '💰 **Prive (Ambil Pribadi)**\n\n⚠️ Ini BUKAN pengeluaran bisnis! Uang untuk keperluan pribadi/keluarga harus dicatat terpisah agar profit bisnis terlihat jelas.'
-                            } else if (bahanBakuKeywords.some(keyword => q.includes(keyword))) {
-                              response = '📦 **Pembelian Stok → Bahan Baku**\n\nBahan untuk produksi. Sistem akan tracking cost per produk otomatis!'
-                            } else if (produkJadiKeywords.some(keyword => q.includes(keyword))) {
-                              response = '📦 **Pembelian Stok → Produk Jadi**\n\nBarang ready untuk dijual lagi (reseller). Catat harga modal per unit!'
-                            } else if (gajiKeywords.some(keyword => q.includes(keyword))) {
-                              response = '💼 **Operasional → Gaji Karyawan**\n\nBiaya rutin untuk pegawai/karyawan Anda.'
-                            } else if (sewaKeywords.some(keyword => q.includes(keyword))) {
-                              response = '💼 **Operasional → Sewa Tempat**\n\nBiaya sewa toko/ruko/kios untuk operasional bisnis.'
-                            } else if (utilitiesKeywords.some(keyword => q.includes(keyword))) {
-                              response = '💼 **Operasional → Listrik & Air**\n\nTagihan listrik (PLN/token) dan air (PDAM) untuk bisnis.'
-                            } else if (komunikasiKeywords.some(keyword => q.includes(keyword))) {
-                              response = '💼 **Operasional → Internet & Komunikasi**\n\nBiaya internet, WiFi, pulsa, atau paket data untuk bisnis.'
-                            } else if (transportasiKeywords.some(keyword => q.includes(keyword))) {
-                              response = '💼 **Operasional → Transportasi**\n\nBBM, ongkir, ekspedisi, servis kendaraan operasional, parkir, tol.'
-                            } else if (maintenanceKeywords.some(keyword => q.includes(keyword))) {
-                              response = '💼 **Operasional → Perawatan & Maintenance**\n\nBiaya perbaikan, perawatan rutin, atau renovasi tempat usaha.'
-                            } else if (marketingKeywords.some(keyword => q.includes(keyword))) {
-                              response = '📢 **Marketing & Promosi**\n\nBiaya iklan online/offline, promosi, atau endorsement untuk meningkatkan penjualan.'
-                            } else if (pajakKeywords.some(keyword => q.includes(keyword))) {
-                              response = '📢 **Marketing & Lainnya → Pajak & Perizinan**\n\nPajak usaha, NPWP, SIUP, retribusi, atau izin operasional lainnya.'
-                            } else {
-                              response = '🤔 **Tidak ditemukan kategori yang cocok**\n\nCoba lebih spesifik, contoh:\n• "Bensin untuk delivery"\n• "Beli tepung 10kg"\n• "Gaji karyawan bulan ini"\n• "Belanja bulanan keluarga"'
-                            }
-                            
-                            setAiResponse(response)
-                            setAskingAI(false)
-                          }, 800)
-                        }}
-                        disabled={askingAI || !userQuestion.trim()}
-                        className="bg-[#1088ff] hover:bg-[#0d6ecc] disabled:bg-gray-300 text-white px-4 py-2 rounded-lg font-medium transition-all text-sm"
-                      >
-                        {askingAI ? '⏳' : '🔍'}
-                      </button>
-                    </div>
-                    {aiResponse && (
-                      <div className="bg-white border-2 border-[#1088ff] rounded-lg p-3 animate-fade-in">
-                        <div className="flex items-start gap-2">
-                          <span className="text-lg">✅</span>
-                          <p className="text-sm text-gray-800 flex-1 whitespace-pre-line">{aiResponse}</p>
-                          <button
-                            onClick={() => {
-                              setAiResponse('')
-                              setUserQuestion('')
-                            }}
-                            className="text-gray-400 hover:text-gray-600"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                          </button>
-                        </div>
+              )}
+              
+              {/* Supplier Info (if selected) */}
+              {selectedSupplier && (
+                <div className="mt-4 bg-white/10 rounded-lg p-3 text-sm">
+                  <div className="grid grid-cols-2 gap-2">
+                    {selectedSupplier.phone && (
+                      <div className="flex items-center gap-2">
+                        <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                        </svg>
+                        <span className="truncate">{selectedSupplier.phone}</span>
+                      </div>
+                    )}
+                    {selectedSupplier.email && (
+                      <div className="flex items-center gap-2">
+                        <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        </svg>
+                        <span className="truncate">{selectedSupplier.email}</span>
                       </div>
                     )}
                   </div>
                 </div>
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div className="bg-gray-50 p-4 rounded-b-2xl flex items-center justify-between">
-              <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
-                <input
-                  type="checkbox"
-                  id="dontShowAgain"
-                  className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
-                />
-                <span>Jangan tampilkan lagi</span>
-              </label>
-              <button
-                onClick={() => {
-                  const checkbox = document.getElementById('dontShowAgain') as HTMLInputElement
-                  closeEducationalModal(checkbox?.checked || false)
-                  setAiResponse('')
-                  setUserQuestion('')
-                }}
-                className="bg-[#1088ff] hover:bg-[#0d6ecc] text-white px-6 py-2 rounded-lg font-medium transition-all"
-              >
-                Mengerti, Mulai Input!
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Help Drawer */}
-      {showHelpDrawer && (
-        <div className="fixed inset-0 bg-black/10 backdrop-blur-xl flex items-center justify-center z-50 p-4" onClick={() => setShowHelpDrawer(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            {/* Header */}
-            <div className="bg-[#1088ff] text-white p-5 rounded-t-2xl">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <span className="text-3xl">💡</span>
-                  <h2 className="text-xl font-bold">Bantuan Cepat</h2>
-                </div>
-                <button onClick={() => setShowHelpDrawer(false)} className="text-white hover:bg-white hover:bg-opacity-20 rounded-full p-2">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-
-            {/* Content */}
-            <div className="p-5 space-y-4">
-              <div>
-                <h3 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
-                  <span>📦</span> Pembelian Stok
-                </h3>
-                <p className="text-sm text-gray-700">Beli barang untuk produksi atau dijual lagi</p>
-              </div>
-
-              <div>
-                <h3 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
-                  <span>💼</span> Operasional
-                </h3>
-                <p className="text-sm text-gray-700">Biaya rutin bisnis: gaji, sewa, listrik, dll</p>
-              </div>
-
-              <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
-                <h3 className="font-semibold text-purple-900 mb-2 flex items-center gap-2">
-                  <span>💰</span> Prive
-                </h3>
-                <p className="text-sm text-purple-800 mb-2">
-                  Uang bisnis yang diambil untuk <strong>keperluan pribadi</strong>
-                </p>
-                <p className="text-xs text-purple-700">
-                  ⚠️ Bukan pengeluaran bisnis! Pisahkan agar profit jelas.
-                </p>
-              </div>
-
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                <h3 className="font-semibold text-blue-900 mb-2">💡 Tips:</h3>
-                <ul className="text-xs text-blue-800 space-y-1">
-                  <li>✓ Catat setiap pengeluaran sesegera mungkin</li>
-                  <li>✓ Simpan nota/kwitansi sebagai bukti</li>
-                  <li>✓ Pisahkan Prive dari pengeluaran bisnis</li>
-                  <li>✓ Review pengeluaran rutin setiap bulan</li>
-                </ul>
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div className="bg-gray-50 p-4 rounded-b-2xl">
-              <button
-                onClick={() => setShowHelpDrawer(false)}
-                className="w-full bg-[#1088ff] hover:bg-[#0d6ecc] text-white py-2 rounded-lg font-medium transition-all"
-              >
-                Tutup
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Delete Confirmation Modal */}
-      {showDeleteConfirm && deleteTarget && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg max-w-md w-full p-6 shadow-xl">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="flex-shrink-0 w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-                <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">Konfirmasi Hapus</h3>
-                <p className="text-sm text-gray-600">
-                  {deleteTarget.type === 'bulk' 
-                    ? `Hapus ${selectedExpenses.length} pengeluaran yang dipilih?`
-                    : 'Hapus pengeluaran ini?'}
-                </p>
-              </div>
+              )}
             </div>
             
-            <p className="text-sm text-gray-600 mb-6">
-              Data yang sudah dihapus tidak dapat dikembalikan.
-            </p>
-
-            <div className="flex gap-3">
-              <button
-                onClick={() => {
-                  setShowDeleteConfirm(false)
-                  setDeleteTarget(null)
-                }}
-                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                Batal
-              </button>
-              <button
-                onClick={confirmDelete}
-                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-              >
-                Ya, Hapus
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Preview Modal */}
-      {showPreviewModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[80vh] overflow-hidden">
-            <div className="p-6 border-b border-gray-200">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-bold text-gray-900">Preview {selectedExpenses.length} Pengeluaran</h2>
-                <button
-                  onClick={() => setShowPreviewModal(false)}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-            
-            <div className="p-6 overflow-y-auto max-h-[60vh]">
-              <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-600">Tanggal</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-600">Tipe</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-600">Kategori</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-600">Jumlah</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {expenses
-                    .filter(e => selectedExpenses.includes(e.id))
-                    .map((expense) => (
-                      <tr key={expense.id}>
-                        <td className="px-4 py-2 text-sm text-gray-900">
-                          {new Date(expense.expense_date).toLocaleDateString('id-ID')}
-                        </td>
-                        <td className="px-4 py-2">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                            expense.expense_type === 'operating' ? 'bg-blue-50 text-blue-700' :
-                            expense.expense_type === 'investing' ? 'bg-purple-50 text-purple-700' :
-                            'bg-green-50 text-green-700'
-                          }`}>
-                            {expense.expense_type === 'operating' ? 'Operasional' :
-                             expense.expense_type === 'investing' ? 'Investasi' : 'Pendanaan'}
-                          </span>
-                        </td>
-                        <td className="px-4 py-2 text-sm text-gray-700">{expense.category}</td>
-                        <td className="px-4 py-2 text-sm font-semibold text-red-600 text-right">
-                          Rp {parseFloat(expense.amount).toLocaleString('id-ID')}
-                        </td>
-                      </tr>
-                    ))}
-                </tbody>
-                <tfoot className="bg-gray-50 font-semibold">
-                  <tr>
-                    <td colSpan={3} className="px-4 py-3 text-right text-gray-900">Total:</td>
-                    <td className="px-4 py-3 text-right text-red-600">
-                      Rp {expenses
-                        .filter(e => selectedExpenses.includes(e.id))
-                        .reduce((sum, e) => sum + parseFloat(e.amount), 0)
-                        .toLocaleString('id-ID')}
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Edit Expense Modal */}
-      {showEditModal && editingExpense && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-hidden">
-            <div className="p-6 border-b border-gray-200">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-bold text-gray-900">Edit Pengeluaran</h2>
-                <button
-                  onClick={() => {
-                    setShowEditModal(false)
-                    setEditingExpense(null)
-                  }}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-            
-            <form onSubmit={handleEditExpense} className="p-6 overflow-y-auto max-h-[calc(90vh-140px)] space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Tanggal Pengeluaran
-                </label>
-                <input
-                  type="date"
-                  value={editingExpense.expense_date.split('T')[0]}
-                  onChange={(e) => setEditingExpense({...editingExpense, expense_date: e.target.value})}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-gray-900"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Tipe Transaksi
-                </label>
-                <select
-                  value={editingExpense.expense_type}
-                  onChange={(e) => setEditingExpense({...editingExpense, expense_type: e.target.value})}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-gray-900"
-                >
-                  <option value="operating">Operasional</option>
-                  <option value="investing">Investasi</option>
-                  <option value="financing">Pendanaan</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Kategori Pengeluaran
-                </label>
-                <select
-                  value={editingExpense.category}
-                  onChange={(e) => setEditingExpense({...editingExpense, category: e.target.value})}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-gray-900"
-                >
-                  <option value="">Pilih kategori...</option>
-                  
-                  {editingExpense.expense_type === 'operating' && (
-                    <>
-                      <optgroup label="Pembelian Stok">
-                        <option value="raw_materials">Bahan Baku</option>
-                        <option value="finished_goods">Produk Jadi</option>
-                      </optgroup>
-                      
-                      <optgroup label="Operasional">
-                        <option value="salary">Gaji Karyawan</option>
-                        <option value="rent">Sewa Tempat</option>
-                        <option value="utilities">Listrik & Air</option>
-                        <option value="communication">Internet & Komunikasi</option>
-                        <option value="transportation">Transportasi</option>
-                        <option value="maintenance">Perawatan & Maintenance</option>
-                        <option value="marketing">Marketing & Promosi</option>
-                        <option value="tax">Pajak & Perizinan</option>
-                        <option value="other">Lain-lain</option>
-                      </optgroup>
-                    </>
-                  )}
-                  
-                  {editingExpense.expense_type === 'investing' && (
-                    <optgroup label="Investasi Aset">
-                      <option value="office_equipment">Peralatan Kantor</option>
-                      <option value="production_equipment">Alat Produksi</option>
-                      <option value="vehicle">Kendaraan Operasional</option>
-                      <option value="building_renovation">Renovasi Bangunan</option>
-                      <option value="other_assets">Peralatan Lainnya</option>
-                    </optgroup>
-                  )}
-                  
-                  {editingExpense.expense_type === 'financing' && (
-                    <optgroup label="Pendanaan">
-                      <option value="loan_principal">Pembayaran Pokok Pinjaman</option>
-                      <option value="loan_interest">Pembayaran Bunga Pinjaman</option>
-                      <option value="owner_withdrawal">Prive Pemilik</option>
-                    </optgroup>
-                  )}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Jumlah Pengeluaran
-                </label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">Rp</span>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9.]*"
-                    value={parseFloat(editingExpense.amount || 0).toLocaleString('id-ID')}
+            {/* CATEGORY & TYPE SECTION */}
+            <div className="bg-white rounded-xl shadow-md p-6">
+              <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                🏷️ Kategori & Jenis
+              </h2>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Expense Type - PINDAH KE ATAS */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Jenis Pengeluaran <span className="text-red-600">*</span></label>
+                  <select
+                    value={expenseType}
                     onChange={(e) => {
-                      const rawValue = e.target.value.replace(/\./g, '')
-                      setEditingExpense({...editingExpense, amount: rawValue})
+                      setExpenseType(e.target.value as any)
+                      setCategory('') // Reset kategori saat ganti jenis
                     }}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-gray-900"
-                    placeholder="0"
-                  />
+                    className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:border-red-500 focus:outline-none"
+                  >
+                    <option value="operating">🔄 Operating (Operasional Harian)</option>
+                    <option value="investing">🏗️ Investing (Aset & Peralatan)</option>
+                    <option value="financing">💳 Financing (Pembayaran Utang)</option>
+                  </select>
                 </div>
-                {editingExpense.amount && (
-                  <p className="text-xs text-gray-500 mt-1">
-                    Rp {parseFloat(editingExpense.amount || 0).toLocaleString('id-ID')}
-                  </p>
-                )}
+                
+                {/* Category - DINAMIS BERDASARKAN JENIS */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Kategori Pengeluaran <span className="text-red-600">*</span>
+                  </label>
+                  <select
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:border-red-500 focus:outline-none"
+                  >
+                    <option value="">-- Pilih Kategori --</option>
+                    {expenseType === 'operating' && (
+                      <>
+                        <option value="Pembelian Produk Jadi">Pembelian Produk Jadi (Reseller)</option>
+                        <option value="Pembelian Bahan Baku">Pembelian Bahan Baku (Produksi)</option>
+                        <option value="Gaji & Upah">Gaji & Upah</option>
+                        <option value="Marketing & Iklan">Marketing & Iklan</option>
+                        <option value="Operasional Toko">Operasional Toko</option>
+                        <option value="Transportasi & Logistik">Transportasi & Logistik</option>
+                        <option value="Kemasan & Packaging">Kemasan & Packaging</option>
+                        <option value="Utilitas">Utilitas (Listrik, Air, Internet)</option>
+                        <option value="Pemeliharaan & Perbaikan">Pemeliharaan & Perbaikan</option>
+                        <option value="Lain-lain">Lain-lain</option>
+                      </>
+                    )}
+                    {expenseType === 'investing' && (
+                      <>
+                        <option value="Pembelian Peralatan">Pembelian Peralatan</option>
+                        <option value="Pembelian Kendaraan">Pembelian Kendaraan</option>
+                        <option value="Renovasi Toko">Renovasi Toko</option>
+                        <option value="Pembelian Properti">Pembelian Properti</option>
+                        <option value="Software & Teknologi">Software & Teknologi</option>
+                      </>
+                    )}
+                    {expenseType === 'financing' && (
+                      <>
+                        <option value="Bayar Utang Bank">Bayar Utang Bank</option>
+                        <option value="Bayar Utang Supplier">Bayar Utang Supplier</option>
+                        <option value="Bayar Cicilan">Bayar Cicilan</option>
+                        <option value="Bayar Bunga Pinjaman">Bayar Bunga Pinjaman</option>
+                      </>
+                    )}
+                  </select>
+                </div>
               </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Metode Pembayaran
-                </label>
-                <select
-                  value={editingExpense.payment_method || 'Tunai'}
-                  onChange={(e) => setEditingExpense({...editingExpense, payment_method: e.target.value})}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-gray-900"
-                >
-                  <option>Tunai</option>
-                  <option>Transfer Bank</option>
-                  <option>E-Wallet</option>
-                  <option>Kartu Kredit/Debit</option>
-                  <option>Tempo/Hutang</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Deskripsi (Opsional)
-                </label>
-                <textarea
-                  rows={3}
-                  value={editingExpense.description || ''}
-                  onChange={(e) => setEditingExpense({...editingExpense, description: e.target.value})}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-gray-900"
-                  placeholder="Detail tambahan..."
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Catatan (Opsional)
-                </label>
-                <textarea
-                  rows={2}
-                  value={editingExpense.notes || ''}
-                  onChange={(e) => setEditingExpense({...editingExpense, notes: e.target.value})}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-gray-900"
-                  placeholder="Catatan tambahan..."
-                />
-              </div>
-
-              <div className="flex gap-3 pt-4">
+            </div>
+            
+            {/* MULTI-ITEMS TABLE SECTION - Hidden until category selected */}
+            {(category && category.trim() !== '') && (
+            <div className="bg-white rounded-xl shadow-md p-6">
+              <h2 className="text-lg font-bold text-gray-800 mb-4 pb-2 border-b-2 border-gray-200">
+                Daftar Item ({lineItems.length})
+              </h2>
+              
+              {/* Add Item Form */}
+              <div className="bg-red-50 border-2 border-red-100 rounded-lg p-4 mb-4">
+                <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
+                  {/* Item/Deskripsi Input */}
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      {(category === 'Pembelian Produk Jadi' || category === 'Pembelian Bahan Baku') ? 'Produk' : 'Item / Deskripsi'}
+                    </label>
+                    
+                    {/* Show dropdown only for product purchase categories */}
+                    {(category === 'Pembelian Produk Jadi' || category === 'Pembelian Bahan Baku') && (
+                      <select
+                        value={currentItem.product_id}
+                        onChange={(e) => {
+                          if (e.target.value === '__quick_add__') {
+                            setShowQuickAddProduct(true)
+                          } else {
+                            handleProductSelect(e.target.value)
+                          }
+                        }}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-sm mb-2"
+                      >
+                        <option value="">Pilih dari inventory...</option>
+                        {products.map(p => (
+                          <option key={p.id} value={p.id}>
+                            {p.name} (Stok: {p.stock_quantity || 0})
+                          </option>
+                        ))}
+                        <option disabled>──────────</option>
+                        <option value="__quick_add__" className="font-bold text-green-600">+ Tambah Produk Baru</option>
+                      </select>
+                    )}
+                    
+                    {/* Manual input always available */}
+                    <input
+                      type="text"
+                      placeholder={(category === 'Pembelian Produk Jadi' || category === 'Pembelian Bahan Baku') ? "Atau ketik manual..." : "Contoh: Gaji Karyawan, Biaya Iklan, dll"}
+                      value={currentItem.product_name}
+                      onChange={(e) => setCurrentItem({...currentItem, product_name: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-sm"
+                    />
+                  </div>
+                  
+                  {/* Quantity */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Jumlah</label>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      step="0.01"
+                      value={currentItem.quantity}
+                      onChange={(e) => setCurrentItem({...currentItem, quantity: e.target.value})}
+                      placeholder="0"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                    />
+                  </div>
+                  
+                  {/* Unit */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Satuan</label>
+                    <input
+                      type="text"
+                      value={currentItem.unit}
+                      onChange={(e) => setCurrentItem({...currentItem, unit: e.target.value})}
+                      placeholder="pcs, kg, liter"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                    />
+                  </div>
+                  
+                  {/* Price */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Harga/Unit</label>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      step="0.01"
+                      value={currentItem.price_per_unit}
+                      onChange={(e) => setCurrentItem({...currentItem, price_per_unit: e.target.value})}
+                      placeholder="0"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                    />
+                  </div>
+                  
+                  {/* Subtotal Preview */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Subtotal</label>
+                    <div className="px-3 py-2 bg-gray-100 border border-gray-300 rounded-lg text-sm font-bold text-red-600">
+                      Rp {formatCurrency(parseFloat(currentItem.quantity || '0') * parseFloat(currentItem.price_per_unit || '0'))}
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Add Button */}
                 <button
                   type="button"
+                  onClick={handleAddItem}
+                  className="mt-3 w-full md:w-auto bg-red-600 hover:bg-red-700 text-white px-6 py-2.5 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
+                  Tambah Item
+                </button>
+              </div>
+              
+              {/* Items List - Desktop Table */}
+              {lineItems.length > 0 && (
+                <div className="hidden md:block overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b-2 border-gray-200">
+                        <th className="text-left py-3 px-2 text-sm font-bold text-gray-700">Produk</th>
+                        <th className="text-center py-3 px-2 text-sm font-bold text-gray-700">Qty</th>
+                        <th className="text-center py-3 px-2 text-sm font-bold text-gray-700">Satuan</th>
+                        <th className="text-right py-3 px-2 text-sm font-bold text-gray-700">Harga</th>
+                        <th className="text-right py-3 px-2 text-sm font-bold text-gray-700">Subtotal</th>
+                        <th className="text-center py-3 px-2 text-sm font-bold text-gray-700">Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {lineItems.map((item, idx) => (
+                        <tr key={item.id} className="border-b border-gray-100 hover:bg-gray-50">
+                          <td className="py-3 px-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-gray-400 text-sm">{idx + 1}.</span>
+                              <span className="font-medium text-gray-800">{item.product_name}</span>
+                            </div>
+                          </td>
+                          <td className="py-3 px-2 text-center text-gray-700">{item.quantity}</td>
+                          <td className="py-3 px-2 text-center text-gray-600 text-sm">{item.unit}</td>
+                          <td className="py-3 px-2 text-right text-gray-700">
+                            Rp {formatCurrency(item.price_per_unit)}
+                          </td>
+                          <td className="py-3 px-2 text-right font-bold text-red-600">
+                            Rp {formatCurrency(item.subtotal)}
+                          </td>
+                          <td className="py-3 px-2 text-center">
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveItem(item.id)}
+                              className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded transition-colors"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              
+              {/* Items List - Mobile Cards */}
+              {lineItems.length > 0 && (
+                <div className="md:hidden space-y-3">
+                  {lineItems.map((item, idx) => (
+                    <div key={item.id} className="border-2 border-gray-200 rounded-lg p-4 bg-gray-50">
+                      <div className="flex justify-between items-start mb-2">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-gray-400 text-sm">{idx + 1}.</span>
+                            <span className="font-bold text-gray-800">{item.product_name}</span>
+                          </div>
+                          <div className="text-sm text-gray-600">
+                            {item.quantity} {item.unit} × Rp {formatCurrency(item.price_per_unit)}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveItem(item.id)}
+                          className="text-red-500 hover:text-red-700 p-2"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                      <div className="border-t border-gray-300 pt-2 mt-2">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium text-gray-600">Subtotal:</span>
+                          <span className="text-lg font-bold text-red-600">
+                            Rp {formatCurrency(item.subtotal)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              {/* Empty State */}
+              {lineItems.length === 0 && (
+                <div className="text-center py-12 text-gray-400">
+                  <div className="text-6xl mb-3">📦</div>
+                  <p className="font-medium">Belum ada item</p>
+                  <p className="text-sm">Tambahkan item pembelian di form atas</p>
+                </div>
+              )}
+            </div>
+            )}
+            
+            {/* PAYMENT METHOD SECTION - Hidden until category selected */}
+            {(category && category.trim() !== '') && (
+            <div className="bg-white rounded-xl shadow-md p-6">
+              <h2 className="text-lg font-bold text-gray-800 mb-4 pb-2 border-b-2 border-gray-200">
+                Status Pembayaran
+              </h2>
+              
+              {/* Visual Payment Buttons */}
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <button
+                  type="button"
+                  onClick={() => setPaymentStatus('Lunas')}
+                  className={`p-6 rounded-xl border-2 transition-all ${
+                    paymentStatus === 'Lunas'
+                      ? 'bg-green-600 border-green-600 text-white shadow-lg scale-105'
+                      : 'bg-white border-gray-200 text-gray-700 hover:border-green-300'
+                  }`}
+                >
+                  <svg className="w-12 h-12 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div className="font-bold text-lg">LUNAS</div>
+                  <div className="text-sm opacity-80">Dibayar Penuh</div>
+                </button>
+                
+                <button
+                  type="button"
+                  onClick={() => setPaymentStatus('Tempo')}
+                  className={`p-6 rounded-xl border-2 transition-all ${
+                    paymentStatus === 'Tempo'
+                      ? 'bg-orange-600 border-orange-600 text-white shadow-lg scale-105'
+                      : 'bg-white border-gray-200 text-gray-700 hover:border-orange-300'
+                  }`}
+                >
+                  <svg className="w-12 h-12 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div className="font-bold text-lg">TEMPO</div>
+                  <div className="text-sm opacity-80">Bayar Nanti (Hutang)</div>
+                </button>
+              </div>
+              
+              {/* Payment Method */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Metode Pembayaran</label>
+                <select
+                  value={paymentMethod}
+                  onChange={(e) => setPaymentMethod(e.target.value)}
+                  className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-lg focus:border-red-500 focus:outline-none"
+                >
+                  <option value="Tunai">Tunai</option>
+                  <option value="Transfer Bank">Transfer Bank</option>
+                  <option value="E-Wallet">E-Wallet (GoPay, OVO, Dana)</option>
+                  <option value="Kartu Kredit">Kartu Kredit</option>
+                  <option value="Kartu Debit">Kartu Debit</option>
+                </select>
+              </div>
+              
+              {/* Tempo Details (Expand when selected) */}
+              {paymentStatus === 'Tempo' && (
+                <div className="bg-orange-50 border-2 border-orange-200 rounded-lg p-4 space-y-4">
+                  <h3 className="font-bold text-orange-800 flex items-center gap-2">
+                    Detail Pembayaran Tempo
+                  </h3>
+                  
+                  {/* Tempo Preset Buttons */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Jatuh Tempo</label>
+                    <div className="grid grid-cols-3 gap-2 mb-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTempoDays(7)
+                          const date = new Date()
+                          date.setDate(date.getDate() + 7)
+                          setDueDate(date.toISOString().split('T')[0])
+                        }}
+                        className={`px-4 py-2.5 rounded-lg font-medium transition-all ${
+                          tempoDays === 7
+                            ? 'bg-orange-600 text-white shadow-md'
+                            : 'bg-white border-2 border-orange-200 text-gray-700 hover:border-orange-400'
+                        }`}
+                      >
+                        7 Hari
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTempoDays(15)
+                          const date = new Date()
+                          date.setDate(date.getDate() + 15)
+                          setDueDate(date.toISOString().split('T')[0])
+                        }}
+                        className={`px-4 py-2.5 rounded-lg font-medium transition-all ${
+                          tempoDays === 15
+                            ? 'bg-orange-600 text-white shadow-md'
+                            : 'bg-white border-2 border-orange-200 text-gray-700 hover:border-orange-400'
+                        }`}
+                      >
+                        15 Hari
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTempoDays(30)
+                          const date = new Date()
+                          date.setDate(date.getDate() + 30)
+                          setDueDate(date.toISOString().split('T')[0])
+                        }}
+                        className={`px-4 py-2.5 rounded-lg font-medium transition-all ${
+                          tempoDays === 30
+                            ? 'bg-orange-600 text-white shadow-md'
+                            : 'bg-white border-2 border-orange-200 text-gray-700 hover:border-orange-400'
+                        }`}
+                      >
+                        30 Hari
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Down Payment */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Uang Muka (DP)</label>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        step="1000"
+                        value={downPayment}
+                        onChange={(e) => setDownPayment(parseFloat(e.target.value) || 0)}
+                        placeholder="0"
+                        className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
+                      />
+                    </div>
+                    
+                    {/* Remaining */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Sisa Pembayaran</label>
+                      <div className="px-4 py-2.5 bg-orange-100 border-2 border-orange-300 rounded-lg font-bold text-orange-700">
+                        Rp {remainingPayment.toLocaleString('id-ID')}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Due Date */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Tanggal Jatuh Tempo</label>
+                    <input
+                      type="date"
+                      value={dueDate}
+                      onChange={(e) => setDueDate(e.target.value)}
+                      min={new Date().toISOString().split('T')[0]}
+                      className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
+                    />
+                  </div>
+                  
+                  {downPayment > grandTotal && (
+                    <div className="bg-red-100 border border-red-300 rounded-lg p-3 text-sm text-red-700">
+                      ⚠️ Uang muka tidak boleh melebihi total pembayaran!
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            )}
+            
+            {/* RINGKASAN PEMBAYARAN - Professional Design */}
+            {(category && category.trim() !== '') && (
+            <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl shadow-lg p-6 mb-6 border border-gray-200">
+              <h2 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
+                <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                </svg>
+                Ringkasan Pembayaran
+              </h2>
+              
+              <div className="bg-white rounded-xl p-5 space-y-4">
+                {/* Subtotal */}
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-700 font-medium">Subtotal</span>
+                  <span className="text-lg font-bold text-gray-900">
+                    Rp {formatCurrency(subtotal)}
+                  </span>
+                </div>
+                
+                {/* Discount with Percentage */}
+                <div className="flex justify-between items-center pt-3 border-t">
+                  <div className="flex items-center gap-2">
+                    <span className="text-gray-700">Diskon</span>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      step="0.1"
+                      value={discountPercent}
+                      onChange={(e) => setDiscountPercent(parseFloat(e.target.value) || 0)}
+                      placeholder="0"
+                      className="w-14 px-2 py-1 border border-gray-300 rounded-lg text-sm text-center font-medium focus:ring-2 focus:ring-red-500"
+                    />
+                    <span className="text-gray-600 font-medium">%</span>
+                  </div>
+                  {discountAmount > 0 && (
+                    <span className="text-red-600 font-semibold">
+                      - Rp {formatCurrency(discountAmount)}
+                    </span>
+                  )}
+                </div>
+                
+                {/* PPN with Checkbox */}
+                <div className="pt-3 border-t">
+                  <label className="flex items-center justify-between cursor-pointer group">
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        checked={taxAmount > 0}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            const ppn11 = Math.round((subtotal - discountAmount) * 0.11)
+                            setTaxAmount(ppn11)
+                          } else {
+                            setTaxAmount(0)
+                          }
+                        }}
+                        className="w-5 h-5 rounded border-gray-300 text-red-600 focus:ring-red-500"
+                      />
+                      <div>
+                        <span className="text-gray-700 font-medium group-hover:text-red-600 transition-colors">PPN 11%</span>
+                        <p className="text-xs text-gray-500">Pajak Pertambahan Nilai</p>
+                      </div>
+                    </div>
+                    {taxAmount > 0 && (
+                      <span className="text-green-700 font-semibold">
+                        + Rp {formatCurrency(taxAmount)}
+                      </span>
+                    )}
+                  </label>
+                </div>
+                
+                {/* Other Fees */}
+                <div className="flex justify-between items-center pt-3 border-t">
+                  <div>
+                    <span className="text-gray-700 font-medium">Biaya Lain-lain</span>
+                    <p className="text-xs text-gray-500">Ongkir, admin, handling, dll</p>
+                  </div>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    step="1000"
+                    value={otherFees}
+                    onChange={(e) => setOtherFees(parseFloat(e.target.value) || 0)}
+                    placeholder="0"
+                    className="w-32 px-3 py-2 border border-gray-300 rounded-lg text-sm text-right font-medium focus:ring-2 focus:ring-red-500"
+                  />
+                </div>
+              </div>
+              
+              {/* Grand Total */}
+              <div className="border-t-2 border-gray-300 pt-4 mb-4">
+                <div className="flex justify-between items-center">
+                  <span className="text-lg font-bold text-gray-800">TOTAL</span>
+                  <span className="text-2xl font-bold text-red-600">
+                    Rp {formatCurrency(grandTotal)}
+                  </span>
+                </div>
+              </div>
+              
+              {/* Payment Status Info */}
+              {paymentStatus === 'Tempo' && remainingPayment > 0 && (
+                <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 text-sm">
+                  <div className="flex justify-between mb-1">
+                    <span className="text-gray-600">Dibayar (DP):</span>
+                    <span className="font-medium">Rp {formatCurrency(downPayment)}</span>
+                  </div>
+                  <div className="flex justify-between font-bold text-orange-700">
+                    <span>Sisa Hutang:</span>
+                    <span>Rp {formatCurrency(remainingPayment)}</span>
+                  </div>
+                </div>
+              )}
+              
+              {/* Action Summary */}
+              <div className="mt-4 pt-4 border-t border-gray-200 text-sm text-gray-600 space-y-1">
+                {lineItems.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full bg-green-500"></div>
+                    <span>Auto-update inventory ({lineItems.filter(i => i.product_id).length} produk)</span>
+                  </div>
+                )}
+                {selectedSupplier && (
+                  <div className="flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full bg-green-500"></div>
+                    <span>Update hutang supplier</span>
+                  </div>
+                )}
+              </div>
+            </div>
+            )}
+
+            {/* SUBMIT BUTTON - Hidden until category selected */}
+            {(category && category.trim() !== '') && (
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={submitting || lineItems.length === 0}
+              className="w-full bg-red-600 hover:bg-red-700 text-white py-4 rounded-xl font-bold text-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 shadow-lg"
+            >
+              {submitting ? (
+                <>
+                  <svg className="animate-spin w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  Menyimpan...
+                </>
+              ) : (
+                <>
+                  Simpan Pengeluaran
+                </>
+              )}
+            </button>
+            )}
+        </div>
+        
+        {/* ============================================ */}
+        {/* 📜 TRANSACTIONS LIST */}
+        {/* ============================================ */}
+        <div className="mt-8 bg-white rounded-xl shadow-md p-6 max-w-7xl mx-auto">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-bold text-gray-800">Riwayat Pengeluaran</h2>
+            <div className="flex gap-2">
+              {selectedExpenses.length > 0 && (
+                <button
+                  onClick={() => setShowBulkActions(!showBulkActions)}
+                  className="bg-red-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-red-700 transition-colors"
+                >
+                  Aksi ({selectedExpenses.length})
+                </button>
+              )}
+              <button
+                onClick={loadExpenses}
+                className="text-red-600 hover:text-red-700 font-medium px-4 py-2 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
+              >
+                Refresh
+              </button>
+            </div>
+          </div>
+          
+          {/* Filters */}
+          <div className="grid grid-cols-1 md:grid-cols-6 gap-3 mb-4 pb-4 border-b">
+            <select
+              value={filterExpenseType}
+              onChange={(e) => {
+                setFilterExpenseType(e.target.value)
+                setFilterCategory('') // Reset category saat ganti jenis
+                setCurrentPage(1)
+              }}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-sm"
+            >
+              <option value="">Semua Jenis</option>
+              <option value="operating">Operating</option>
+              <option value="investing">Investing</option>
+              <option value="financing">Financing</option>
+            </select>
+            
+            <select
+              value={filterCategory}
+              onChange={(e) => {
+                setFilterCategory(e.target.value)
+                setCurrentPage(1)
+              }}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-sm"
+              disabled={!filterExpenseType}
+            >
+              <option value="">
+                {filterExpenseType ? 'Semua Kategori' : 'Pilih Jenis Dulu'}
+              </option>
+              {filterExpenseType === 'operating' && (
+                <>
+                  <option value="Pembelian Produk Jadi">Pembelian Produk Jadi</option>
+                  <option value="Pembelian Bahan Baku">Pembelian Bahan Baku</option>
+                  <option value="Gaji & Upah">Gaji & Upah</option>
+                  <option value="Marketing & Iklan">Marketing & Iklan</option>
+                  <option value="Operasional Toko">Operasional Toko</option>
+                  <option value="Transportasi & Logistik">Transportasi & Logistik</option>
+                  <option value="Kemasan & Packaging">Kemasan & Packaging</option>
+                  <option value="Utilitas">Utilitas (Listrik, Air, Internet)</option>
+                  <option value="Pemeliharaan & Perbaikan">Pemeliharaan & Perbaikan</option>
+                  <option value="Lain-lain">Lain-lain</option>
+                </>
+              )}
+              {filterExpenseType === 'investing' && (
+                <>
+                  <option value="Pembelian Peralatan">Pembelian Peralatan</option>
+                  <option value="Pembelian Kendaraan">Pembelian Kendaraan</option>
+                  <option value="Renovasi Toko">Renovasi Toko</option>
+                  <option value="Pembelian Properti">Pembelian Properti</option>
+                  <option value="Software & Teknologi">Software & Teknologi</option>
+                </>
+              )}
+              {filterExpenseType === 'financing' && (
+                <>
+                  <option value="Bayar Utang Bank">Bayar Utang Bank</option>
+                  <option value="Bayar Utang Supplier">Bayar Utang Supplier</option>
+                  <option value="Bayar Cicilan">Bayar Cicilan</option>
+                  <option value="Bayar Bunga Pinjaman">Bayar Bunga Pinjaman</option>
+                </>
+              )}
+            </select>
+            
+            <select
+              value={filterPaymentStatus}
+              onChange={(e) => {
+                setFilterPaymentStatus(e.target.value)
+                setCurrentPage(1)
+              }}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-sm"
+            >
+              <option value="">Semua Status</option>
+              <option value="Lunas">Lunas</option>
+              <option value="Tempo">Tempo</option>
+            </select>
+            
+            <div className="md:col-span-2">
+              <label className="block text-xs text-gray-600 mb-1">Dari Tanggal</label>
+              <input
+                type="date"
+                value={filterDateStart}
+                onChange={(e) => {
+                  setFilterDateStart(e.target.value)
+                  setCurrentPage(1)
+                }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-sm"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">Sampai Tanggal</label>
+              <input
+                type="date"
+                value={filterDateEnd}
+                onChange={(e) => {
+                  setFilterDateEnd(e.target.value)
+                  setCurrentPage(1)
+                }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-sm"
+              />
+            </div>
+          </div>
+          
+          {/* Bulk Actions Bar */}
+          {showBulkActions && selectedExpenses.length > 0 && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4 flex items-center justify-between">
+              <span className="font-medium text-gray-700">
+                {selectedExpenses.length} transaksi dipilih
+              </span>
+              <div className="flex gap-2">
+                <button
                   onClick={() => {
-                    setShowEditModal(false)
-                    setEditingExpense(null)
+                    if (confirm(`Hapus ${selectedExpenses.length} transaksi?`)) {
+                      // TODO: Implement bulk delete
+                      console.log('Bulk delete:', selectedExpenses)
+                    }
                   }}
-                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                  className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
+                >
+                  Hapus
+                </button>
+                <button
+                  onClick={() => setSelectedExpenses([])}
+                  className="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300 transition-colors"
+                >
+                  Batal
+                </button>
+              </div>
+            </div>
+          )}
+          
+          {loadingExpenses ? (
+            <div className="text-center py-12 text-gray-400">
+              <svg className="animate-spin w-10 h-10 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              <p>Memuat data...</p>
+            </div>
+          ) : expenses.length === 0 ? (
+            <div className="text-center py-12 text-gray-400">
+              <svg className="w-16 h-16 mx-auto mb-3 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <p className="font-medium">Belum ada transaksi</p>
+            </div>
+          ) : (
+            <>
+              {/* Desktop Table Header */}
+              <div className="hidden md:grid md:grid-cols-12 md:gap-4 bg-gray-50 px-4 py-3 rounded-lg border border-gray-200 mb-3">
+                <div className="col-span-1 flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={selectedExpenses.length === expenses.length && expenses.length > 0}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedExpenses(expenses.map(exp => exp.id))
+                      } else {
+                        setSelectedExpenses([])
+                      }
+                    }}
+                    className="w-5 h-5 rounded border-gray-300 text-red-600 focus:ring-red-500"
+                  />
+                </div>
+                <div className="col-span-3 text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  Tanggal / Kategori
+                </div>
+                <div className="col-span-2 text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  Jumlah
+                </div>
+                <div className="col-span-2 text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  Supplier
+                </div>
+                <div className="col-span-2 text-xs font-semibold text-gray-600 uppercase tracking-wider text-center">
+                  Status
+                </div>
+                <div className="col-span-2 text-xs font-semibold text-gray-600 uppercase tracking-wider text-center">
+                  Aksi
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {expenses.map((exp) => (
+                <div key={exp.id} className="bg-white border border-gray-200 rounded-xl p-4 hover:shadow-md transition-shadow">
+                  {/* MOBILE: Layout Vertikal (< 768px) */}
+                  <div className="block md:hidden">
+                    {/* Baris 1: Checkbox + Judul + Status */}
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <input
+                          type="checkbox"
+                          checked={selectedExpenses.includes(exp.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedExpenses([...selectedExpenses, exp.id])
+                            } else {
+                              setSelectedExpenses(selectedExpenses.filter(id => id !== exp.id))
+                            }
+                          }}
+                          className="w-5 h-5 rounded border-gray-300 text-red-600 focus:ring-red-500 flex-shrink-0"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-bold text-gray-900 text-base truncate">{exp.category}</h3>
+                        </div>
+                      </div>
+                      <span className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap flex-shrink-0 ${
+                        exp.payment_status === 'Lunas'
+                          ? 'bg-green-100 text-green-800'
+                          : 'bg-orange-100 text-orange-800'
+                      }`}>
+                        {exp.payment_status || 'Lunas'}
+                      </span>
+                    </div>
+                    
+                    {/* Baris 2: Total */}
+                    <div className="mb-3 ml-8">
+                      <div className="text-sm text-gray-500 mb-1">Total</div>
+                      <div className="text-2xl font-bold text-red-600">
+                        Rp {formatCurrency(exp.grand_total || exp.amount || 0)}
+                      </div>
+                    </div>
+                    
+                    {/* Baris 3: Tanggal */}
+                    <div className="text-sm text-gray-600 mb-3 ml-8">
+                      {new Date(exp.expense_date).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                    </div>
+                    
+                    {/* Due Date for Tempo */}
+                    {exp.payment_status === 'Tempo' && exp.due_date && (
+                      <div className="flex items-center gap-2 text-sm mb-3 ml-8">
+                        <svg className="w-4 h-4 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <span className="text-orange-700 font-medium">
+                          Jatuh tempo: {new Date(exp.due_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        </span>
+                      </div>
+                    )}
+                    
+                    {/* Baris 4: Action Buttons */}
+                    <div className="flex items-center gap-2 ml-8">
+                      <button
+                        onClick={() => {
+                          setPreviewExpense(exp)
+                          setShowPreviewModal(true)
+                        }}
+                        className="p-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-colors"
+                        title="Preview"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => {
+                          showToast('warning', 'Fitur edit segera hadir')
+                        }}
+                        className="p-2.5 bg-orange-600 hover:bg-orange-700 text-white rounded-xl transition-colors"
+                        title="Edit"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={async () => {
+                          if (confirm(`Hapus transaksi ${exp.purchase_order_number || exp.category}?\n\nData tidak dapat dikembalikan!`)) {
+                            try {
+                              const res = await fetch(`/api/expenses/${exp.id}`, { method: 'DELETE' })
+                              if (res.ok) {
+                                showToast('success', 'Transaksi dihapus')
+                                loadExpenses()
+                              } else {
+                                showToast('error', 'Gagal menghapus')
+                              }
+                            } catch (error) {
+                              showToast('error', 'Error: ' + error)
+                            }
+                          }
+                        }}
+                        className="p-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl transition-colors"
+                        title="Hapus"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* DESKTOP: Layout Horizontal (>= 768px) */}
+                  <div className="hidden md:grid md:grid-cols-12 md:gap-4 md:items-center">
+                    {/* Checkbox */}
+                    <div className="col-span-1">
+                      <input
+                        type="checkbox"
+                        checked={selectedExpenses.includes(exp.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedExpenses([...selectedExpenses, exp.id])
+                          } else {
+                            setSelectedExpenses(selectedExpenses.filter(id => id !== exp.id))
+                          }
+                        }}
+                        className="w-5 h-5 rounded border-gray-300 text-red-600 focus:ring-red-500"
+                      />
+                    </div>
+                    
+                    {/* Tanggal / Kategori */}
+                    <div className="col-span-3">
+                      <p className="text-xs text-gray-500">
+                        {new Date(exp.expense_date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      </p>
+                      <h3 className="font-semibold text-gray-900 text-sm mt-0.5">{exp.category}</h3>
+                      {exp.payment_status === 'Tempo' && exp.due_date && (
+                        <p className="text-xs text-orange-600 font-medium mt-1 flex items-center gap-1">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                          {new Date(exp.due_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
+                        </p>
+                      )}
+                    </div>
+                    
+                    {/* Jumlah */}
+                    <div className="col-span-2">
+                      <div className="text-base font-bold text-red-600">
+                        Rp {formatCurrency(exp.grand_total || exp.amount || 0)}
+                      </div>
+                    </div>
+                    
+                    {/* Supplier */}
+                    <div className="col-span-2">
+                      <span className="text-sm text-gray-700">
+                        {exp.supplier?.name || '-'}
+                      </span>
+                    </div>
+                    
+                    {/* Status */}
+                    <div className="col-span-2 flex justify-center">
+                      <span className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap ${
+                        exp.payment_status === 'Lunas'
+                          ? 'bg-green-100 text-green-800'
+                          : 'bg-orange-100 text-orange-800'
+                      }`}>
+                        {exp.payment_status || 'Lunas'}
+                      </span>
+                    </div>
+                    
+                    {/* Aksi */}
+                    <div className="col-span-2 flex items-center justify-center gap-2">
+                      <button
+                        onClick={() => {
+                          setPreviewExpense(exp)
+                          setShowPreviewModal(true)
+                        }}
+                        className="p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                        title="Preview"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => {
+                          showToast('warning', 'Fitur edit segera hadir')
+                        }}
+                        className="p-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg transition-colors"
+                        title="Edit"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={async () => {
+                          if (confirm(`Hapus transaksi ${exp.purchase_order_number || exp.category}?\n\nData tidak dapat dikembalikan!`)) {
+                            try {
+                              const res = await fetch(`/api/expenses/${exp.id}`, { method: 'DELETE' })
+                              if (res.ok) {
+                                showToast('success', 'Transaksi dihapus')
+                                loadExpenses()
+                              } else {
+                                showToast('error', 'Gagal menghapus')
+                              }
+                            } catch (error) {
+                              showToast('error', 'Error: ' + error)
+                            }
+                          }
+                        }}
+                        className="p-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
+                        title="Hapus"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              
+              {/* Pagination */}
+              <div className="flex flex-col md:flex-row items-center justify-between gap-4 mt-4 pt-4 border-t border-gray-200">
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-gray-600">
+                    Menampilkan {expenses.length} dari {totalItems} transaksi
+                  </span>
+                  <select
+                    value={itemsPerPage}
+                    onChange={(e) => {
+                      setItemsPerPage(parseInt(e.target.value))
+                      setCurrentPage(1)
+                    }}
+                    className="px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                  >
+                    <option value="10">10 / halaman</option>
+                    <option value="25">25 / halaman</option>
+                    <option value="50">50 / halaman</option>
+                    <option value="100">100 / halaman</option>
+                  </select>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setCurrentPage(1)}
+                    disabled={currentPage === 1}
+                    className="px-3 py-2 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+                  >
+                    « First
+                  </button>
+                  <button
+                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                    disabled={currentPage === 1}
+                    className="px-3 py-2 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+                  >
+                    ‹ Prev
+                  </button>
+                  <span className="px-4 py-2 text-sm text-gray-600 font-medium">
+                    {currentPage} / {Math.ceil(totalItems / itemsPerPage)}
+                  </span>
+                  <button
+                    onClick={() => setCurrentPage(Math.min(Math.ceil(totalItems / itemsPerPage), currentPage + 1))}
+                    disabled={currentPage >= Math.ceil(totalItems / itemsPerPage)}
+                    className="px-3 py-2 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+                  >
+                    Next ›
+                  </button>
+                  <button
+                    onClick={() => setCurrentPage(Math.ceil(totalItems / itemsPerPage))}
+                    disabled={currentPage >= Math.ceil(totalItems / itemsPerPage)}
+                    className="px-3 py-2 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+                  >
+                    Last »
+                  </button>
+                </div>
+              </div>
+            </div>
+            </>
+          )}
+        </div>
+      </div>
+      
+      {/* ============================================ */}
+      {/* MODALS */}
+      {/* ============================================ */}
+      
+      {/* Supplier Modal */}
+      <SupplierModal
+        isOpen={showSupplierModal}
+        onClose={() => setShowSupplierModal(false)}
+        onSelect={(supplier) => setSelectedSupplier(supplier)}
+        selectedSupplier={selectedSupplier}
+      />
+      
+      {/* Quick Add Product Modal */}
+      {showQuickAddProduct && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full">
+            <div className="bg-gradient-to-r from-green-600 to-green-500 text-white p-4">
+              <h2 className="text-xl font-bold">+ Tambah Produk Baru</h2>
+              <p className="text-sm text-green-100 mt-1">Data otomatis sinkron dengan harga dan satuan</p>
+            </div>
+            <div className="p-6 space-y-4">
+              {/* Product Name */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Nama Produk <span className="text-red-600">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={quickProductName}
+                  onChange={(e) => setQuickProductName(e.target.value)}
+                  placeholder="Contoh: Kaos Polos Putih"
+                  className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-lg focus:border-green-500 focus:outline-none"
+                  autoFocus
+                />
+              </div>
+              
+              {/* Price */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Harga Beli/Unit <span className="text-red-600">*</span>
+                </label>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  step="0.01"
+                  value={quickProductPrice}
+                  onChange={(e) => setQuickProductPrice(e.target.value)}
+                  placeholder="15000"
+                  className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-lg focus:border-green-500 focus:outline-none"
+                />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                {/* Unit */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Satuan</label>
+                  <select
+                    value={quickProductUnit}
+                    onChange={(e) => setQuickProductUnit(e.target.value)}
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-lg focus:border-green-500 focus:outline-none"
+                  >
+                    <option value="pcs">Pcs</option>
+                    <option value="kg">Kg</option>
+                    <option value="gram">Gram</option>
+                    <option value="liter">Liter</option>
+                    <option value="ml">Ml</option>
+                    <option value="box">Box</option>
+                    <option value="pack">Pack</option>
+                    <option value="lusin">Lusin</option>
+                  </select>
+                </div>
+                
+                {/* Initial Stock */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Stok Awal</label>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    step="0.01"
+                    value={quickProductStock}
+                    onChange={(e) => setQuickProductStock(e.target.value)}
+                    placeholder="0"
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-lg focus:border-green-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+              
+              <div className="bg-blue-50 border-l-4 border-blue-500 p-3 text-sm text-gray-700">
+                <strong>Info:</strong> Produk akan otomatis tersimpan di inventory dan langsung terisi di form pengeluaran ini.
+              </div>
+              
+              {/* Buttons */}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setShowQuickAddProduct(false)
+                    setQuickProductName('')
+                    setQuickProductPrice('')
+                    setQuickProductUnit('pcs')
+                    setQuickProductStock('0')
+                  }}
+                  className="flex-1 px-4 py-2.5 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition-colors"
                 >
                   Batal
                 </button>
                 <button
-                  type="submit"
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold"
+                  onClick={handleQuickAddProduct}
+                  disabled={savingQuickProduct || !quickProductName.trim() || !quickProductPrice}
+                  className="flex-1 px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Simpan Perubahan
+                  {savingQuickProduct ? (
+                    <>
+                      <svg className="animate-spin w-5 h-5 inline-block mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      Menyimpan...
+                    </>
+                  ) : (
+                    'Simpan & Gunakan'
+                  )}
                 </button>
               </div>
-            </form>
+            </div>
           </div>
         </div>
       )}
-
+      
+      {/* Educational Modal */}
+      {showEducationalModal && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="bg-gradient-to-r from-red-600 to-red-500 text-white p-6">
+              <h2 className="text-2xl font-bold">Panduan Input Pengeluaran</h2>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="bg-red-50 border-l-4 border-red-500 p-4">
+                <h3 className="font-bold text-red-800 mb-2">Fitur Utama:</h3>
+                <ul className="space-y-1 text-sm text-gray-700">
+                  <li>✅ Multi-items pembelian (seperti Purchase Order)</li>
+                  <li>✅ Auto-update inventory produk</li>
+                  <li>✅ Tracking hutang supplier</li>
+                  <li>✅ Payment tempo dengan reminder</li>
+                  <li>✅ Diskon, pajak, biaya tambahan</li>
+                </ul>
+              </div>
+              
+              <div className="border-l-4 border-blue-500 pl-4">
+                <h3 className="font-bold text-gray-800 mb-2">Reseller (Barang Jadi):</h3>
+                <p className="text-sm text-gray-600">
+                  Beli 50 kaos @ Rp 15,000 + 20 celana @ Rp 75,000 → Total Rp 2.25jt → Diskon 5% → Stok otomatis +50 kaos & +20 celana
+                </p>
+              </div>
+              
+              <div className="border-l-4 border-green-500 pl-4">
+                <h3 className="font-bold text-gray-800 mb-2">Produksi (Bahan Baku):</h3>
+                <p className="text-sm text-gray-600">
+                  Beli 10kg tepung + 5kg telur + 3kg gula → Stok raw materials terupdate → Hitung cost per produk
+                </p>
+              </div>
+              
+              <div className="bg-orange-50 border-l-4 border-orange-500 p-4">
+                <h3 className="font-bold text-orange-800 mb-2">⏳ Pembayaran Tempo:</h3>
+                <p className="text-sm text-gray-600">
+                  Total Rp 2jt → DP Rp 500rb → Sisa Rp 1.5jt (Hutang) → Jatuh tempo 30 hari → Auto WhatsApp reminder
+                </p>
+              </div>
+              
+              <div className="flex items-center gap-3 mb-3">
+                <input
+                  type="checkbox"
+                  id="dontShowAgain"
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      localStorage.setItem('katalara_expenses_education_seen_v2', 'true')
+                    } else {
+                      localStorage.removeItem('katalara_expenses_education_seen_v2')
+                    }
+                  }}
+                  className="w-4 h-4 rounded border-gray-300 text-red-600 focus:ring-red-500"
+                />
+                <label htmlFor="dontShowAgain" className="text-sm text-gray-600 cursor-pointer">
+                  Jangan tampilkan panduan ini lagi
+                </label>
+              </div>
+              <button
+                onClick={() => setShowEducationalModal(false)}
+                className="w-full bg-red-600 hover:bg-red-700 text-white py-3 rounded-lg font-medium transition-colors"
+              >
+                Mengerti, Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Preview Modal */}
+      {showPreviewModal && previewExpense && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="bg-gradient-to-r from-blue-600 to-blue-500 text-white p-6">
+              <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-bold">Detail Pengeluaran</h2>
+                <button
+                  onClick={() => {
+                    setShowPreviewModal(false)
+                    setPreviewExpense(null)
+                  }}
+                  className="text-white hover:bg-white/20 rounded-lg p-2 transition-colors"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            
+            <div className="p-6 space-y-6">
+              {/* Basic Info */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <div className="text-sm text-gray-500 mb-1">PO Number</div>
+                  <div className="font-mono font-medium">{previewExpense.purchase_order_number || '-'}</div>
+                </div>
+                <div>
+                  <div className="text-sm text-gray-500 mb-1">Tanggal</div>
+                  <div className="font-medium">{new Date(previewExpense.expense_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
+                </div>
+                <div>
+                  <div className="text-sm text-gray-500 mb-1">Supplier</div>
+                  <div className="font-medium">{previewExpense.supplier?.name || 'Tanpa Supplier'}</div>
+                </div>
+                <div>
+                  <div className="text-sm text-gray-500 mb-1">Kategori</div>
+                  <div className="font-medium">{previewExpense.category}</div>
+                </div>
+              </div>
+              
+              {/* Items List */}
+              <div>
+                <h3 className="font-bold text-gray-800 mb-3 pb-2 border-b-2 border-gray-200">Daftar Item</h3>
+                <div className="space-y-2">
+                  {previewExpense.items && previewExpense.items.length > 0 ? (
+                    previewExpense.items.map((item: any, idx: number) => (
+                      <div key={idx} className="bg-gray-50 rounded-lg p-3 flex items-center justify-between">
+                        <div className="flex-1">
+                          <div className="font-medium text-gray-800">{item.product_name}</div>
+                          <div className="text-sm text-gray-600">
+                            {item.quantity} {item.unit} × Rp {formatCurrency(item.price_per_unit)}
+                          </div>
+                        </div>
+                        <div className="font-bold text-red-600">
+                          Rp {formatCurrency(item.subtotal)}
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center text-gray-400 py-4">Tidak ada item</div>
+                  )}
+                </div>
+              </div>
+              
+              {/* Financial Summary */}
+              <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Subtotal</span>
+                  <span className="font-medium">Rp {formatCurrency(previewExpense.subtotal || 0)}</span>
+                </div>
+                {previewExpense.discount_amount > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Diskon</span>
+                    <span className="font-medium text-red-600">- Rp {formatCurrency(previewExpense.discount_amount)}</span>
+                  </div>
+                )}
+                {previewExpense.tax_amount > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Pajak</span>
+                    <span className="font-medium">Rp {formatCurrency(previewExpense.tax_amount)}</span>
+                  </div>
+                )}
+                {previewExpense.other_fees > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Biaya Lain</span>
+                    <span className="font-medium">Rp {formatCurrency(previewExpense.other_fees)}</span>
+                  </div>
+                )}
+                <div className="border-t-2 border-gray-300 pt-2 flex justify-between">
+                  <span className="font-bold text-gray-800">TOTAL</span>
+                  <span className="font-bold text-red-600 text-xl">Rp {formatCurrency(previewExpense.grand_total || previewExpense.amount || 0)}</span>
+                </div>
+              </div>
+              
+              {/* Payment Status */}
+              <div>
+                <h3 className="font-bold text-gray-800 mb-3">Status Pembayaran</h3>
+                <div className="flex items-center gap-3">
+                  <span className={`px-3 py-1.5 rounded-full text-sm font-medium ${
+                    previewExpense.payment_status === 'Lunas'
+                      ? 'bg-green-100 text-green-700'
+                      : 'bg-orange-100 text-orange-700'
+                  }`}>
+                    {previewExpense.payment_status || 'Lunas'}
+                  </span>
+                  {previewExpense.payment_status === 'Tempo' && previewExpense.due_date && (
+                    <span className="text-sm text-gray-600">
+                      Jatuh Tempo: {new Date(previewExpense.due_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                    </span>
+                  )}
+                </div>
+                {previewExpense.payment_status === 'Tempo' && (
+                  <div className="mt-3 bg-orange-50 border border-orange-200 rounded-lg p-3 text-sm">
+                    <div className="flex justify-between mb-1">
+                      <span className="text-gray-600">Dibayar (DP):</span>
+                      <span className="font-medium">Rp {formatCurrency(previewExpense.down_payment || 0)}</span>
+                    </div>
+                    <div className="flex justify-between font-bold text-orange-700">
+                      <span>Sisa Hutang:</span>
+                      <span>Rp {formatCurrency(previewExpense.remaining_payment || 0)}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              {/* Action Buttons */}
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => {
+                    showToast('warning', 'Fitur cetak PDF segera hadir')
+                  }}
+                  className="flex-1 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-medium transition-colors"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                  </svg>
+                  Cetak / Download PDF
+                </button>
+                <button
+                  onClick={() => {
+                    setShowPreviewModal(false)
+                    setPreviewExpense(null)
+                  }}
+                  className="px-8 bg-gray-600 hover:bg-gray-700 text-white py-3 rounded-lg font-medium transition-colors"
+                >
+                  Tutup
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
       {/* Toast Notification */}
       {toast.show && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] animate-slide-in">
-          <div className={`
-            rounded-lg shadow-2xl p-4 min-w-[300px] max-w-md
-            flex items-start gap-3 border-l-4
-            ${
-              toast.type === 'success' ? 'bg-green-50 border-green-500' :
-              toast.type === 'error' ? 'bg-red-50 border-red-500' :
-              'bg-amber-50 border-amber-500'
-            }
-          `}>
-            <span className="text-2xl flex-shrink-0">
+        <div className="fixed bottom-6 right-6 z-50 animate-in slide-in-from-bottom">
+          <div className={`rounded-lg shadow-lg p-4 flex items-center gap-3 ${
+            toast.type === 'success' ? 'bg-green-600 text-white' :
+            toast.type === 'error' ? 'bg-red-600 text-white' :
+            'bg-orange-600 text-white'
+          }`}>
+            <span className="text-2xl">
               {toast.type === 'success' ? '✅' : toast.type === 'error' ? '❌' : '⚠️'}
             </span>
-            <div className="flex-1">
-              <p className={`
-                text-sm font-medium
-                ${
-                  toast.type === 'success' ? 'text-green-900' :
-                  toast.type === 'error' ? 'text-red-900' :
-                  'text-amber-900'
-                }
-              `}>
-                {toast.message}
-              </p>
-            </div>
-            <button
-              onClick={() => setToast({ ...toast, show: false })}
-              className={`
-                flex-shrink-0 rounded-full p-1 transition-colors
-                ${
-                  toast.type === 'success' ? 'hover:bg-green-200' :
-                  toast.type === 'error' ? 'hover:bg-red-200' :
-                  'hover:bg-amber-200'
-                }
-              `}
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+            <span className="font-medium">{toast.message}</span>
           </div>
         </div>
       )}

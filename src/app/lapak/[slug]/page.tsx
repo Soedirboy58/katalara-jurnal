@@ -181,7 +181,7 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
     setIsPaymentModalOpen(true);
   };
 
-  const handlePaymentComplete = (method: 'qris' | 'transfer' | 'cash') => {
+  const handlePaymentComplete = async (method: 'qris' | 'transfer' | 'cash') => {
     if (!storefront) return;
 
     // Calculate total
@@ -203,6 +203,31 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
       total_amount: total,
       payment_method: paymentMethodText,
     });
+
+    // Track order to database
+    try {
+      await fetch(`/api/storefront/${slug}/orders`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-session-id': getSessionId(),
+        },
+        body: JSON.stringify({
+          order_items: checkoutItems.map(item => ({
+            product_id: item.product_id,
+            product_name: item.product_name,
+            quantity: item.quantity,
+            price: item.price,
+            variant: item.variant,
+            notes: item.notes,
+          })),
+          total_amount: total,
+          payment_method: method,
+        }),
+      });
+    } catch (err) {
+      console.error('Error tracking order:', err);
+    }
 
     // Track WhatsApp click
     trackEvent('whatsapp_click');
@@ -270,51 +295,51 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
         </div>
       )}
 
-      {/* Store Header */}
+      {/* Store Header - Mobile Optimized */}
       <div className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-30">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center gap-4">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-3 sm:py-4">
+          <div className="flex items-start sm:items-center gap-3">
             {/* Store Logo */}
             {storefront.logo_url && (
               <img
                 src={storefront.logo_url}
                 alt={storefront.store_name}
-                className="w-16 h-16 sm:w-20 sm:h-20 rounded-full border-4 border-white shadow-lg object-cover"
+                className="w-14 h-14 sm:w-20 sm:h-20 rounded-full border-2 sm:border-4 border-white shadow-lg object-cover flex-shrink-0"
               />
             )}
 
             {/* Store Info */}
             <div className="flex-1 min-w-0">
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 truncate">
+              <h1 className="text-lg sm:text-3xl font-bold text-gray-900 leading-tight">
                 {storefront.store_name}
               </h1>
               {storefront.description && (
-                <p className="text-gray-600 mt-1 line-clamp-2">{storefront.description}</p>
+                <p className="text-xs sm:text-base text-gray-600 mt-0.5 sm:mt-1 line-clamp-1 sm:line-clamp-2">{storefront.description}</p>
               )}
               {storefront.location_text && (
-                <p className="text-sm text-gray-500 mt-1 flex items-center gap-1">
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <p className="text-xs sm:text-sm text-gray-500 mt-1 flex items-center gap-1">
+                  <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                   </svg>
-                  {storefront.location_text}
+                  <span className="truncate">{storefront.location_text}</span>
                 </p>
               )}
             </div>
           </div>
 
           {/* Search Bar */}
-          <div className="mt-4">
+          <div className="mt-3 sm:mt-4">
             <div className="relative">
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Cari produk..."
-                className="w-full px-4 py-3 pl-11 bg-gray-50 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-current focus:border-transparent"
+                className="w-full px-3 sm:px-4 py-2 sm:py-3 pl-9 sm:pl-11 text-sm sm:text-base bg-gray-50 border border-gray-300 rounded-lg sm:rounded-xl focus:outline-none focus:ring-2 focus:ring-current focus:border-transparent"
                 style={{ '--tw-ring-color': storefront.theme_color } as any}
               />
-              <svg className="absolute left-3 top-3.5 w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="absolute left-2.5 sm:left-3 top-2.5 sm:top-3.5 w-4 h-4 sm:w-5 sm:h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
             </div>
@@ -322,10 +347,10 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
 
           {/* Categories */}
           {categories.length > 0 && (
-            <div className="mt-4 flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+            <div className="mt-2 sm:mt-4 flex gap-2 overflow-x-auto pb-2 scrollbar-hide -mx-3 px-3 sm:mx-0 sm:px-0">
               <button
                 onClick={() => setSelectedCategory('all')}
-                className={`px-4 py-2 rounded-full font-medium whitespace-nowrap transition-all ${
+                className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-medium whitespace-nowrap transition-all ${
                   selectedCategory === 'all'
                     ? 'text-white shadow-md'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -338,7 +363,7 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
                 <button
                   key={category}
                   onClick={() => setSelectedCategory(category!)}
-                  className={`px-4 py-2 rounded-full font-medium whitespace-nowrap transition-all ${
+                  className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-medium whitespace-nowrap transition-all ${
                     selectedCategory === category
                       ? 'text-white shadow-md'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -354,9 +379,9 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
       </div>
 
       {/* Products Grid */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8">
         {filteredProducts.length === 0 ? (
-          <div className="text-center py-12">
+          <div className="text-center py-8 sm:py-12">
             <svg className="w-24 h-24 text-gray-300 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
             </svg>
@@ -368,7 +393,7 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
             {filteredProducts.map(product => (
               <ProductCard
                 key={product.id}

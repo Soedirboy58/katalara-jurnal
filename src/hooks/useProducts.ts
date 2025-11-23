@@ -4,15 +4,18 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Product, ProductFilters, StockStatus } from '@/types'
 
-export function useProducts(filters?: ProductFilters) {
+export function useProducts(filters?: ProductFilters & { productType?: 'physical' | 'service' }) {
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const supabase = createClient()
 
+  // Serialize filters to prevent infinite re-renders
+  const filtersKey = JSON.stringify(filters || {})
+
   useEffect(() => {
     loadProducts()
-  }, [filters])
+  }, [filtersKey])
 
   async function loadProducts() {
     try {
@@ -34,9 +37,33 @@ export function useProducts(filters?: ProductFilters) {
         query = query.ilike('name', `%${filters.search}%`)
       }
 
+      // Filter by product_type (physical or service)
+      // Only apply if column exists (skip if migration not run yet)
+      if (filters?.productType) {
+        try {
+          query = query.eq('product_type', filters.productType)
+        } catch (e) {
+          console.warn('product_type column not found, skipping filter')
+        }
+      }
+
       const { data, error: fetchError } = await query
 
-      if (fetchError) throw fetchError
+      if (fetchError) {
+        // If column doesn't exist, try without product_type filter
+        if (fetchError.message?.includes('product_type')) {
+          console.warn('product_type column not found, fetching all products')
+          const { data: fallbackData, error: fallbackError } = await supabase
+            .from('products')
+            .select('*')
+            .eq('is_active', true)
+            .order('name', { ascending: true })
+          
+          if (fallbackError) throw fallbackError
+          return setProducts(fallbackData || [])
+        }
+        throw fetchError
+      }
 
       let filteredData = data || []
 

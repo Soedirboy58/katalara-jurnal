@@ -38,10 +38,10 @@ const menuItems = [
     description: 'Overview bisnis Anda'
   },
   { 
-    name: 'Input Penjualan', 
-    href: '/dashboard/input-sales', 
+    name: 'Input Pendapatan', 
+    href: '/dashboard/input-income', 
     icon: PlusCircleIcon,
-    description: 'Catat transaksi penjualan',
+    description: 'Catat pendapatan & penjualan',
     badge: 'Hot'
   },
   { 
@@ -62,6 +62,12 @@ const menuItems = [
     href: '/dashboard/customers', 
     icon: UserGroupIcon,
     description: 'Data pelanggan & piutang'
+  },
+  { 
+    name: 'Supplier', 
+    href: '/dashboard/suppliers', 
+    icon: CircleStackIcon,
+    description: 'Data supplier & hutang'
   },
   { 
     name: 'Lapak Online', 

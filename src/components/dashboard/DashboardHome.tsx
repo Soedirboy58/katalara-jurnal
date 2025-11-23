@@ -213,18 +213,18 @@ export function DashboardHome() {
     
     switch(period) {
       case 'daily':
-        revenue = kpiData.today?.sales || 0
-        expenses = kpiData.today?.expenses || 0
+        revenue = kpiData.today?.income || 0
+        expenses = kpiData.today?.expense || 0
         break
       case 'weekly':
         // Assume week is ~7x daily (simplified)
-        revenue = (kpiData.today?.sales || 0) * 7
-        expenses = (kpiData.today?.expenses || 0) * 7
+        revenue = (kpiData.today?.income || 0) * 7
+        expenses = (kpiData.today?.expense || 0) * 7
         break
       case 'monthly':
       default:
-        revenue = kpiData.month?.sales || 0
-        expenses = kpiData.month?.expenses || 0
+        revenue = kpiData.month?.income || 0
+        expenses = kpiData.month?.expense || 0
         break
     }
     
@@ -249,52 +249,79 @@ export function DashboardHome() {
   }, [kpiData])
 
   const kpiCards: KPICard[] = [
+    // CRITICAL: Piutang Jatuh Tempo
     {
-      title: 'Penjualan Hari Ini',
-      value: kpiData?.today?.sales !== undefined ? formatCurrency(kpiData.today.sales) : 'Rp 0',
-      subtitle: 'Target harian',
-      icon: CurrencyDollarIcon,
-      color: 'blue'
-    },
-    {
-      title: 'Pengeluaran Hari Ini',
-      value: kpiData?.today?.expenses !== undefined ? formatCurrency(kpiData.today.expenses) : 'Rp 0',
-      subtitle: 'Total pengeluaran',
-      icon: ShoppingBagIcon,
-      color: 'red'
-    },
-    {
-      title: 'Laba Hari Ini',
-      value: kpiData?.today?.netProfit !== undefined ? formatCurrency(kpiData.today.netProfit) : 'Rp 0',
-      subtitle: 'Penjualan - Pengeluaran',
-      icon: ChartBarIcon,
-      trend: kpiData?.today.netProfit > 0 
-        ? { value: 'Profit', isPositive: true }
-        : kpiData?.today.netProfit < 0
-        ? { value: 'Loss', isPositive: false }
-        : undefined,
-      color: 'green'
-    },
-    {
-      title: 'Omset Bulan Ini',
-      value: kpiData?.month?.sales !== undefined ? formatCurrency(kpiData.month.sales) : 'Rp 0',
-      subtitle: 'Total penjualan bulan ini',
-      icon: ChartBarIcon,
-      color: 'purple'
-    },
-    {
-      title: 'Total Produk',
-      value: kpiData?.products?.total !== undefined ? String(kpiData.products.total) : '0',
-      subtitle: 'Produk terdaftar',
-      icon: ShoppingBagIcon,
-      color: 'yellow'
-    },
-    {
-      title: 'Stok Menipis',
-      value: kpiData?.products?.lowStock !== undefined ? String(kpiData.products.lowStock) : '0',
-      subtitle: 'Perlu restock',
+      title: 'Piutang Jatuh Tempo',
+      value: kpiData?.overdueReceivables?.count !== undefined ? String(kpiData.overdueReceivables.count) : '0',
+      subtitle: kpiData?.overdueReceivables?.amount ? formatCurrency(kpiData.overdueReceivables.amount) : 'Rp 0',
       icon: ExclamationTriangleIcon,
-      color: 'orange'
+      trend: kpiData?.overdueReceivables?.count > 0 
+        ? { value: 'URGENT!', isPositive: false }
+        : { value: 'Clear', isPositive: true },
+      color: kpiData?.overdueReceivables?.count > 0 ? 'red' : 'green'
+    },
+    // CRITICAL: Utang Jatuh Tempo
+    {
+      title: 'Utang Jatuh Tempo',
+      value: kpiData?.overduePayables?.count !== undefined ? String(kpiData.overduePayables.count) : '0',
+      subtitle: kpiData?.overduePayables?.amount ? formatCurrency(kpiData.overduePayables.amount) : 'Rp 0',
+      icon: CreditCardIcon,
+      trend: kpiData?.overduePayables?.count > 0 
+        ? { value: 'Bayar Sekarang!', isPositive: false }
+        : { value: 'Clear', isPositive: true },
+      color: kpiData?.overduePayables?.count > 0 ? 'red' : 'green'
+    },
+    // TARGET: Progress Harian
+    {
+      title: 'Target Harian',
+      value: kpiData?.today?.targetProgress !== undefined ? `${kpiData.today.targetProgress}%` : '0%',
+      subtitle: `${kpiData?.today?.income ? formatCurrency(kpiData.today.income) : 'Rp 0'} / ${kpiData?.today?.target ? formatCurrency(kpiData.today.target) : 'Set Target'}`,
+      icon: ArrowTrendingUpIcon,
+      trend: kpiData?.today?.targetProgress >= 100
+        ? { value: 'Target Tercapai!', isPositive: true }
+        : kpiData?.today?.targetProgress >= 50
+        ? { value: 'On Track', isPositive: true }
+        : { value: 'Perlu Effort', isPositive: false },
+      color: kpiData?.today?.targetProgress >= 100 ? 'green' : kpiData?.today?.targetProgress >= 50 ? 'blue' : 'yellow'
+    },
+    // CASH: Posisi Kas
+    {
+      title: 'Posisi Kas',
+      value: kpiData?.operations?.cashPosition !== undefined ? formatCurrency(kpiData.operations.cashPosition) : 'Rp 0',
+      subtitle: 'Saldo setelah utang',
+      icon: CurrencyDollarIcon,
+      trend: kpiData?.operations?.cashPosition > 0 
+        ? { value: 'Sehat', isPositive: true }
+        : { value: 'Kritis!', isPositive: false },
+      color: kpiData?.operations?.cashPosition > 0 ? 'green' : 'red'
+    },
+    // OPERATIONAL: Stok Kritis
+    {
+      title: 'Stok Kritis',
+      value: kpiData?.operations?.criticalStock !== undefined ? String(kpiData.operations.criticalStock) : '0',
+      subtitle: `dari ${kpiData?.operations?.totalProducts || 0} produk`,
+      icon: ExclamationTriangleIcon,
+      trend: kpiData?.operations?.criticalStock > 0 
+        ? { value: 'Perlu Restock', isPositive: false }
+        : { value: 'Aman', isPositive: true },
+      color: kpiData?.operations?.criticalStock > 0 ? 'orange' : 'green'
+    },
+    // GROWTH: Pengeluaran Bulan Ini vs Bulan Lalu
+    {
+      title: 'Pengeluaran Bulan Ini',
+      value: kpiData?.month?.expenseGrowth !== undefined ? `${kpiData.month.expenseGrowth > 0 ? '+' : ''}${kpiData.month.expenseGrowth}%` : '0%',
+      subtitle: `${kpiData?.month?.expense ? formatCurrency(kpiData.month.expense) : 'Rp 0'} / ${kpiData?.month?.expensePrevMonth ? formatCurrency(kpiData.month.expensePrevMonth) : 'Set Limit'}`,
+      icon: ShoppingBagIcon,
+      trend: kpiData?.month?.expenseGrowth > 50
+        ? { value: 'Naik Drastis!', isPositive: false }
+        : kpiData?.month?.expenseGrowth > 20
+        ? { value: 'Naik Signifikan', isPositive: false }
+        : kpiData?.month?.expenseGrowth > 0
+        ? { value: 'Naik Sedikit', isPositive: false }
+        : kpiData?.month?.expenseGrowth < -20
+        ? { value: 'Turun Banyak', isPositive: true }
+        : { value: 'Stabil', isPositive: true },
+      color: kpiData?.month?.expenseGrowth > 50 ? 'red' : kpiData?.month?.expenseGrowth > 20 ? 'yellow' : kpiData?.month?.expenseGrowth > 0 ? 'orange' : 'green'
     }
   ]
 
@@ -330,84 +357,181 @@ export function DashboardHome() {
         </p>
       </div>
       
-      {/* Expense Limit Warning */}
-      {settings?.daily_expense_limit && kpiData?.today?.expenses && (
-        (() => {
-          const percentage = (kpiData.today.expenses / settings.daily_expense_limit) * 100
-          const threshold = settings.notification_threshold || 80
-          
-          if (percentage >= threshold) {
-            return (
-              <div className={`rounded-lg p-4 border-l-4 ${
-                percentage >= 100 
-                  ? 'bg-red-50 border-red-500' 
-                  : 'bg-amber-50 border-amber-500'
-              }`}>
-                <div className="flex items-start gap-3">
-                  <div className={`flex-shrink-0 ${
-                    percentage >= 100 ? 'text-red-600' : 'text-amber-600'
-                  }`}>
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                    </svg>
-                  </div>
-                  <div className="flex-1">
-                    <h3 className={`font-semibold ${
-                      percentage >= 100 ? 'text-red-900' : 'text-amber-900'
+      {/* Smart Alerts Section */}
+      {settings && kpiData && (
+        <div className="space-y-3">
+          {/* Expense Limit Warning */}
+          {settings.daily_expense_limit && kpiData.today?.expenses && (() => {
+            const percentage = (kpiData.today.expenses / settings.daily_expense_limit) * 100
+            const threshold = settings.notification_threshold || 80
+            
+            if (percentage >= threshold) {
+              return (
+                <div key="expense-alert" className={`rounded-lg p-4 border-l-4 ${
+                  percentage >= 100 
+                    ? 'bg-red-50 border-red-500' 
+                    : 'bg-amber-50 border-amber-500'
+                }`}>
+                  <div className="flex items-start gap-3">
+                    <div className={`flex-shrink-0 ${
+                      percentage >= 100 ? 'text-red-600' : 'text-amber-600'
                     }`}>
-                      {percentage >= 100 ? '🚨 Limit Pengeluaran Terlampaui!' : '⚠️ Mendekati Limit Pengeluaran'}
-                    </h3>
-                    <p className={`text-sm mt-1 ${
-                      percentage >= 100 ? 'text-red-800' : 'text-amber-800'
-                    }`}>
-                      Pengeluaran hari ini: <strong>{formatCurrency(kpiData.today.expenses)}</strong> ({percentage.toFixed(0)}% dari limit {formatCurrency(settings.daily_expense_limit)})
-                    </p>
-                    <a 
-                      href="/dashboard/settings" 
-                      className="inline-flex items-center gap-1 text-sm font-medium mt-2 text-blue-600 hover:text-blue-700"
-                    >
-                      Atur limit di Pengaturan →
-                    </a>
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                      </svg>
+                    </div>
+                    <div className="flex-1">
+                      <h3 className={`font-semibold ${
+                        percentage >= 100 ? 'text-red-900' : 'text-amber-900'
+                      }`}>
+                        {percentage >= 100 ? '🚨 Limit Pengeluaran Terlampaui!' : '⚠️ Mendekati Limit Pengeluaran'}
+                      </h3>
+                      <p className={`text-sm mt-1 ${
+                        percentage >= 100 ? 'text-red-800' : 'text-amber-800'
+                      }`}>
+                        Pengeluaran hari ini: <strong>{formatCurrency(kpiData.today.expenses)}</strong> ({percentage.toFixed(0)}% dari limit {formatCurrency(settings.daily_expense_limit)})
+                      </p>
+                      <a 
+                        href="/dashboard/settings" 
+                        className="inline-flex items-center gap-1 text-sm font-medium mt-2 text-blue-600 hover:text-blue-700"
+                      >
+                        Atur limit di Pengaturan →
+                      </a>
+                    </div>
                   </div>
                 </div>
+              )
+            }
+            return null
+          })()}
+
+          {/* Overdue Receivables Alert */}
+          {kpiData.overdueReceivables?.count > 0 && (
+            <div key="receivables-alert" className="rounded-lg p-4 border-l-4 bg-orange-50 border-orange-500">
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0 text-orange-600">
+                  <ExclamationTriangleIcon className="w-6 h-6" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-orange-900">
+                    ⏰ Ada {kpiData.overdueReceivables.count} Piutang Lewat Tempo
+                  </h3>
+                  <p className="text-sm mt-1 text-orange-800">
+                    Total: <strong>{formatCurrency(kpiData.overdueReceivables.amount)}</strong> perlu ditagih segera
+                  </p>
+                  <a 
+                    href="/dashboard/input-income" 
+                    className="inline-flex items-center gap-1 text-sm font-medium mt-2 text-blue-600 hover:text-blue-700"
+                  >
+                    Lihat daftar piutang →
+                  </a>
+                </div>
               </div>
-            )
-          }
-          return null
-        })()
+            </div>
+          )}
+
+          {/* Overdue Payables Alert */}
+          {kpiData.overduePayables?.count > 0 && (
+            <div key="payables-alert" className="rounded-lg p-4 border-l-4 bg-red-50 border-red-500">
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0 text-red-600">
+                  <ExclamationTriangleIcon className="w-6 h-6" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-red-900">
+                    💳 Ada {kpiData.overduePayables.count} Utang Jatuh Tempo
+                  </h3>
+                  <p className="text-sm mt-1 text-red-800">
+                    Total: <strong>{formatCurrency(kpiData.overduePayables.amount)}</strong> perlu dilunasi
+                  </p>
+                  <a 
+                    href="/dashboard/input-expenses" 
+                    className="inline-flex items-center gap-1 text-sm font-medium mt-2 text-blue-600 hover:text-blue-700"
+                  >
+                    Lihat daftar utang →
+                  </a>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Critical Stock Alert */}
+          {kpiData.operations?.criticalStock > 0 && (
+            <div key="stock-alert" className="rounded-lg p-4 border-l-4 bg-yellow-50 border-yellow-500">
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0 text-yellow-600">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-yellow-900">
+                    📦 {kpiData.operations.criticalStock} Produk Stok Kritis
+                  </h3>
+                  <p className="text-sm mt-1 text-yellow-800">
+                    Beberapa produk mencapai batas minimum stok, segera restock
+                  </p>
+                  <a 
+                    href="/dashboard/products" 
+                    className="inline-flex items-center gap-1 text-sm font-medium mt-2 text-blue-600 hover:text-blue-700"
+                  >
+                    Lihat produk →
+                  </a>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       )}
-      
-      {/* ROI Widget */}
+
+      {/* ROI Widget - Enhanced */}
       {settings?.track_roi && roi !== null && (
         <div className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg p-4 sm:p-6 text-white shadow-lg">
-          <div className="flex items-start justify-between">
+          <div className="flex items-start justify-between mb-4">
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-2">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                 </svg>
-                <span className="text-sm font-medium opacity-90">ROI {settings.roi_period === 'daily' ? 'Harian' : settings.roi_period === 'weekly' ? 'Mingguan' : 'Bulanan'}</span>
+                <span className="text-sm font-medium opacity-90">
+                  ROI {settings.roi_period === 'daily' ? 'Harian' : settings.roi_period === 'weekly' ? 'Mingguan' : 'Bulanan'}
+                </span>
               </div>
-              <div className="flex items-baseline gap-2">
-                <span className="text-3xl sm:text-4xl font-bold">
+              <div className="flex items-baseline gap-2 mb-1">
+                <span className="text-3xl sm:text-4xl font-bold tabular-nums">
                   {roi >= 0 ? '+' : ''}{roi.toFixed(1)}%
                 </span>
                 {roi >= 0 ? (
-                  <span className="text-sm bg-white/20 px-2 py-1 rounded">📈 Profit</span>
+                  <span className="text-sm bg-white/20 px-2 py-1 rounded flex items-center gap-1">
+                    📈 Profit
+                  </span>
                 ) : (
-                  <span className="text-sm bg-white/20 px-2 py-1 rounded">📉 Loss</span>
+                  <span className="text-sm bg-white/20 px-2 py-1 rounded flex items-center gap-1">
+                    📉 Loss
+                  </span>
                 )}
               </div>
-              <p className="text-xs opacity-80 mt-2">
+              <p className="text-xs opacity-80">
                 Return on Investment - Efektivitas investasi bisnis Anda
               </p>
             </div>
             <div className="text-right">
               <div className="text-xs opacity-80 mb-1">Formula</div>
-              <div className="text-xs bg-white/20 px-2 py-1 rounded">
+              <div className="text-xs bg-white/20 px-2 py-1 rounded whitespace-nowrap">
                 (Rev - Exp) / Exp × 100%
               </div>
             </div>
+          </div>
+
+          {/* ROI Interpretation */}
+          <div className="border-t border-white/20 pt-3">
+            <p className="text-xs opacity-90 leading-relaxed">
+              {roi >= 100 ? '🎉 ROI sangat tinggi! Setiap Rp 100 investasi menghasilkan Rp ' + (100 + roi).toFixed(0) + ' kembali.' :
+               roi >= 50 ? '👍 ROI positif bagus. Bisnis menghasilkan ' + roi.toFixed(0) + '% lebih dari biaya operasional.' :
+               roi >= 20 ? '✅ ROI positif. Bisnis profitable dengan margin ' + roi.toFixed(0) + '%.' :
+               roi >= 0 ? '⚠️ ROI tipis (' + roi.toFixed(0) + '%). Perlu optimasi untuk meningkatkan profit.' :
+               '🚨 ROI negatif. Pengeluaran melebihi pendapatan, perlu tindakan segera.'}
+            </p>
           </div>
         </div>
       )}
@@ -515,8 +639,8 @@ export function DashboardHome() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         <SalesChart />
         <RevenueExpenseChart 
-          revenue={kpiData?.month?.sales || 0} 
-          expense={kpiData?.month?.expenses || 0} 
+          revenue={kpiData?.month?.incomePaid || 0} 
+          expense={kpiData?.month?.expensePaid || 0} 
         />
       </div>
 

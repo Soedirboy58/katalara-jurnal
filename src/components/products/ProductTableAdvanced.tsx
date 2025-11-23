@@ -1,14 +1,16 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { Product } from '@/types'
 import { 
   ChevronUpIcon, 
   ChevronDownIcon,
   PencilSquareIcon,
   AdjustmentsHorizontalIcon,
-  TrashIcon
+  TrashIcon,
+  ShoppingBagIcon
 } from '@heroicons/react/24/outline'
+import { showToast } from '@/components/ui/Toast'
 
 interface ProductTableAdvancedProps {
   products: Product[]
@@ -26,7 +28,7 @@ interface ProductTableAdvancedProps {
   onItemsPerPageChange: (count: number) => void
 }
 
-type SortField = 'name' | 'stock_quantity' | 'buy_price' | 'sell_price' | 'category'
+type SortField = 'name' | 'stock' | 'buy_price' | 'sell_price' | 'category'
 type SortDirection = 'asc' | 'desc'
 
 export function ProductTableAdvanced({
@@ -46,15 +48,95 @@ export function ProductTableAdvanced({
 }: ProductTableAdvancedProps) {
   const [sortField, setSortField] = useState<SortField>('name')
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
+  const [syncedProducts, setSyncedProducts] = useState<Record<string, boolean>>({})
+  const [syncingProducts, setSyncingProducts] = useState<Record<string, boolean>>({})
+
+  // Check which products are synced to Lapak
+  useEffect(() => {
+    const checkSyncStatus = async () => {
+      const statusMap: Record<string, boolean> = {}
+      
+      for (const product of products) {
+        try {
+          const response = await fetch(`/api/lapak/sync-product?productName=${encodeURIComponent(product.name)}`)
+          const data = await response.json()
+          statusMap[product.id] = data.synced || false
+        } catch (error) {
+          console.error('Error checking sync status:', error)
+          statusMap[product.id] = false
+        }
+      }
+      
+      setSyncedProducts(statusMap)
+    }
+
+    if (products.length > 0) {
+      checkSyncStatus()
+    }
+  }, [products])
+
+  const handleSyncToLapak = async (product: Product) => {
+    setSyncingProducts(prev => ({ ...prev, [product.id]: true }))
+    
+    try {
+      const response = await fetch('/api/lapak/sync-product', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productId: product.id }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        showToast(data.error || 'Gagal sync ke Lapak', 'error')
+        return
+      }
+
+      showToast(data.message, 'success')
+      setSyncedProducts(prev => ({ ...prev, [product.id]: true }))
+    } catch (error) {
+      console.error('Error syncing to Lapak:', error)
+      showToast('Terjadi kesalahan saat sync ke Lapak', 'error')
+    } finally {
+      setSyncingProducts(prev => ({ ...prev, [product.id]: false }))
+    }
+  }
+
+  const handleUnsyncFromLapak = async (product: Product) => {
+    setSyncingProducts(prev => ({ ...prev, [product.id]: true }))
+    
+    try {
+      const response = await fetch(`/api/lapak/sync-product?productName=${encodeURIComponent(product.name)}`, {
+        method: 'DELETE',
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        showToast(data.error || 'Gagal hapus dari Lapak', 'error')
+        return
+      }
+
+      showToast(data.message, 'success')
+      setSyncedProducts(prev => ({ ...prev, [product.id]: false }))
+    } catch (error) {
+      console.error('Error unsyncing from Lapak:', error)
+      showToast('Terjadi kesalahan saat hapus dari Lapak', 'error')
+    } finally {
+      setSyncingProducts(prev => ({ ...prev, [product.id]: false }))
+    }
+  }
 
   const formatCurrency = (value: number) => `Rp ${value.toLocaleString('id-ID')}`
 
   const getStockStatus = (product: Product) => {
     if (!product.track_inventory) return { label: '-', color: 'text-gray-500 bg-gray-100' }
-    if (product.stock_quantity === 0) return { label: '❌ Habis', color: 'text-red-700 bg-red-100' }
-    if (product.stock_quantity <= product.min_stock_alert * 0.5) 
+    const stock = product.stock_quantity || 0
+    const minStock = product.min_stock_alert || 0
+    if (stock === 0) return { label: '❌ Habis', color: 'text-red-700 bg-red-100' }
+    if (stock <= minStock * 0.5) 
       return { label: '🔴 Kritis', color: 'text-orange-700 bg-orange-100' }
-    if (product.stock_quantity <= product.min_stock_alert) 
+    if (stock <= minStock) 
       return { label: '⚠️ Rendah', color: 'text-yellow-700 bg-yellow-100' }
     return { label: '✅ Sehat', color: 'text-green-700 bg-green-100' }
   }
@@ -140,11 +222,11 @@ export function ProductTableAdvanced({
               </th>
               <th 
                 className="px-4 py-3 text-right text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                onClick={() => handleSort('stock_quantity')}
+                onClick={() => handleSort('stock')}
               >
                 <div className="flex items-center justify-end gap-1">
                   <span>Stok</span>
-                  <SortIcon field="stock_quantity" />
+                  <SortIcon field="stock" />
                 </div>
               </th>
               <th 
@@ -198,7 +280,14 @@ export function ProductTableAdvanced({
                         <span className="text-sm sm:text-lg">📦</span>
                       </div>
                       <div className="min-w-0">
-                        <div className="text-xs sm:text-sm font-semibold text-gray-900 truncate">{product.name}</div>
+                        <div className="flex items-center gap-1">
+                          <div className="text-xs sm:text-sm font-semibold text-gray-900 truncate">{product.name}</div>
+                          {syncedProducts[product.id] && (
+                            <span className="inline-flex px-1.5 py-0.5 text-[8px] sm:text-[9px] font-semibold rounded bg-purple-100 text-purple-700 whitespace-nowrap">
+                              🛒 Lapak
+                            </span>
+                          )}
+                        </div>
                         {product.sku && (
                           <div className="text-[10px] sm:text-xs text-gray-500 truncate">SKU: {product.sku}</div>
                         )}
@@ -216,18 +305,18 @@ export function ProductTableAdvanced({
                   </td>
                   <td className="px-2 sm:px-4 py-2 sm:py-3 text-right">
                     <div className="text-xs sm:text-sm font-semibold text-gray-900">
-                      {product.stock_quantity.toLocaleString()} {product.stock_unit}
+                      {(product.stock_quantity || 0).toLocaleString()} {product.unit || 'pcs'}
                     </div>
-                    {product.min_stock_alert > 0 && (
-                      <div className="text-[9px] sm:text-xs text-gray-500">Min: {product.min_stock_alert}</div>
+                    {(product.min_stock_alert || 0) > 0 && (
+                      <div className="text-[9px] sm:text-xs text-gray-500">Min: {product.min_stock_alert || 0}</div>
                     )}
                   </td>
                   <td className="px-2 sm:px-4 py-2 sm:py-3 text-right text-xs sm:text-sm text-gray-600">
-                    {formatCurrency(product.buy_price)}
+                    {formatCurrency(product.buy_price || 0)}
                   </td>
                   <td className="px-2 sm:px-4 py-2 sm:py-3 text-right">
                     <div className="text-xs sm:text-sm font-semibold text-gray-900">
-                      {formatCurrency(product.sell_price)}
+                      {formatCurrency(product.sell_price || 0)}
                     </div>
                     <div className={`text-[9px] sm:text-xs ${margin > 0 ? 'text-green-600' : 'text-red-600'}`}>
                       {margin > 0 ? '+' : ''}{margin.toFixed(1)}%
@@ -256,6 +345,33 @@ export function ProductTableAdvanced({
                       >
                         <AdjustmentsHorizontalIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                       </button>
+                      {syncedProducts[product.id] ? (
+                        <button
+                          onClick={() => handleUnsyncFromLapak(product)}
+                          disabled={syncingProducts[product.id]}
+                          className="p-1 sm:p-1.5 text-green-600 hover:bg-green-50 rounded transition-colors disabled:opacity-50"
+                          title="Hapus dari Lapak Online"
+                        >
+                          {syncingProducts[product.id] ? (
+                            <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin rounded-full border-2 border-green-600 border-t-transparent"></div>
+                          ) : (
+                            <ShoppingBagIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                          )}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleSyncToLapak(product)}
+                          disabled={syncingProducts[product.id]}
+                          className="p-1 sm:p-1.5 text-purple-600 hover:bg-purple-50 rounded transition-colors disabled:opacity-50"
+                          title="Tambah ke Lapak Online"
+                        >
+                          {syncingProducts[product.id] ? (
+                            <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin rounded-full border-2 border-purple-600 border-t-transparent"></div>
+                          ) : (
+                            <ShoppingBagIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                          )}
+                        </button>
+                      )}
                       <button
                         onClick={() => onDelete(product)}
                         className="p-1 sm:p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
@@ -296,7 +412,14 @@ export function ProductTableAdvanced({
                   <span className="text-sm">📦</span>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold text-gray-900 truncate">{product.name}</div>
+                  <div className="flex items-center gap-1">
+                    <div className="text-sm font-semibold text-gray-900 truncate">{product.name}</div>
+                    {syncedProducts[product.id] && (
+                      <span className="inline-flex px-1.5 py-0.5 text-[8px] font-semibold rounded bg-purple-100 text-purple-700 whitespace-nowrap">
+                        🛒 Lapak
+                      </span>
+                    )}
+                  </div>
                   {product.sku && (
                     <div className="text-[10px] text-gray-500">SKU: {product.sku}</div>
                   )}
@@ -316,6 +439,33 @@ export function ProductTableAdvanced({
                   >
                     <AdjustmentsHorizontalIcon className="w-4 h-4" />
                   </button>
+                  {syncedProducts[product.id] ? (
+                    <button
+                      onClick={() => handleUnsyncFromLapak(product)}
+                      disabled={syncingProducts[product.id]}
+                      className="p-1 text-green-600 hover:bg-green-50 rounded disabled:opacity-50"
+                      title="Hapus dari Lapak"
+                    >
+                      {syncingProducts[product.id] ? (
+                        <div className="w-4 h-4 animate-spin rounded-full border-2 border-green-600 border-t-transparent"></div>
+                      ) : (
+                        <ShoppingBagIcon className="w-4 h-4" />
+                      )}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleSyncToLapak(product)}
+                      disabled={syncingProducts[product.id]}
+                      className="p-1 text-purple-600 hover:bg-purple-50 rounded disabled:opacity-50"
+                      title="Tambah ke Lapak"
+                    >
+                      {syncingProducts[product.id] ? (
+                        <div className="w-4 h-4 animate-spin rounded-full border-2 border-purple-600 border-t-transparent"></div>
+                      ) : (
+                        <ShoppingBagIcon className="w-4 h-4" />
+                      )}
+                    </button>
+                  )}
                   <button
                     onClick={() => onDelete(product)}
                     className="p-1 text-red-600 hover:bg-red-50 rounded"
@@ -341,7 +491,7 @@ export function ProductTableAdvanced({
                 <div>
                   <span className="text-gray-500">Stok:</span>
                   <span className="font-semibold text-gray-900 ml-1">
-                    {product.stock_quantity.toLocaleString()} {product.stock_unit}
+                    {(product.stock_quantity || 0).toLocaleString()} {product.unit || 'pcs'}
                   </span>
                 </div>
 
@@ -355,13 +505,13 @@ export function ProductTableAdvanced({
                 {/* Buy Price */}
                 <div>
                   <span className="text-gray-500">Beli:</span>
-                  <span className="text-gray-900 ml-1">{formatCurrency(product.buy_price)}</span>
+                  <span className="text-gray-900 ml-1">{formatCurrency(product.buy_price || 0)}</span>
                 </div>
 
                 {/* Sell Price */}
                 <div className="text-right">
                   <span className="text-gray-500">Jual:</span>
-                  <span className="font-semibold text-gray-900 ml-1">{formatCurrency(product.sell_price)}</span>
+                  <span className="font-semibold text-gray-900 ml-1">{formatCurrency(product.sell_price || 0)}</span>
                 </div>
 
                 {/* Margin - Full Width */}
