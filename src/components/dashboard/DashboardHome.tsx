@@ -295,16 +295,40 @@ export function DashboardHome() {
         : { value: 'Kritis!', isPositive: false },
       color: kpiData?.operations?.cashPosition > 0 ? 'green' : 'red'
     },
-    // OPERATIONAL: Stok Kritis
+    // PROFITABILITY: Profit Margin %
     {
-      title: 'Stok Kritis',
-      value: kpiData?.operations?.criticalStock !== undefined ? String(kpiData.operations.criticalStock) : '0',
-      subtitle: `dari ${kpiData?.operations?.totalProducts || 0} produk`,
-      icon: ExclamationTriangleIcon,
-      trend: kpiData?.operations?.criticalStock > 0 
-        ? { value: 'Perlu Restock', isPositive: false }
-        : { value: 'Aman', isPositive: true },
-      color: kpiData?.operations?.criticalStock > 0 ? 'orange' : 'green'
+      title: 'Profit Margin',
+      value: (() => {
+        const revenue = kpiData?.month?.income || 0
+        const expense = kpiData?.month?.expense || 0
+        if (revenue === 0) return '0%'
+        const margin = ((revenue - expense) / revenue) * 100
+        return `${margin.toFixed(1)}%`
+      })(),
+      subtitle: `Target: ${businessConfig?.profit_margin_target || 20}%`,
+      icon: ChartBarIcon,
+      trend: (() => {
+        const revenue = kpiData?.month?.income || 0
+        const expense = kpiData?.month?.expense || 0
+        if (revenue === 0) return { value: 'No Data', isPositive: false }
+        const margin = ((revenue - expense) / revenue) * 100
+        const target = businessConfig?.profit_margin_target || 20
+        if (margin >= target) return { value: 'Above Target', isPositive: true }
+        if (margin >= target * 0.8) return { value: 'Near Target', isPositive: true }
+        if (margin >= 0) return { value: 'Below Target', isPositive: false }
+        return { value: 'Negative', isPositive: false }
+      })(),
+      color: (() => {
+        const revenue = kpiData?.month?.income || 0
+        const expense = kpiData?.month?.expense || 0
+        if (revenue === 0) return 'gray'
+        const margin = ((revenue - expense) / revenue) * 100
+        const target = businessConfig?.profit_margin_target || 20
+        if (margin >= target) return 'green'
+        if (margin >= target * 0.8) return 'blue'
+        if (margin >= 0) return 'yellow'
+        return 'red'
+      })()
     },
     // GROWTH: Pengeluaran Bulan Ini vs Bulan Lalu
     {
@@ -455,32 +479,6 @@ export function DashboardHome() {
             </div>
           )}
 
-          {/* Critical Stock Alert */}
-          {kpiData.operations?.criticalStock > 0 && (
-            <div key="stock-alert" className="rounded-lg p-4 border-l-4 bg-yellow-50 border-yellow-500">
-              <div className="flex items-start gap-3">
-                <div className="flex-shrink-0 text-yellow-600">
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                  </svg>
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-semibold text-yellow-900">
-                    📦 {kpiData.operations.criticalStock} Produk Stok Kritis
-                  </h3>
-                  <p className="text-sm mt-1 text-yellow-800">
-                    Beberapa produk mencapai batas minimum stok, segera restock
-                  </p>
-                  <a 
-                    href="/dashboard/products" 
-                    className="inline-flex items-center gap-1 text-sm font-medium mt-2 text-blue-600 hover:text-blue-700"
-                  >
-                    Lihat produk →
-                  </a>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       )}
 
@@ -637,10 +635,11 @@ export function DashboardHome() {
 
       {/* Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-        <SalesChart />
+        <SalesChart refreshTrigger={kpiData} />
         <RevenueExpenseChart 
-          revenue={kpiData?.month?.incomePaid || 0} 
-          expense={kpiData?.month?.expensePaid || 0} 
+          revenue={kpiData?.month?.income || 0} 
+          expense={kpiData?.month?.expense || 0}
+          loading={loading}
         />
       </div>
 

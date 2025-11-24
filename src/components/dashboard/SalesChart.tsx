@@ -10,9 +10,10 @@ interface SalesData {
 
 interface SalesChartProps {
   data?: SalesData[]
+  refreshTrigger?: any
 }
 
-export function SalesChart({ data }: SalesChartProps) {
+export function SalesChart({ data, refreshTrigger }: SalesChartProps) {
   const [chartData, setChartData] = useState<SalesData[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -23,7 +24,7 @@ export function SalesChart({ data }: SalesChartProps) {
     } else {
       fetchSalesData()
     }
-  }, [data])
+  }, [data, refreshTrigger])
 
   const fetchSalesData = async () => {
     try {
