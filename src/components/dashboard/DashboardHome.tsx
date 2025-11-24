@@ -486,54 +486,80 @@ export function DashboardHome() {
         </div>
       )}
 
-      {/* ROI Widget - Enhanced */}
+      {/* ROI Widget - Professional Minimal Design */}
       {settings?.track_roi && roi !== null && (
-        <div className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg p-4 sm:p-6 text-white shadow-lg">
-          <div className="flex items-start justify-between mb-4">
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-2">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
-                <span className="text-sm font-medium opacity-90">
-                  ROI {settings.roi_period === 'daily' ? 'Harian' : settings.roi_period === 'weekly' ? 'Mingguan' : 'Bulanan'}
-                </span>
+        <div className="bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200">
+          <div className="p-6">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                  roi >= 0 ? 'bg-emerald-50' : 'bg-red-50'
+                }`}>
+                  <ArrowTrendingUpIcon className={`w-5 h-5 ${
+                    roi >= 0 ? 'text-emerald-600' : 'text-red-600'
+                  }`} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-medium text-gray-900">Return on Investment</h3>
+                  <p className="text-xs text-gray-500">
+                    {settings.roi_period === 'daily' ? 'Harian' : settings.roi_period === 'weekly' ? 'Mingguan' : 'Bulanan'}
+                  </p>
+                </div>
               </div>
-              <div className="flex items-baseline gap-2 mb-1">
-                <span className="text-3xl sm:text-4xl font-bold tabular-nums">
+            </div>
+
+            {/* ROI Value - Hero Element */}
+            <div className="text-center mb-6">
+              <div className="flex items-center justify-center gap-3 mb-2">
+                <div className={`text-6xl font-bold tracking-tight ${
+                  roi >= 20 ? 'text-emerald-600' :
+                  roi >= 0 ? 'text-blue-600' :
+                  'text-red-600'
+                }`}>
                   {roi >= 0 ? '+' : ''}{roi.toFixed(1)}%
-                </span>
-                {roi >= 0 ? (
-                  <span className="text-sm bg-white/20 px-2 py-1 rounded flex items-center gap-1">
-                    📈 Profit
-                  </span>
-                ) : (
-                  <span className="text-sm bg-white/20 px-2 py-1 rounded flex items-center gap-1">
-                    📉 Loss
-                  </span>
-                )}
+                </div>
+                <div className={`flex items-center justify-center w-12 h-12 rounded-full ${
+                  roi >= 0 ? 'bg-emerald-100' : 'bg-red-100'
+                }`}>
+                  {roi >= 0 ? (
+                    <svg className="w-7 h-7 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+                    </svg>
+                  ) : (
+                    <svg className="w-7 h-7 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                    </svg>
+                  )}
+                </div>
               </div>
-              <p className="text-xs opacity-80">
-                Return on Investment - Efektivitas investasi bisnis Anda
+              <p className="text-sm text-gray-600">
+                {roi >= 100 ? 'ROI Sangat Tinggi' :
+                 roi >= 50 ? 'ROI Bagus' :
+                 roi >= 20 ? 'ROI Positif' :
+                 roi >= 0 ? 'ROI Tipis' :
+                 'ROI Negatif'}
               </p>
             </div>
-            <div className="text-right">
-              <div className="text-xs opacity-80 mb-1">Formula</div>
-              <div className="text-xs bg-white/20 px-2 py-1 rounded whitespace-nowrap">
-                (Rev - Exp) / Exp × 100%
-              </div>
-            </div>
-          </div>
 
-          {/* ROI Interpretation */}
-          <div className="border-t border-white/20 pt-3">
-            <p className="text-xs opacity-90 leading-relaxed">
-              {roi >= 100 ? '🎉 ROI sangat tinggi! Setiap Rp 100 investasi menghasilkan Rp ' + (100 + roi).toFixed(0) + ' kembali.' :
-               roi >= 50 ? '👍 ROI positif bagus. Bisnis menghasilkan ' + roi.toFixed(0) + '% lebih dari biaya operasional.' :
-               roi >= 20 ? '✅ ROI positif. Bisnis profitable dengan margin ' + roi.toFixed(0) + '%.' :
-               roi >= 0 ? '⚠️ ROI tipis (' + roi.toFixed(0) + '%). Perlu optimasi untuk meningkatkan profit.' :
-               '🚨 ROI negatif. Pengeluaran melebihi pendapatan, perlu tindakan segera.'}
-            </p>
+            {/* Interpretation */}
+            <div className={`rounded-lg p-4 ${
+              roi >= 20 ? 'bg-emerald-50 border border-emerald-200' :
+              roi >= 0 ? 'bg-blue-50 border border-blue-200' :
+              'bg-red-50 border border-red-200'
+            }`}>
+              <p className={`text-xs leading-relaxed ${
+                roi >= 20 ? 'text-emerald-900' :
+                roi >= 0 ? 'text-blue-900' :
+                'text-red-900'
+              }`}>
+                {roi >= 100 ? 'Setiap Rp 100 investasi menghasilkan Rp ' + (100 + roi).toFixed(0) + ' kembali.' :
+                 roi >= 50 ? 'Bisnis menghasilkan ' + roi.toFixed(0) + '% lebih dari biaya operasional.' :
+                 roi >= 20 ? 'Bisnis profitable dengan margin ' + roi.toFixed(0) + '%.' :
+                 roi >= 0 ? 'ROI tipis (' + roi.toFixed(0) + '%). Perlu optimasi untuk meningkatkan profit.' :
+                 'Pengeluaran melebihi pendapatan. Perlu tindakan segera.'}
+              </p>
+            </div>
           </div>
         </div>
       )}
