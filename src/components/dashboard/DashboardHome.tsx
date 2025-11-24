@@ -246,6 +246,9 @@ export function DashboardHome() {
   // Debug: Log kpiData whenever it changes
   useEffect(() => {
     console.log('kpiData state updated:', kpiData)
+    if (kpiData?.month) {
+      console.log('Chart Data - Revenue:', kpiData.month.income, 'Expense:', kpiData.month.expense)
+    }
   }, [kpiData])
 
   const kpiCards: KPICard[] = [
