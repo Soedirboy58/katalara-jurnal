@@ -39,17 +39,28 @@ export async function middleware(request: NextRequest) {
     }
 
     // Check if user is super_admin
-    const { data: profile } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from('user_profiles')
       .select('role')
       .eq('user_id', user.id)
       .single()
 
-    if (profile?.role !== 'super_admin') {
+    console.log('[MIDDLEWARE] Admin access attempt:', {
+      path: request.nextUrl.pathname,
+      userId: user.id,
+      email: user.email,
+      profile: profile,
+      error: profileError
+    })
+
+    if (!profile || profile.role !== 'super_admin') {
       // Not super_admin, redirect to user dashboard
+      console.log('[MIDDLEWARE] Blocking admin access, redirecting to /dashboard')
       const redirectUrl = new URL('/dashboard', request.url)
       return NextResponse.redirect(redirectUrl)
     }
+
+    console.log('[MIDDLEWARE] Admin access granted')
   }
 
   // Dashboard route protection (for regular users)
