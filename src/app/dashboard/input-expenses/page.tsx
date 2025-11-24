@@ -639,57 +639,6 @@ export default function InputExpensesPageRedesigned() {
                 <span className="sm:hidden">📚</span>
               </button>
             </div>
-
-            {/* KPI CARDS */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* Today */}
-              <div className="bg-white rounded-xl shadow-md p-5 border-l-4 border-red-500 hover:shadow-lg transition-shadow">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-500 font-medium">Hari Ini</p>
-                    <p className="text-2xl font-bold text-gray-800 mt-1">Rp 0</p>
-                    <p className="text-xs text-gray-400 mt-1">0 transaksi</p>
-                  </div>
-                  <div className="bg-red-100 rounded-full p-3">
-                    <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
-                    </svg>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Week */}
-              <div className="bg-white rounded-xl shadow-md p-5 border-l-4 border-orange-500 hover:shadow-lg transition-shadow">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-500 font-medium">Minggu Ini</p>
-                    <p className="text-2xl font-bold text-gray-800 mt-1">Rp 0</p>
-                    <p className="text-xs text-gray-400 mt-1">0 transaksi</p>
-                  </div>
-                  <div className="bg-orange-100 rounded-full p-3">
-                    <svg className="w-8 h-8 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Month */}
-              <div className="bg-white rounded-xl shadow-md p-5 border-l-4 border-purple-500 hover:shadow-lg transition-shadow">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-500 font-medium">Bulan Ini</p>
-                    <p className="text-2xl font-bold text-gray-800 mt-1">Rp 0</p>
-                    <p className="text-xs text-gray-400 mt-1">0 transaksi</p>
-                  </div>
-                  <div className="bg-purple-100 rounded-full p-3">
-                    <svg className="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                    </svg>
-                  </div>
-                </div>
-              </div>
-            </div>
             
             {/* HEADER CARD (Gradient Red) */}
             <div className="bg-gradient-to-r from-red-600 to-red-500 rounded-xl shadow-lg p-6 text-white">
