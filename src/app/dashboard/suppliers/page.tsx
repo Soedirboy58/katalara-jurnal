@@ -96,6 +96,53 @@ export default function SuppliersPage() {
   const totalPurchases = suppliers.reduce((sum, s) => sum + (s.total_purchases || 0), 0)
   const totalPayables = suppliers.reduce((sum, s) => sum + (s.total_payables || 0), 0)
   const activeSuppliers = suppliers.filter(s => s.is_active).length
+  
+  // Calculate this month purchases
+  const [monthlyPurchases, setMonthlyPurchases] = useState(0)
+  const [overduePayables, setOverduePayables] = useState(0)
+  
+  useEffect(() => {
+    const calculateMonthlyStats = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session?.user) return
+        
+        const startOfMonth = new Date()
+        startOfMonth.setDate(1)
+        startOfMonth.setHours(0, 0, 0, 0)
+        
+        // Monthly purchases
+        const { data: expenses } = await supabase
+          .from('expenses')
+          .select('grand_total, amount')
+          .eq('owner_id', session.user.id)
+          .gte('expense_date', startOfMonth.toISOString())
+        
+        const monthTotal = expenses?.reduce((sum, e) => sum + (e.grand_total || e.amount || 0), 0) || 0
+        setMonthlyPurchases(monthTotal)
+        
+        // Overdue payables
+        const today = new Date().toISOString().split('T')[0]
+        const { data: overdueExpenses } = await supabase
+          .from('expenses')
+          .select('remaining_payment, grand_total, amount')
+          .eq('owner_id', session.user.id)
+          .eq('payment_status', 'Tempo')
+          .lt('due_date', today)
+        
+        const overdueTotal = overdueExpenses?.reduce((sum, e) => {
+          return sum + (e.remaining_payment || e.grand_total || e.amount || 0)
+        }, 0) || 0
+        setOverduePayables(overdueTotal)
+      } catch (error) {
+        console.error('Error calculating monthly stats:', error)
+      }
+    }
+    
+    if (!loading) {
+      calculateMonthlyStats()
+    }
+  }, [loading, supabase])
 
   return (
     <div className="p-4 sm:p-6 lg:p-8">
@@ -139,12 +186,12 @@ export default function SuppliersPage() {
           <div className="flex items-center gap-3">
             <div className="p-3 bg-green-50 rounded-lg">
               <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
               </svg>
             </div>
             <div>
-              <p className="text-sm text-gray-600">Supplier Aktif</p>
-              <p className="text-2xl font-bold text-gray-900">{activeSuppliers}</p>
+              <p className="text-sm text-gray-600">Pembelian Bulan Ini</p>
+              <p className="text-xl font-bold text-gray-900">{formatCurrency(monthlyPurchases)}</p>
             </div>
           </div>
         </div>
@@ -153,12 +200,12 @@ export default function SuppliersPage() {
           <div className="flex items-center gap-3">
             <div className="p-3 bg-red-50 rounded-lg">
               <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
             <div>
-              <p className="text-sm text-gray-600">Total Pembelian</p>
-              <p className="text-xl font-bold text-gray-900">{formatCurrency(totalPurchases)}</p>
+              <p className="text-sm text-gray-600">Hutang Jatuh Tempo</p>
+              <p className="text-xl font-bold text-gray-900">{formatCurrency(overduePayables)}</p>
             </div>
           </div>
         </div>
@@ -326,7 +373,7 @@ export default function SuppliersPage() {
 
       {/* Add Supplier Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
+        <div className="fixed inset-0 z-[9999] overflow-y-auto">
           <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
             {/* Background overlay */}
             <div 
