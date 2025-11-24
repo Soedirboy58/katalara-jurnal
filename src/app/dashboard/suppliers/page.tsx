@@ -377,7 +377,7 @@ export default function SuppliersPage() {
           <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
             {/* Background overlay */}
             <div 
-              className="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75 z-40"
+              className="fixed inset-0 transition-opacity bg-black/30 backdrop-blur-sm z-40"
               onClick={() => setShowAddModal(false)}
             ></div>
 
