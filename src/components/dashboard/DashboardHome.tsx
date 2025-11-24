@@ -299,38 +299,24 @@ export function DashboardHome() {
         : { value: 'Kritis!', isPositive: false },
       color: kpiData?.operations?.cashPosition > 0 ? 'green' : 'red'
     },
-    // PROFITABILITY: Profit Margin %
+    // CUSTOMER RETENTION: Repeat Customer Rate
     {
-      title: 'Profit Margin',
-      value: (() => {
-        const revenue = kpiData?.month?.income || 0
-        const expense = kpiData?.month?.expense || 0
-        if (revenue === 0) return '0%'
-        const margin = ((revenue - expense) / revenue) * 100
-        return `${margin.toFixed(1)}%`
-      })(),
-      subtitle: `Target: ${businessConfig?.profit_margin_target || 20}%`,
-      icon: ChartBarIcon,
+      title: 'Repeat Customer',
+      value: kpiData?.customers?.repeatRate !== undefined ? `${kpiData.customers.repeatRate.toFixed(1)}%` : '0%',
+      subtitle: `${kpiData?.customers?.repeat || 0} dari ${kpiData?.customers?.total || 0} pelanggan`,
+      icon: UsersIcon,
       trend: (() => {
-        const revenue = kpiData?.month?.income || 0
-        const expense = kpiData?.month?.expense || 0
-        if (revenue === 0) return { value: 'No Data', isPositive: false }
-        const margin = ((revenue - expense) / revenue) * 100
-        const target = businessConfig?.profit_margin_target || 20
-        if (margin >= target) return { value: 'Above Target', isPositive: true }
-        if (margin >= target * 0.8) return { value: 'Near Target', isPositive: true }
-        if (margin >= 0) return { value: 'Below Target', isPositive: false }
-        return { value: 'Negative', isPositive: false }
+        const rate = kpiData?.customers?.repeatRate || 0
+        if (rate >= 60) return { value: 'Excellent!', isPositive: true }
+        if (rate >= 40) return { value: 'Good', isPositive: true }
+        if (rate >= 20) return { value: 'Fair', isPositive: false }
+        return { value: 'Need Improvement', isPositive: false }
       })(),
       color: (() => {
-        const revenue = kpiData?.month?.income || 0
-        const expense = kpiData?.month?.expense || 0
-        if (revenue === 0) return 'gray'
-        const margin = ((revenue - expense) / revenue) * 100
-        const target = businessConfig?.profit_margin_target || 20
-        if (margin >= target) return 'green'
-        if (margin >= target * 0.8) return 'blue'
-        if (margin >= 0) return 'yellow'
+        const rate = kpiData?.customers?.repeatRate || 0
+        if (rate >= 60) return 'green'
+        if (rate >= 40) return 'blue'
+        if (rate >= 20) return 'yellow'
         return 'red'
       })()
     },

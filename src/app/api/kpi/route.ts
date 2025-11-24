@@ -360,6 +360,38 @@ export async function GET(request: Request) {
       }
     }
 
+    // 9. REPEAT CUSTOMER RATE (customers with 2+ transactions)
+    const fetchRepeatCustomerRate = async () => {
+      try {
+        // Get all customers with their transaction count
+        const { data: customers, error: customerError } = await supabase
+          .from('customers')
+          .select('id, name, total_transactions')
+          .eq('owner_id', user.id)
+        
+        if (customerError) {
+          console.error('[KPI API] Error fetching customers:', customerError)
+          return { total: 0, repeat: 0, rate: 0 }
+        }
+
+        const totalCustomers = customers?.length || 0
+        
+        if (totalCustomers === 0) {
+          return { total: 0, repeat: 0, rate: 0 }
+        }
+
+        // Count customers with 2+ transactions (repeat customers)
+        const repeatCount = customers?.filter(c => (c.total_transactions || 0) >= 2).length || 0
+        const repeatRate = (repeatCount / totalCustomers) * 100
+        
+        console.log('[KPI API] Repeat customers:', repeatCount, '/', totalCustomers, '=', repeatRate.toFixed(1), '%')
+        return { total: totalCustomers, repeat: repeatCount, rate: repeatRate }
+      } catch (err) {
+        console.error('[KPI API] Exception in repeat customer rate:', err)
+        return { total: 0, repeat: 0, rate: 0 }
+      }
+    }
+
     const [
       overdueReceivables,
       overduePayables,
@@ -372,7 +404,8 @@ export async function GET(request: Request) {
       expensesPrevMonth,
       userTarget,
       totalProducts,
-      criticalStock
+      criticalStock,
+      repeatCustomerData
     ] = await Promise.all([
       fetchOverdueReceivables(),
       fetchOverduePayables(),
@@ -385,7 +418,8 @@ export async function GET(request: Request) {
       fetchExpensesPreviousMonth(),
       fetchUserTarget(),
       fetchTotalProducts(),
-      fetchCriticalStock()
+      fetchCriticalStock(),
+      fetchRepeatCustomerRate()
     ])
 
     // Calculate important metrics
@@ -447,6 +481,13 @@ export async function GET(request: Request) {
           totalProducts: totalProducts,
           criticalStock: criticalStock,
           cashPosition: cashPosition // Real cash = Lunas Income - Lunas Expense
+        },
+        
+        // CUSTOMER RETENTION: Repeat Customer Rate
+        customers: {
+          total: repeatCustomerData.total,
+          repeat: repeatCustomerData.repeat,
+          repeatRate: repeatCustomerData.rate
         }
       }
     })
