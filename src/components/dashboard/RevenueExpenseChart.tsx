@@ -123,15 +123,12 @@ export function RevenueExpenseChart({
           </ResponsiveContainer>
         </div>
 
-        {/* Center Label - Positioned outside chart to avoid overlap */}
-        <div className="absolute top-[105px] left-1/2 -translate-x-1/2 text-center pointer-events-none w-28">
-          <div className="text-[10px] text-gray-500 font-medium mb-0.5">Laba Bersih</div>
-          <div className={`text-base sm:text-lg font-bold leading-tight ${profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-            {formatShortCurrency(Math.abs(profit))}
-          </div>
-          <div className={`text-[10px] font-medium mt-0.5 ${profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+        {/* Center Label - Only show margin % to prevent overlap */}
+        <div className="absolute top-[110px] left-1/2 -translate-x-1/2 text-center pointer-events-none w-20">
+          <div className={`text-2xl sm:text-3xl font-bold ${profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
             {profitMargin}%
           </div>
+          <div className="text-[10px] text-gray-500 font-medium mt-0.5">Margin</div>
         </div>
 
         {/* Legend - Below chart */}
