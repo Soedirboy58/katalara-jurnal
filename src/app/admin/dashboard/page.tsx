@@ -218,18 +218,29 @@ export default function AdminDashboard() {
     return badges[status] || 'bg-gray-100 text-gray-800'
   }
 
+  // Debug: Log users data
+  useEffect(() => {
+    console.log('Users loaded:', users)
+    console.log('Users count:', users.length)
+    console.log('Filter status:', filterStatus)
+  }, [users, filterStatus])
+
   const filteredUsers = users.filter(user => {
-    const matchesSearch = user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    const matchesSearch = !searchTerm || 
+                         user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          user.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          user.business_name?.toLowerCase().includes(searchTerm.toLowerCase())
     
     const matchesFilter = filterStatus === 'all' ||
-                         (filterStatus === 'active' && user.is_active && user.is_approved) ||
-                         (filterStatus === 'pending' && !user.is_approved) ||
-                         (filterStatus === 'inactive' && !user.is_active)
+                         (filterStatus === 'active' && user.is_active === true && user.is_approved === true) ||
+                         (filterStatus === 'pending' && user.is_approved !== true) ||
+                         (filterStatus === 'inactive' && user.is_active !== true)
     
     return matchesSearch && matchesFilter
   })
+  
+  // Debug filtered results
+  console.log('Filtered users:', filteredUsers.length, filteredUsers)
 
   if (loading && !stats) {
     return (
