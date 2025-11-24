@@ -247,7 +247,8 @@ export function DashboardHome() {
   useEffect(() => {
     console.log('kpiData state updated:', kpiData)
     if (kpiData?.month) {
-      console.log('Chart Data - Revenue:', kpiData.month.income, 'Expense:', kpiData.month.expense)
+      console.log('Chart Data - Revenue (All):', kpiData.month.income, 'Expense (All):', kpiData.month.expense)
+      console.log('Chart Data - Revenue (Paid):', kpiData.month.incomePaid, 'Expense (Paid):', kpiData.month.expensePaid)
     }
   }, [kpiData])
 
@@ -640,8 +641,8 @@ export function DashboardHome() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         <SalesChart refreshTrigger={kpiData} />
         <RevenueExpenseChart 
-          revenue={kpiData?.month?.income || 0} 
-          expense={kpiData?.month?.expense || 0}
+          revenue={kpiData?.month?.incomePaid || 0} 
+          expense={kpiData?.month?.expensePaid || 0}
           loading={loading}
         />
       </div>

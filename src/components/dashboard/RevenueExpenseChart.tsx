@@ -77,7 +77,7 @@ export function RevenueExpenseChart({
           Revenue vs Expense
         </h3>
         <p className="text-xs sm:text-sm text-gray-600 mt-1">
-          Perbandingan pendapatan dan pengeluaran bulan ini
+          Perbandingan pendapatan dan pengeluaran bulan ini (hanya yang lunas)
         </p>
       </div>
 
