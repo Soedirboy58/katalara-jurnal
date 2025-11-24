@@ -192,15 +192,15 @@ CREATE INDEX IF NOT EXISTS idx_admin_logs_created ON admin_action_logs(created_a
 -- VIEW: Geographic Distribution
 CREATE OR REPLACE VIEW admin_geographic_stats AS
 SELECT 
-  province,
-  city,
-  COUNT(DISTINCT user_id) as user_count,
-  COUNT(DISTINCT CASE WHEN is_active = TRUE THEN user_id END) as active_users,
+  up.province,
+  up.city,
+  COUNT(DISTINCT up.user_id) as user_count,
+  COUNT(DISTINCT CASE WHEN up.is_active = TRUE THEN up.user_id END) as active_users,
   ROUND(AVG(CASE WHEN bhs.total_score > 0 THEN bhs.total_score ELSE NULL END), 1) as avg_health_score
 FROM user_profiles up
 LEFT JOIN business_health_scores bhs ON up.user_id = bhs.user_id
-WHERE province IS NOT NULL AND role != 'super_admin'
-GROUP BY province, city
+WHERE up.province IS NOT NULL AND up.role != 'super_admin'
+GROUP BY up.province, up.city
 ORDER BY user_count DESC;
 
 GRANT SELECT ON admin_geographic_stats TO authenticated;
@@ -237,11 +237,11 @@ GRANT SELECT ON admin_lapak_adoption TO authenticated;
 -- VIEW: Users Needing Support (AI-driven insights)
 CREATE OR REPLACE VIEW admin_users_needing_support AS
 SELECT 
-  up.user_id,
-  up.email,
-  up.full_name,
-  up.business_name,
-  bc.name as business_category,
+  aua.user_id,
+  aua.email,
+  aua.full_name,
+  aua.business_name,
+  aua.business_category,
   bhs.total_score as health_score,
   
   -- Support needs
@@ -251,8 +251,8 @@ SELECT
     ELSE 'guidance_only'
   END as support_priority,
   
-  ARRAY_AGG(DISTINCT bhs.support_needed) as support_types,
-  ARRAY_AGG(DISTINCT bhs.recommended_courses) as recommended_courses,
+  bhs.support_needed as support_types,
+  bhs.recommended_courses,
   
   -- Behavioral flags
   ub.has_cashflow_issues,
@@ -262,16 +262,11 @@ SELECT
   aua.last_activity_date,
   aua.days_registered
   
-FROM user_profiles up
-LEFT JOIN business_categories bc ON up.business_category_id = bc.id
-LEFT JOIN business_health_scores bhs ON up.user_id = bhs.user_id
-LEFT JOIN user_behaviors ub ON up.user_id = ub.user_id
-LEFT JOIN admin_user_analytics aua ON up.user_id = aua.user_id
-WHERE up.role != 'super_admin' 
+FROM admin_user_analytics aua
+LEFT JOIN business_health_scores bhs ON aua.user_id = bhs.user_id
+LEFT JOIN user_behaviors ub ON aua.user_id = ub.user_id
+WHERE aua.role != 'super_admin' 
   AND (bhs.total_score < 60 OR ub.has_cashflow_issues = TRUE OR ub.has_inventory_issues = TRUE)
-GROUP BY up.user_id, up.email, up.full_name, up.business_name, bc.name, 
-         bhs.total_score, ub.has_cashflow_issues, ub.has_inventory_issues, 
-         ub.has_customer_retention_issues, aua.last_activity_date, aua.days_registered
 ORDER BY bhs.total_score ASC NULLS LAST, aua.last_activity_date DESC;
 
 GRANT SELECT ON admin_users_needing_support TO authenticated;
