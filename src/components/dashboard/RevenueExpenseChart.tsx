@@ -31,11 +31,11 @@ export function RevenueExpenseChart({
   
   const formatShortCurrency = (value: number) => {
     if (value >= 1000000000) {
-      return `Rp ${(value / 1000000000).toFixed(1)}B` // Billion (Miliar)
+      return `Rp ${(value / 1000000000).toFixed(1)}M` // Miliar
     } else if (value >= 1000000) {
-      return `Rp ${(value / 1000000).toFixed(1)}Jt` // Million (Juta)
+      return `Rp ${(value / 1000000).toFixed(1)}Jt` // Juta
     } else if (value >= 1000) {
-      return `Rp ${(value / 1000).toFixed(0)}rb` // Thousand (Ribu)
+      return `Rp ${(value / 1000).toFixed(0)}Rb` // Ribu
     }
     return `Rp ${value}`
   }
