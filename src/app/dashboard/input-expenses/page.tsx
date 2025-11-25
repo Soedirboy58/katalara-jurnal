@@ -145,7 +145,8 @@ export default function InputExpensesPageRedesigned() {
   // Quick Add Product Modal
   const [showQuickAddProduct, setShowQuickAddProduct] = useState(false)
   const [quickProductName, setQuickProductName] = useState('')
-  const [quickProductPrice, setQuickProductPrice] = useState('')
+  const [quickProductPrice, setQuickProductPrice] = useState('') // Harga Beli
+  const [quickProductSellPrice, setQuickProductSellPrice] = useState('') // Harga Jual (NEW!)
   const [quickProductUnit, setQuickProductUnit] = useState('pcs')
   const [quickProductStock, setQuickProductStock] = useState('0')
   const [savingQuickProduct, setSavingQuickProduct] = useState(false)
@@ -585,7 +586,13 @@ export default function InputExpensesPageRedesigned() {
     
     const price = parseFloat(quickProductPrice)
     if (isNaN(price) || price < 0) {
-      showToast('error', 'Harga tidak valid')
+      showToast('error', 'Harga beli tidak valid')
+      return
+    }
+    
+    const sellPrice = parseFloat(quickProductSellPrice)
+    if (isNaN(sellPrice) || sellPrice < 0) {
+      showToast('error', 'Harga jual tidak valid')
       return
     }
     
@@ -599,7 +606,8 @@ export default function InputExpensesPageRedesigned() {
         .insert({
           owner_id: user.id,
           name: quickProductName,
-          price: price,
+          price: price, // Harga Beli (HPP)
+          sell_price: sellPrice, // Harga Jual (IMPORTANT!)
           stock_quantity: parseFloat(quickProductStock) || 0,
           unit: quickProductUnit,
           product_type: 'physical'
@@ -624,6 +632,7 @@ export default function InputExpensesPageRedesigned() {
       setShowQuickAddProduct(false)
       setQuickProductName('')
       setQuickProductPrice('')
+      setQuickProductSellPrice('') // Reset sell price
       setQuickProductUnit('pcs')
       setQuickProductStock('0')
       
@@ -2317,20 +2326,36 @@ export default function InputExpensesPageRedesigned() {
                 />
               </div>
               
-              {/* Price */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Harga Beli/Unit <span className="text-red-600">*</span>
-                </label>
-                <input
-                  type="number"
-                  inputMode="decimal"
-                  step="0.01"
-                  value={quickProductPrice}
-                  onChange={(e) => setQuickProductPrice(e.target.value)}
-                  placeholder="15000"
-                  className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-lg focus:border-green-500 focus:outline-none"
-                />
+              {/* Price - Buy & Sell */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Harga Beli/Unit <span className="text-red-600">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    step="0.01"
+                    value={quickProductPrice}
+                    onChange={(e) => setQuickProductPrice(e.target.value)}
+                    placeholder="15000"
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-lg focus:border-green-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Harga Jual <span className="text-red-600">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    step="0.01"
+                    value={quickProductSellPrice}
+                    onChange={(e) => setQuickProductSellPrice(e.target.value)}
+                    placeholder="20000"
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-lg focus:border-green-500 focus:outline-none"
+                  />
+                </div>
               </div>
               
               <div className="grid grid-cols-2 gap-4">
@@ -2379,6 +2404,7 @@ export default function InputExpensesPageRedesigned() {
                     setShowQuickAddProduct(false)
                     setQuickProductName('')
                     setQuickProductPrice('')
+                    setQuickProductSellPrice('') // Reset sell price on cancel
                     setQuickProductUnit('pcs')
                     setQuickProductStock('0')
                   }}
@@ -2388,7 +2414,7 @@ export default function InputExpensesPageRedesigned() {
                 </button>
                 <button
                   onClick={handleQuickAddProduct}
-                  disabled={savingQuickProduct || !quickProductName.trim() || !quickProductPrice}
+                  disabled={savingQuickProduct || !quickProductName.trim() || !quickProductPrice || !quickProductSellPrice}
                   className="flex-1 px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {savingQuickProduct ? (

@@ -787,23 +787,7 @@ export default function InputIncomePage() {
         
         console.log('✅ Transaction saved successfully:', result.data)
         
-        // Save locked sell prices for all line items that have lock enabled
-        for (const item of lineItems) {
-          if (item.product_id && lockSellPrice) {
-            try {
-              await fetch(`/api/products/${item.product_id}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                  saved_sell_price: item.price
-                })
-              })
-              console.log(`✅ Saved locked price Rp ${item.price.toLocaleString()} for ${item.product_name}`)
-            } catch (err) {
-              console.error(`Failed to save locked sell price for ${item.product_name}:`, err)
-            }
-          }
-        }
+        // ✅ REMOVED: Lock price logic - harga jual diatur di Edit Produk atau Quick Add
         
         showToast('success', isEditMode ? '✅ Transaksi berhasil diupdate!' : '✅ Transaksi berhasil disimpan!')
         
@@ -818,7 +802,7 @@ export default function InputIncomePage() {
         setSelectedProductId('')
         setBuyPrice(0)
         setSellPrice('')
-        setLockSellPrice(false)
+        // ❌ REMOVED: setLockSellPrice
         setCurrentStock(0)
         setQuantity('')
         setPricePerUnit('')
@@ -1202,13 +1186,13 @@ export default function InputIncomePage() {
                       // Set buy price (cost_price from database)
                       setBuyPrice((product as any).cost_price || 0)
                       
-                      // Set sell price - use saved_sell_price if exists, otherwise use default price
-                      const savedSellPrice = (product as any).saved_sell_price || product.price
-                      setPricePerUnit(savedSellPrice.toString())
-                      setSellPrice(savedSellPrice.toString())
+                      // 🎯 FIXED: Always use sell_price from database (synced from expense/edit)
+                      const sellPriceFromDB = (product as any).sell_price || product.price
+                      setPricePerUnit(sellPriceFromDB.toString())
+                      setSellPrice(sellPriceFromDB.toString())
                       
-                      // Set lock checkbox if saved_sell_price exists
-                      setLockSellPrice(!!((product as any).saved_sell_price))
+                      // ❌ REMOVED: No need for lock checkbox - price always synced!
+                      // setLockSellPrice() removed
                       
                       // Set current stock
                       setCurrentStock((product as any).stock_quantity || 0)
@@ -1377,25 +1361,7 @@ export default function InputIncomePage() {
                       )}
                     </div>
                     
-                    {/* Lock Sell Price Checkbox */}
-                    <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg px-3 py-2 border-2 border-purple-200">
-                      <label className="flex items-center gap-3 cursor-pointer group h-full">
-                        <input
-                          type="checkbox"
-                          checked={lockSellPrice}
-                          onChange={(e) => setLockSellPrice(e.target.checked)}
-                          className="w-5 h-5 rounded border-2 border-purple-400 text-purple-600 focus:ring-purple-500"
-                        />
-                        <div className="flex-1">
-                          <div className="text-xs font-semibold text-gray-700 group-hover:text-purple-700 transition-colors">
-                            🔒 Tetapkan Harga Jual Permanen
-                          </div>
-                          <div className="text-xs text-gray-600 mt-1">
-                            Harga jual ini akan otomatis muncul di transaksi berikutnya
-                          </div>
-                        </div>
-                      </label>
-                    </div>
+                    {/* ✅ REMOVED: Lock checkbox tidak diperlukan - harga selalu sync dari database */}
                   </div>
                 </div>
               )
