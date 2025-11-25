@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import {
@@ -22,6 +22,7 @@ import {
   MinusCircleIcon,
   BuildingStorefrontIcon
 } from '@heroicons/react/24/outline'
+import { UserMenu } from '@/components/ui/UserMenu'
 
 interface SidebarProps {
   isOpen: boolean
@@ -115,6 +116,30 @@ export function Sidebar({ isOpen, onClose, collapsed, onToggleCollapse }: Sideba
   const router = useRouter()
   const supabase = createClient()
   const [loggingOut, setLoggingOut] = useState(false)
+  const [user, setUser] = useState<any>(null)
+  const [businessName, setBusinessName] = useState<string>('')
+
+  // Fetch user data and business name
+  useEffect(() => {
+    const loadUserData = async () => {
+      const { data: { user: currentUser } } = await supabase.auth.getUser()
+      if (currentUser) {
+        setUser(currentUser)
+        
+        // Fetch business name from profiles
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('business_name')
+          .eq('id', currentUser.id)
+          .maybeSingle()
+        
+        if (profile?.business_name) {
+          setBusinessName(profile.business_name)
+        }
+      }
+    }
+    loadUserData()
+  }, [supabase])
 
   const handleLogout = async () => {
     setLoggingOut(true)
@@ -246,23 +271,11 @@ export function Sidebar({ isOpen, onClose, collapsed, onToggleCollapse }: Sideba
             })}
           </nav>
 
-          {/* Logout Button */}
+          {/* User Menu */}
           <div className="p-3 border-t border-white/10">
-            <button
-              onClick={handleLogout}
-              disabled={loggingOut}
-              title={collapsed ? 'Keluar' : ''}
-              className={`
-                flex items-center w-full px-3 py-2.5 text-sm font-medium
-                text-yellow-300 hover:bg-yellow-400/20 rounded-lg
-                transition-all duration-200
-                disabled:opacity-50 disabled:cursor-not-allowed
-                ${collapsed ? 'justify-center' : ''}
-              `}
-            >
-              <ArrowLeftOnRectangleIcon className={`h-5 w-5 ${collapsed ? '' : 'mr-3'} flex-shrink-0`} />
-              {!collapsed && (loggingOut ? 'Keluar...' : 'Keluar')}
-            </button>
+            {user && (
+              <UserMenu user={user} businessName={businessName} />
+            )}
           </div>
         </div>
       </aside>
