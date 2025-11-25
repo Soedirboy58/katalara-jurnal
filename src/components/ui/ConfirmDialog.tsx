@@ -65,8 +65,8 @@ export function ConfirmDialog({
     >
       {/* Backdrop */}
       <div 
-        className={`fixed inset-0 bg-gray-900 transition-opacity duration-300 ${
-          isAnimating ? 'bg-opacity-75' : 'bg-opacity-0'
+        className={`fixed inset-0 bg-black/20 backdrop-blur-sm transition-opacity duration-300 ${
+          isAnimating ? 'opacity-100' : 'opacity-0'
         }`}
         onClick={onCancel}
       />
