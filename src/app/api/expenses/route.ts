@@ -59,7 +59,9 @@ export async function POST(request: Request) {
       other_fees,
       down_payment,
       remaining_payment,
-      grand_total
+      grand_total,
+      // NEW: Production output (raw materials → finished goods)
+      production_output // {product_id, quantity, unit}
     } = body
 
     // Validate required fields
@@ -204,12 +206,32 @@ export async function POST(request: Request) {
             .eq('id', supplier_id)
         }
       }
+      
+      // Handle production output (raw materials → finished goods)
+      if (production_output && production_output.product_id && production_output.quantity) {
+        const { data: finishedProduct } = await supabase
+          .from('products')
+          .select('stock_quantity, track_inventory, name')
+          .eq('id', production_output.product_id)
+          .single()
+
+        if (finishedProduct && finishedProduct.track_inventory) {
+          const newStock = (finishedProduct.stock_quantity || 0) + parseFloat(production_output.quantity)
+          await supabase
+            .from('products')
+            .update({ stock_quantity: newStock })
+            .eq('id', production_output.product_id)
+          
+          console.log(`✅ Production Output: ${finishedProduct.name} +${production_output.quantity} → ${newStock}`)
+        }
+      }
     }
 
     return NextResponse.json({ 
       success: true, 
       data: expenseRecord,
-      po_number 
+      po_number,
+      production_output_applied: production_output ? true : false
     })
 
   } catch (error: any) {

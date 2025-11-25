@@ -7,6 +7,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useProducts } from '@/hooks/useProducts'
 import { TransactionsTable } from '@/components/income/TransactionsTable'
+import CustomerModal from '@/components/modals/CustomerModal'
 
 interface Product {
   id: string
@@ -76,18 +77,8 @@ export default function InputIncomePage() {
   // 🆕 Customer Management
   // ============================================
   const [showCustomerModal, setShowCustomerModal] = useState(false)
-  const [customers, setCustomers] = useState<any[]>([])
-  const [loadingCustomers, setLoadingCustomers] = useState(false)
   const [selectedCustomerId, setSelectedCustomerId] = useState('')
   const [isAnonymous, setIsAnonymous] = useState(false)
-  
-  // Quick add customer
-  const [showQuickAddCustomer, setShowQuickAddCustomer] = useState(false)
-  const [quickCustomerName, setQuickCustomerName] = useState('')
-  const [quickCustomerPhone, setQuickCustomerPhone] = useState('')
-  const [quickCustomerAddress, setQuickCustomerAddress] = useState('')
-  const [quickCustomerEmail, setQuickCustomerEmail] = useState('')
-  const [savingCustomer, setSavingCustomer] = useState(false)
   
   // ============================================
   // 🆕 Custom Unit Input
@@ -185,29 +176,6 @@ export default function InputIncomePage() {
   const { products, loading: loadingProducts, refresh: refreshProducts } = useProducts(productFilter)
 
   // 🆕 Fetch Customers Function
-  const fetchCustomers = async () => {
-    setLoadingCustomers(true)
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-
-      const { data, error } = await supabase
-        .from('customers')
-        .select('*')
-        .eq('owner_id', user.id)
-        .eq('is_active', true)
-        .order('created_at', { ascending: false })
-
-      if (error) throw error
-      setCustomers(data || [])
-    } catch (error) {
-      console.error('Error fetching customers:', error)
-      showToast('error', '❌ Gagal memuat data pelanggan')
-    } finally {
-      setLoadingCustomers(false)
-    }
-  }
-
   // ============================================
   // EXISTING: useEffect - Educational Modal & KPI
   // ============================================
@@ -307,49 +275,11 @@ export default function InputIncomePage() {
   }
 
   // ============================================
-  // 🆕 FUNCTION: Edit Transaction
+  // 🆕 FUNCTION: Edit Transaction (Temporary Disabled)
   // ============================================
   const handleEditTransaction = (transaction: any) => {
-    // Parse line items if stored as JSON string
-    let parsedLineItems = []
-    try {
-      parsedLineItems = typeof transaction.line_items === 'string' 
-        ? JSON.parse(transaction.line_items) 
-        : (transaction.line_items || [])
-    } catch (e) {
-      parsedLineItems = []
-    }
-
-    // Populate form with transaction data
-    setIsEditMode(true)
-    setEditingTransactionId(transaction.id)
-    setTransactionDate(transaction.income_date.split('T')[0])
-    setIncomeType(transaction.income_type)
-    setCategory(transaction.category)
-    setCustomerName(transaction.customer_name || '')
-    setDescription(transaction.description || '')
-    setNotes(transaction.notes || '')
-    setPaymentMethod(transaction.payment_method)
-    setPaymentType(transaction.payment_type || 'cash')
-    setDueDate(transaction.due_date ? transaction.due_date.split('T')[0] : '')
-    setSelectedCustomerId(transaction.customer_id || '')
-    
-    // Set line items if multi-item transaction
-    if (parsedLineItems.length > 0) {
-      setLineItems(parsedLineItems)
-      setDiscountAmount(transaction.discount || 0)
-      setTaxPPN(transaction.tax_ppn || 0)
-      setTaxPPh(transaction.tax_pph || 0)
-      setOtherFees(transaction.other_fees || 0)
-      setDownPayment(transaction.down_payment || 0)
-    } else {
-      // Simple transaction
-      setAmount(transaction.amount)
-    }
-
-    // Scroll to form
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-    showToast('success', '✏️ Mode Edit - Ubah data dan klik Simpan')
+    // Temporary: Show toast notification that feature is coming soon
+    showToast('warning', '⚠️ Fitur Edit akan segera hadir! Untuk sementara, silakan hapus dan buat transaksi baru jika ada kesalahan.')
   }
 
   const cancelEdit = () => {
@@ -1050,11 +980,7 @@ export default function InputIncomePage() {
                 onClick={(e) => {
                   e.preventDefault()
                   e.stopPropagation()
-                  console.log('Button clicked!')
-                  console.log('showCustomerModal before:', showCustomerModal)
                   setShowCustomerModal(true)
-                  console.log('setShowCustomerModal(true) called')
-                  fetchCustomers()
                 }}
                 className="w-full px-3 py-2 bg-white/20 border border-white/30 rounded-lg text-white hover:bg-white/30 focus:outline-none text-left flex items-center justify-between cursor-pointer"
               >
@@ -1228,11 +1154,101 @@ export default function InputIncomePage() {
               </div>
             </div>
 
+            {/* Price Info & Margin Calculation - ONLY for Product Sales */}
+            {category === 'product_sales' && selectedProductId && (() => {
+              const product = products.find((p: Product) => p.id === selectedProductId) as any
+              const buyPrice = parseFloat((product?.buy_price || 0).toString()) || 0
+              // Remove dots from formatted number before parsing
+              const sellPrice = parseFloat((pricePerUnit || '0').toString().replace(/\./g, '')) || 0
+              const margin = sellPrice > 0 && buyPrice > 0 ? ((sellPrice - buyPrice) / buyPrice * 100) : 0
+              const profit = sellPrice - buyPrice
+              
+              return (
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-4 mb-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/* Buy Price (Read-only) */}
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-2">
+                        💰 Harga Beli (Modal)
+                      </label>
+                      <div className="bg-white rounded-lg px-3 py-2 border border-gray-300">
+                        <span className="text-sm font-bold text-gray-900">
+                          Rp {buyPrice.toLocaleString('id-ID')}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">Per {customUnit || 'unit'}</p>
+                    </div>
+                    
+                    {/* Sell Price (Editable) */}
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-2">
+                        💵 Harga Jual <span className="text-red-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm font-medium">Rp</span>
+                        <input
+                          type="text"
+                          value={formatNumber(pricePerUnit)}
+                          onChange={(e) => handleNumberInput(e, setPricePerUnit)}
+                          placeholder="0"
+                          required
+                          className="w-full pl-12 pr-4 py-2 border-2 border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 font-semibold"
+                        />
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">Bisa disesuaikan manual</p>
+                    </div>
+                    
+                    {/* Profit Margin */}
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-2">
+                        📊 Margin Keuntungan
+                      </label>
+                      <div className={`rounded-lg px-3 py-2 border-2 ${
+                        margin > 30 ? 'bg-green-50 border-green-300' : 
+                        margin > 15 ? 'bg-yellow-50 border-yellow-300' : 
+                        'bg-red-50 border-red-300'
+                      }`}>
+                        <div className="text-lg font-bold ${
+                          margin > 30 ? 'text-green-700' : 
+                          margin > 15 ? 'text-yellow-700' : 
+                          'text-red-700'
+                        }">
+                          {margin > 0 ? `+${margin.toFixed(1)}%` : '0%'}
+                        </div>
+                        <div className="text-xs font-medium ${
+                          margin > 30 ? 'text-green-600' : 
+                          margin > 15 ? 'text-yellow-600' : 
+                          'text-red-600'
+                        }">
+                          {profit > 0 ? `Rp ${profit.toLocaleString('id-ID')}` : 'Rp 0'}
+                        </div>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {margin > 30 ? '✅ Sangat baik!' : margin > 15 ? '⚠️ Standar' : '❌ Rendah'}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {/* Profit Info Banner */}
+                  <div className="mt-3 bg-white rounded-lg px-3 py-2 border border-blue-200">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-gray-600">Keuntungan per {customUnit || 'unit'}:</span>
+                      <span className={`font-bold ${
+                        profit > 0 ? 'text-green-700' : 'text-red-700'
+                      }`}>
+                        {profit > 0 ? '+' : ''}Rp {profit.toLocaleString('id-ID')}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )
+            })()}
+
             {/* Price and Add Button Row */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-              <div className="md:col-span-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Harga per {customUnit || 'unit'} <span className="text-red-500 ml-1">*</span>
+                  Harga Jual Final <span className="text-red-500 ml-1">*</span>
                 </label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium">Rp</span>
@@ -1255,9 +1271,12 @@ export default function InputIncomePage() {
                   type="button"
                   onClick={handleAddItem}
                   disabled={!selectedProductId || !quantity || !pricePerUnit}
-                  className="w-full h-[42px] bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                  className="w-full h-[42px] bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
                 >
-                  + Tambah
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Tambah
                 </button>
               </div>
             </div>
@@ -2333,9 +2352,9 @@ export default function InputIncomePage() {
             <div className="bg-gradient-to-r from-[#1088ff] to-[#0d6ecc] p-6 text-white">
               <div className="flex items-start justify-between">
                 <div>
-                  <h2 className="text-2xl font-bold mb-2">📚 Panduan Kategori Pendapatan</h2>
+                  <h2 className="text-2xl font-bold mb-2">Panduan Input Pendapatan</h2>
                   <p className="text-blue-100 text-sm">
-                    Pahami perbedaan setiap kategori untuk pencatatan yang akurat
+                    Pahami kategori dan fitur yang tersedia untuk pencatatan yang akurat
                   </p>
                 </div>
                 <button
@@ -2350,72 +2369,115 @@ export default function InputIncomePage() {
             </div>
 
             {/* Modal Content */}
-            <div className="p-6 overflow-y-auto max-h-[calc(90vh-240px)] space-y-6 pb-safe">
-              {/* OPERASIONAL */}
-              <div className="border-l-4 border-green-500 pl-4 py-2">
-                <h3 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
-                  <span>💰</span> 1. OPERASIONAL
-                </h3>
-                <p className="text-sm text-gray-700 mb-2">
-                  Pendapatan dari aktivitas bisnis utama sehari-hari.
-                </p>
-                <ul className="text-xs text-gray-600 space-y-1 ml-4">
-                  <li>• <strong>Penjualan Produk:</strong> Jual barang dagangan (baju, makanan, elektronik, dll)</li>
-                  <li>• <strong>Pendapatan Jasa:</strong> Salon, bengkel, konsultan, desain grafis, dll</li>
-                  <li>• <strong>Pendapatan Lain:</strong> Komisi, cashback, diskon supplier, dll</li>
-                </ul>
-              </div>
-
-              {/* INVESTASI */}
-              <div className="border-l-4 border-purple-500 pl-4 py-2">
-                <h3 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
-                  <span>📈</span> 2. INVESTASI
-                </h3>
-                <p className="text-sm text-gray-700 mb-2">
-                  Pendapatan dari aset investasi atau instrumen keuangan.
-                </p>
-                <ul className="text-xs text-gray-600 space-y-1 ml-4">
-                  <li>• <strong>Bunga Deposito:</strong> Bunga dari tabungan/deposito bank</li>
-                  <li>• <strong>Dividen Saham:</strong> Bagi hasil dari kepemilikan saham</li>
-                  <li>• <strong>Capital Gain:</strong> Untung jual aset (tanah, emas, saham)</li>
-                </ul>
-              </div>
-
-              {/* PENDANAAN */}
-              <div className="border-l-4 border-blue-500 pl-4 py-2">
-                <h3 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
-                  <span>💰</span> 3. PENDANAAN
-                </h3>
-                <p className="text-sm text-gray-700 mb-2">
-                  Transaksi terkait modal pemilik dan pinjaman.
-                </p>
-                <ul className="text-xs text-gray-600 space-y-1 ml-4">
-                  <li>• <strong>Modal Masuk:</strong> Setor uang pribadi ke bisnis</li>
-                  <li>• <strong>Pinjaman Diterima:</strong> KUR, P2P lending, pinjaman bank</li>
-                  <li>• <strong>Hibah/Grant:</strong> Bantuan modal dari pemerintah/lembaga</li>
-                </ul>
-              </div>
-
-              {/* Modal Masuk - SPECIAL HIGHLIGHT */}
-              <div className="bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-300 rounded-lg p-4">
-                <div className="flex items-start gap-2">
-                  <span className="text-3xl">💡</span>
-                  <div>
-                    <h3 className="font-bold text-green-900 mb-2">Modal Masuk vs Penjualan</h3>
-                    <div className="bg-white rounded-lg p-3 mb-2">
-                      <p className="text-xs text-gray-800 font-semibold mb-1">Modal Masuk:</p>
-                      <p className="text-xs text-gray-700">
-                        Uang <strong>pribadi</strong> yang Anda setor ke bisnis. Bukan pendapatan usaha, tapi penambahan modal owner.
-                      </p>
-                    </div>
-                    <div className="bg-white rounded-lg p-3">
-                      <p className="text-xs text-gray-800 font-semibold mb-1">Penjualan Produk:</p>
-                      <p className="text-xs text-gray-700">
-                        Uang dari <strong>customer</strong> yang beli produk/jasa Anda. Ini pendapatan bisnis yang sebenarnya!
-                      </p>
-                    </div>
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-240px)] space-y-5 pb-safe">
+              
+              {/* FITUR YANG TERSEDIA */}
+              <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r-lg">
+                <h3 className="font-bold text-blue-900 mb-3">Fitur yang Tersedia:</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-gray-700">
+                  <div className="flex items-start gap-2">
+                    <span className="text-blue-600 font-bold">✓</span>
+                    <span>Input banyak produk sekaligus</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="text-blue-600 font-bold">✓</span>
+                    <span>Pilih customer atau jual ke umum</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="text-blue-600 font-bold">✓</span>
+                    <span>Pembayaran tempo (cicilan)</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="text-blue-600 font-bold">✓</span>
+                    <span>Simulasi pinjaman dengan cicilan</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="text-blue-600 font-bold">✓</span>
+                    <span>Cetak struk & invoice A4</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="text-blue-600 font-bold">✓</span>
+                    <span>Tracking customer & repeat order</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="text-blue-600 font-bold">✓</span>
+                    <span>WhatsApp reminder jatuh tempo</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="text-blue-600 font-bold">✓</span>
+                    <span>Riwayat transaksi lengkap</span>
                   </div>
                 </div>
+              </div>
+
+              {/* KATEGORI PENDAPATAN */}
+              <div>
+                <h3 className="font-bold text-gray-900 mb-3">Kategori Pendapatan:</h3>
+                
+                {/* OPERASIONAL */}
+                <div className="border-l-4 border-green-500 pl-4 py-2 mb-3">
+                  <h4 className="font-semibold text-gray-900 mb-1">1. OPERASIONAL</h4>
+                  <p className="text-sm text-gray-700 mb-2">
+                    Uang yang masuk dari aktivitas bisnis sehari-hari.
+                  </p>
+                  <ul className="text-xs text-gray-600 space-y-1 ml-2">
+                    <li>• <strong>Penjualan Produk:</strong> Jual barang (baju, makanan, elektronik)</li>
+                    <li>• <strong>Pendapatan Jasa:</strong> Salon, bengkel, desain, konsultan</li>
+                    <li>• <strong>Pendapatan Lain:</strong> Komisi, cashback, diskon dari supplier</li>
+                  </ul>
+                </div>
+
+                {/* INVESTASI */}
+                <div className="border-l-4 border-purple-500 pl-4 py-2 mb-3">
+                  <h4 className="font-semibold text-gray-900 mb-1">2. INVESTASI</h4>
+                  <p className="text-sm text-gray-700 mb-2">
+                    Hasil dari uang yang Anda investasikan (bukan dari jualan).
+                  </p>
+                  <ul className="text-xs text-gray-600 space-y-1 ml-2">
+                    <li>• <strong>Bunga Deposito:</strong> Bunga dari tabungan bank</li>
+                    <li>• <strong>Dividen Saham:</strong> Bagi hasil dari saham yang Anda beli</li>
+                    <li>• <strong>Untung Jual Aset:</strong> Jual tanah, emas, atau saham dengan untung</li>
+                  </ul>
+                </div>
+
+                {/* PENDANAAN */}
+                <div className="border-l-4 border-blue-500 pl-4 py-2">
+                  <h4 className="font-semibold text-gray-900 mb-1">3. PENDANAAN</h4>
+                  <p className="text-sm text-gray-700 mb-2">
+                    Uang tambahan untuk modal bisnis (bukan dari jualan).
+                  </p>
+                  <ul className="text-xs text-gray-600 space-y-1 ml-2">
+                    <li>• <strong>Modal Masuk:</strong> Uang pribadi yang Anda setor ke bisnis</li>
+                    <li>• <strong>Pinjaman Diterima:</strong> Dapat pinjaman dari KUR, bank, atau P2P</li>
+                    <li>• <strong>Hibah/Bantuan:</strong> Bantuan modal dari pemerintah atau lembaga</li>
+                  </ul>
+                </div>
+              </div>
+
+              {/* PENTING DIKETAHUI */}
+              <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-lg">
+                <h3 className="font-bold text-amber-900 mb-2">Penting Diketahui:</h3>
+                <div className="space-y-2 text-sm text-gray-700">
+                  <div className="bg-white rounded p-2">
+                    <p className="font-semibold text-gray-900 mb-1">Modal Masuk ≠ Penjualan</p>
+                    <p className="text-xs">Modal masuk adalah uang <strong>pribadi Anda</strong> yang disetor ke bisnis. Penjualan adalah uang dari <strong>customer</strong> yang beli produk Anda.</p>
+                  </div>
+                  <div className="bg-white rounded p-2">
+                    <p className="font-semibold text-gray-900 mb-1">Pinjaman vs Pendapatan</p>
+                    <p className="text-xs">Pinjaman adalah <strong>utang yang harus dibayar</strong>. Pendapatan adalah hasil jualan yang jadi <strong>keuntungan Anda</strong>.</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* CONTOH PENGGUNAAN */}
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <h3 className="font-semibold text-green-900 mb-2">Contoh Penggunaan:</h3>
+                <p className="text-xs text-gray-700">
+                  <strong>Skenario:</strong> Anda dapat pinjaman KUR Rp 10 juta dengan bunga 6% per tahun, cicilan 12 bulan.
+                </p>
+                <p className="text-xs text-gray-700 mt-2">
+                  <strong>Cara Input:</strong> Pilih kategori "Pendanaan" → "Pinjaman Diterima" → Input nominal Rp 10 juta → Isi detail pinjaman (bunga 6%, tenor 12 bulan) → Sistem akan hitung cicilan otomatis → Akan ada reminder WhatsApp setiap bulan.
+                </p>
               </div>
             </div>
 
@@ -2537,6 +2599,21 @@ export default function InputIncomePage() {
             businessName={businessName}
             onRefresh={fetchTransactions}
             onEdit={handleEditTransaction}
+            onDelete={async (transaction) => {
+              if (confirm(`Hapus transaksi ${transaction.customer_name || 'Anonim'}?\n\nData tidak dapat dikembalikan!`)) {
+                try {
+                  const res = await fetch(`/api/income/${transaction.id}`, { method: 'DELETE' })
+                  if (res.ok) {
+                    showToast('success', '✅ Transaksi berhasil dihapus')
+                    fetchTransactions()
+                  } else {
+                    showToast('error', '❌ Gagal menghapus transaksi')
+                  }
+                } catch (error) {
+                  showToast('error', '❌ Error: ' + error)
+                }
+              }
+            }}
           />
         )}
       </div>
@@ -2728,288 +2805,32 @@ export default function InputIncomePage() {
 
       {/* ============================================
           🆕 CUSTOMER MODAL - Select or Add Customer
+          Using CustomerModal component (matches SupplierModal pattern)
           ============================================ */}
-      {showCustomerModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
-            {/* Modal Header */}
-            <div className="bg-gradient-to-r from-blue-600 to-blue-500 p-6 text-white">
-              <h3 className="text-xl font-bold">👤 Pilih Pelanggan</h3>
-              <p className="text-blue-100 text-sm mt-1">Pilih dari daftar atau tambah pelanggan baru</p>
-            </div>
-
-            {/* Modal Body */}
-            <div className="p-6 overflow-y-auto" style={{ maxHeight: 'calc(90vh - 200px)' }}>
-              {/* Anonymous Option */}
-              <div className="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                <label className="flex items-center gap-3 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={isAnonymous}
-                    onChange={(e) => {
-                      setIsAnonymous(e.target.checked)
-                      if (e.target.checked) {
-                        setSelectedCustomerId('')
-                        setCustomerName('')
-                        setCustomerPhone('')
-                      }
-                    }}
-                    className="w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
-                  />
-                  <div>
-                    <div className="font-medium text-gray-900">🚶 Anonymous (Tanpa Nama)</div>
-                    <div className="text-xs text-gray-500">Transaksi tidak tercatat ke pelanggan tertentu</div>
-                  </div>
-                </label>
-              </div>
-
-              {/* Quick Add Button */}
-              {!isAnonymous && (
-                <button
-                  onClick={() => setShowQuickAddCustomer(true)}
-                  className="w-full mb-4 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-2 font-medium"
-                >
-                  <span className="text-xl">➕</span>
-                  Tambah Pelanggan Baru
-                </button>
-              )}
-
-              {/* Customers List */}
-              {!isAnonymous && (
-                <div className="space-y-2">
-                  {loadingCustomers ? (
-                    <div className="text-center py-8 text-gray-500">Memuat data pelanggan...</div>
-                  ) : customers.length === 0 ? (
-                    <div className="text-center py-8 text-gray-500">
-                      <div className="text-4xl mb-2">📋</div>
-                      <div>Belum ada pelanggan</div>
-                      <div className="text-xs">Klik tombol "Tambah Pelanggan Baru" untuk memulai</div>
-                    </div>
-                  ) : (
-                    customers.map((customer) => (
-                      <button
-                        key={customer.id}
-                        onClick={() => {
-                          setSelectedCustomerId(customer.id)
-                          setCustomerName(customer.name)
-                          setCustomerPhone(customer.phone || '')
-                          setIsAnonymous(false)
-                          setShowCustomerModal(false)
-                        }}
-                        className={`w-full text-left p-4 rounded-lg border transition-all ${
-                          selectedCustomerId === customer.id
-                            ? 'border-blue-500 bg-blue-50'
-                            : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
-                        }`}
-                      >
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <div className="font-medium text-gray-900">{customer.name}</div>
-                            <div className="text-sm text-gray-600 mt-1">
-                              {customer.customer_number} • {customer.phone || 'No phone'}
-                            </div>
-                            {customer.last_transaction_date && (
-                              <div className="text-xs text-gray-500 mt-1">
-                                Terakhir: {new Date(customer.last_transaction_date).toLocaleDateString('id-ID')}
-                              </div>
-                            )}
-                          </div>
-                          <div className="text-right">
-                            <div className="text-sm font-semibold text-blue-600">
-                              Rp {(customer.total_spent || 0).toLocaleString('id-ID')}
-                            </div>
-                            <div className="text-xs text-gray-500">{customer.total_transactions || 0} transaksi</div>
-                          </div>
-                        </div>
-                      </button>
-                    ))
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Modal Footer */}
-            <div className="bg-gray-50 px-6 py-4 flex justify-end gap-3">
-              <button
-                onClick={() => setShowCustomerModal(false)}
-                className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
-              >
-                Tutup
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ============================================
-          🆕 QUICK ADD CUSTOMER MODAL
-          ============================================ */}
-      {showQuickAddCustomer && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full">
-            {/* Modal Header */}
-            <div className="bg-gradient-to-r from-green-600 to-green-500 p-6 text-white">
-              <h3 className="text-xl font-bold">➕ Tambah Pelanggan Baru</h3>
-              <p className="text-green-100 text-sm mt-1">Isi data pelanggan untuk transaksi ini</p>
-            </div>
-
-            {/* Modal Body */}
-            <div className="p-6 space-y-4">
-              {/* Customer Name */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Nama Pelanggan <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={quickCustomerName}
-                  onChange={(e) => setQuickCustomerName(e.target.value)}
-                  placeholder="John Doe"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  autoFocus
-                />
-              </div>
-
-              {/* Phone */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  No. Telepon <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="tel"
-                  value={quickCustomerPhone}
-                  onChange={(e) => setQuickCustomerPhone(e.target.value)}
-                  placeholder="08123456789"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                />
-              </div>
-
-              {/* Email */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Email <span className="text-gray-400 text-xs">(opsional)</span>
-                </label>
-                <input
-                  type="email"
-                  value={quickCustomerEmail}
-                  onChange={(e) => setQuickCustomerEmail(e.target.value)}
-                  placeholder="john@example.com"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                />
-              </div>
-
-              {/* Address */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Alamat <span className="text-gray-400 text-xs">(opsional)</span>
-                </label>
-                <textarea
-                  value={quickCustomerAddress}
-                  onChange={(e) => setQuickCustomerAddress(e.target.value)}
-                  placeholder="Jl. Contoh No. 123"
-                  rows={3}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                />
-              </div>
-            </div>
-
-            {/* Modal Footer */}
-            <div className="bg-gray-50 px-6 py-4 flex gap-3">
-              <button
-                onClick={() => {
-                  setShowQuickAddCustomer(false)
-                  setQuickCustomerName('')
-                  setQuickCustomerPhone('')
-                  setQuickCustomerAddress('')
-                  setQuickCustomerEmail('')
-                }}
-                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
-              >
-                Batal
-              </button>
-              <button
-                onClick={async () => {
-                  if (!quickCustomerName.trim()) {
-                    showToast('warning', '⚠️ Nama pelanggan wajib diisi')
-                    return
-                  }
-                  if (!quickCustomerPhone.trim()) {
-                    showToast('warning', '⚠️ No. telepon wajib diisi')
-                    return
-                  }
-
-                  setSavingCustomer(true)
-                  try {
-                    const { data: { user } } = await supabase.auth.getUser()
-                    if (!user) throw new Error('User not found')
-
-                    // Generate customer number
-                    const { data: customerNumber, error: rpcError } = await supabase
-                      .rpc('generate_customer_number', { user_id: user.id })
-
-                    if (rpcError) throw rpcError
-
-                    // Insert new customer
-                    const { data: newCustomer, error: insertError } = await supabase
-                      .from('customers')
-                      .insert({
-                        owner_id: user.id,
-                        customer_number: customerNumber,
-                        name: quickCustomerName.trim(),
-                        phone: quickCustomerPhone.trim(),
-                        email: quickCustomerEmail.trim() || null,
-                        address: quickCustomerAddress.trim() || null,
-                        is_active: true
-                      })
-                      .select()
-                      .single()
-
-                    if (insertError) throw insertError
-
-                    // Set as selected customer
-                    setSelectedCustomerId(newCustomer.id)
-                    setCustomerName(newCustomer.name)
-                    setCustomerPhone(newCustomer.phone)
-                    setIsAnonymous(false)
-
-                    // Close modals and refresh
-                    setShowQuickAddCustomer(false)
-                    setShowCustomerModal(false)
-                    fetchCustomers()
-
-                    // Reset form
-                    setQuickCustomerName('')
-                    setQuickCustomerPhone('')
-                    setQuickCustomerAddress('')
-                    setQuickCustomerEmail('')
-
-                    showToast('success', `✅ Pelanggan ${newCustomer.name} berhasil ditambahkan!`)
-                  } catch (error) {
-                    console.error('Error adding customer:', error)
-                    showToast('error', '❌ Gagal menambahkan pelanggan')
-                  } finally {
-                    setSavingCustomer(false)
-                  }
-                }}
-                disabled={savingCustomer}
-                className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                {savingCustomer ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                    <span>Menyimpan...</span>
-                  </>
-                ) : (
-                  <>
-                    <span>💾</span>
-                    <span>Simpan Pelanggan</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <CustomerModal
+        isOpen={showCustomerModal}
+        onClose={() => setShowCustomerModal(false)}
+        onSelect={(customer) => {
+          if (customer) {
+            setSelectedCustomerId(customer.id)
+            setCustomerName(customer.name)
+            setCustomerPhone(customer.phone || '')
+            setIsAnonymous(false)
+          } else {
+            // Anonymous/Walk-in selected
+            setSelectedCustomerId('')
+            setCustomerName('')
+            setCustomerPhone('')
+            setIsAnonymous(true)
+          }
+        }}
+        selectedCustomer={selectedCustomerId ? {
+          id: selectedCustomerId,
+          name: customerName,
+          phone: customerPhone,
+          is_active: true
+        } : null}
+      />
 
     </div>
   )

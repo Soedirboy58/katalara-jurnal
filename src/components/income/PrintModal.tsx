@@ -422,8 +422,8 @@ Terima kasih! 🙏
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-hidden">
-        <div className="p-6 border-b border-gray-200">
+      <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] flex flex-col">
+        <div className="p-6 border-b border-gray-200 flex-shrink-0">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-bold text-gray-900">Cetak Dokumen</h2>
             <button
@@ -437,7 +437,7 @@ Terima kasih! 🙏
           </div>
         </div>
         
-        <div className="p-6 space-y-4">
+        <div className="p-6 space-y-4 overflow-y-auto flex-1">
           {/* Mode Selection */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -457,7 +457,7 @@ Terima kasih! 🙏
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
                   <p className="font-semibold text-gray-900">Struk</p>
-                  <p className="text-xs text-gray-500">80mm thermal</p>
+                  <p className="text-xs text-gray-700">80mm thermal</p>
                 </div>
               </button>
               
@@ -474,7 +474,7 @@ Terima kasih! 🙏
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
                   <p className="font-semibold text-gray-900">Invoice</p>
-                  <p className="text-xs text-gray-500">A4 format</p>
+                  <p className="text-xs text-gray-700">A4 format</p>
                 </div>
               </button>
             </div>
@@ -510,12 +510,12 @@ Terima kasih! 🙏
                     </svg>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Customer</p>
+                    <p className="text-xs font-medium text-gray-700 uppercase tracking-wide">Customer</p>
                     <p className="text-sm font-semibold text-gray-900 mt-0.5">
                       {getCustomerName()}
                     </p>
                     {getCustomerPhone() && (
-                      <p className="text-xs text-gray-600 mt-1">{getCustomerPhone()}</p>
+                      <p className="text-xs text-gray-900 mt-1">{getCustomerPhone()}</p>
                     )}
                   </div>
                 </div>
@@ -557,7 +557,7 @@ Terima kasih! 🙏
                               <tr key={idx} className="hover:bg-gray-50">
                                 <td className="px-3 py-2 text-gray-900">
                                   <div className="font-medium">{item.product_name || 'Item'}</div>
-                                  <div className="text-gray-500">
+                                  <div className="text-gray-900">
                                     @Rp {(item.price_per_unit || item.price || 0).toLocaleString('id-ID')}
                                   </div>
                                 </td>
@@ -584,12 +584,12 @@ Terima kasih! 🙏
                           </svg>
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Item / Produk</p>
+                          <p className="text-xs font-medium text-gray-700 uppercase tracking-wide">Item / Produk</p>
                           <p className="text-sm font-semibold text-gray-900 mt-0.5 break-words">
                             {incomeData.product_name || incomeData.description || 'Transaksi'}
                           </p>
                           {incomeData.quantity && incomeData.price_per_unit && (
-                            <p className="text-xs text-gray-600 mt-1">
+                            <p className="text-xs text-gray-900 mt-1">
                               {incomeData.quantity} × Rp {incomeData.price_per_unit.toLocaleString('id-ID')}
                             </p>
                           )}
@@ -620,14 +620,14 @@ Terima kasih! 🙏
               {/* Payment Info Grid */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-white rounded-lg p-3 border border-gray-200">
-                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Metode Bayar</p>
+                  <p className="text-xs font-medium text-gray-700 uppercase tracking-wide">Metode Bayar</p>
                   <p className="text-sm font-semibold text-gray-900 mt-1">
                     {incomeData.payment_method || '-'}
                   </p>
                 </div>
                 
                 <div className="bg-white rounded-lg p-3 border border-gray-200">
-                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Tanggal</p>
+                  <p className="text-xs font-medium text-gray-700 uppercase tracking-wide">Tanggal</p>
                   <p className="text-sm font-semibold text-gray-900 mt-1">
                     {new Date(incomeData.income_date).toLocaleDateString('id-ID', {
                       day: '2-digit',
@@ -661,7 +661,7 @@ Terima kasih! 🙏
 
               {/* Invoice Number */}
               <div className="pt-2 border-t border-gray-200">
-                <p className="text-xs text-gray-500 text-center">
+                <p className="text-xs text-gray-700 text-center">
                   Invoice No: <span className="font-mono font-semibold text-gray-700">
                     {incomeData.id ? `TR${incomeData.id.substring(0, 8).toUpperCase()}` : 'N/A'}
                   </span>
@@ -671,7 +671,7 @@ Terima kasih! 🙏
           </div>
 
           {/* Actions */}
-          <div className="flex gap-3">
+          <div className="flex gap-3 flex-shrink-0 sticky bottom-0 bg-white pt-4 pb-2 border-t border-gray-100 -mx-6 px-6">
             <button
               onClick={() => setShowPreview(true)}
               className="flex-1 px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-semibold flex items-center justify-center gap-2"
@@ -709,28 +709,39 @@ Terima kasih! 🙏
 
       {/* Print Preview Modal - Like Paper */}
       {showPreview && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-center justify-center p-4 overflow-auto">
-          <div className="relative w-full max-w-4xl">
-            {/* Close Button */}
-            <button
-              onClick={() => setShowPreview(false)}
-              className="absolute -top-12 right-0 px-4 py-2 bg-white rounded-lg shadow-lg hover:bg-gray-100 flex items-center gap-2 font-medium"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-              Tutup Preview
-            </button>
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] overflow-auto" style={{touchAction: 'pan-x pan-y pinch-zoom'}}>
+          <div className="min-h-screen flex flex-col items-center justify-start p-4 md:p-8">
+            {/* Close Button - Top Right (Fixed on mobile) */}
+            <div className="w-full max-w-4xl mb-4 flex items-center justify-between sticky top-4 z-10">
+              <button
+                onClick={() => setShowPreview(false)}
+                className="px-4 py-2.5 bg-white rounded-lg shadow-lg hover:bg-gray-100 flex items-center gap-2 font-semibold text-gray-900"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+                Kembali
+              </button>
+              <button
+                onClick={() => setShowPreview(false)}
+                className="w-10 h-10 bg-red-600 text-white rounded-lg shadow-lg hover:bg-red-700 flex items-center justify-center"
+                aria-label="Tutup"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
 
-            {/* Paper Preview */}
-            <div className="bg-white rounded-lg shadow-2xl overflow-hidden mt-4">
+            {/* Paper Preview - Scrollable & Zoomable */}
+            <div className="bg-white rounded-lg shadow-2xl overflow-auto w-full max-w-4xl" style={{maxHeight: 'calc(100vh - 120px)'}}>
               {printMode === 'receipt' ? (
                 // Receipt Preview (80mm thermal)
                 <div className="bg-gradient-to-b from-gray-50 to-white p-8 flex justify-center">
                   <div style={{width: '80mm'}} className="bg-white shadow-xl p-6 font-mono text-sm border border-gray-200">
                     <div className="text-center border-b-2 border-dashed border-gray-300 pb-3 mb-3">
                       <div className="font-bold text-base mb-1">{businessName.toUpperCase()}</div>
-                      <div className="text-xs text-gray-600">================================</div>
+                      <div className="text-xs text-gray-900">================================</div>
                     </div>
                     
                     <div className="space-y-1 text-xs mb-3">
@@ -812,55 +823,63 @@ Terima kasih! 🙏
                       </div>
                     )}
 
-                    <div className="text-xs text-gray-600 text-center border-t-2 border-dashed border-gray-300 pt-2 mt-3">
+                    <div className="text-xs text-gray-900 text-center border-t-2 border-dashed border-gray-300 pt-2 mt-3">
                       ================================
                       <div className="mt-1">Terima kasih atas kunjungan Anda</div>
                     </div>
                   </div>
                 </div>
               ) : (
-                // Invoice Preview (A4)
-                <div className="bg-gradient-to-b from-gray-50 to-white p-8">
-                  <div className="bg-white shadow-xl p-12 max-w-[210mm] mx-auto" style={{minHeight: '297mm'}}>
+                // Invoice Preview (A4) - Optimized Compact Layout
+                <div className="bg-gradient-to-b from-gray-50 to-white p-2 md:p-4">
+                  <div 
+                    className="bg-white shadow-xl mx-auto" 
+                    style={{
+                      width: '100%',
+                      maxWidth: '210mm',
+                      minHeight: '297mm',
+                      padding: typeof window !== 'undefined' && window.innerWidth < 768 ? '12px' : '32px'
+                    }}
+                  >
                     {/* Header */}
-                    <div className="text-center border-b-2 border-gray-800 pb-4 mb-6">
-                      <h1 className="text-3xl font-bold text-gray-800">INVOICE</h1>
-                      <p className="text-sm text-gray-600 mt-1">Nomor: INV-{incomeData.id?.substring(0, 8).toUpperCase() || 'N/A'}</p>
+                    <div className="text-center border-b-2 border-gray-800 pb-3 mb-4">
+                      <h1 className="text-2xl md:text-3xl font-bold text-black">INVOICE</h1>
+                      <p className="text-xs md:text-sm text-gray-900 mt-1">Nomor: INV-{incomeData.id?.substring(0, 8).toUpperCase() || 'N/A'}</p>
                     </div>
 
                     {/* Company & Customer Info */}
-                    <div className="grid grid-cols-2 gap-8 mb-8">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                       <div>
-                        <h3 className="font-bold text-lg mb-2">{businessName}</h3>
-                        <p className="text-sm text-gray-600">Jl. Contoh Alamat No. 123</p>
-                        <p className="text-sm text-gray-600">Jakarta Selatan, DKI Jakarta</p>
-                        <p className="text-sm text-gray-600">Telp: 021-1234567</p>
+                        <h3 className="font-bold text-base md:text-lg mb-1 text-black">{businessName}</h3>
+                        <p className="text-xs md:text-sm text-gray-900">Jl. Contoh Alamat No. 123</p>
+                        <p className="text-xs md:text-sm text-gray-900">Jakarta Selatan, DKI Jakarta</p>
+                        <p className="text-xs md:text-sm text-gray-900">Telp: 021-1234567</p>
                       </div>
-                      <div className="text-right">
-                        <p className="text-sm"><span className="font-semibold">Tanggal:</span> {new Date(incomeData.income_date).toLocaleDateString('id-ID')}</p>
+                      <div className="md:text-right">
+                        <p className="text-xs md:text-sm"><span className="font-semibold">Tanggal:</span> {new Date(incomeData.income_date).toLocaleDateString('id-ID')}</p>
                         {incomeData.due_date && (
-                          <p className="text-sm"><span className="font-semibold">Jatuh Tempo:</span> {new Date(incomeData.due_date).toLocaleDateString('id-ID')}</p>
+                          <p className="text-xs md:text-sm mt-1"><span className="font-semibold">Jatuh Tempo:</span> {new Date(incomeData.due_date).toLocaleDateString('id-ID')}</p>
                         )}
                       </div>
                     </div>
 
                     {/* Bill To */}
-                    <div className="border border-gray-300 rounded p-4 mb-8">
-                      <p className="font-bold text-sm text-gray-600 mb-2">Tagihan Kepada:</p>
-                      <p className="font-bold text-lg">{getCustomerName()}</p>
-                      {getCustomerPhone() && <p className="text-sm text-gray-600">Telp: {getCustomerPhone()}</p>}
+                    <div className="border border-gray-300 rounded p-3 mb-4">
+                      <p className="font-bold text-xs md:text-sm text-gray-900 mb-1">Tagihan Kepada:</p>
+                      <p className="font-bold text-base md:text-lg text-black">{getCustomerName()}</p>
+                      {getCustomerPhone() && <p className="text-xs md:text-sm text-gray-900">Telp: {getCustomerPhone()}</p>}
                     </div>
 
                     {/* Items Table */}
-                    <table className="w-full mb-8 border-collapse">
+                    <table className="w-full mb-4 border-collapse">
                       <thead>
                         <tr className="bg-gray-100 border-y-2 border-gray-800">
-                          <th className="text-left py-3 px-4 font-bold text-sm">No.</th>
-                          <th className="text-left py-3 px-4 font-bold text-sm">Deskripsi</th>
-                          <th className="text-center py-3 px-4 font-bold text-sm">Qty</th>
-                          <th className="text-center py-3 px-4 font-bold text-sm">Satuan</th>
-                          <th className="text-right py-3 px-4 font-bold text-sm">Harga/Unit</th>
-                          <th className="text-right py-3 px-4 font-bold text-sm">Jumlah</th>
+                          <th className="text-left py-2 px-2 md:px-3 font-bold text-xs md:text-sm">No.</th>
+                          <th className="text-left py-2 px-2 md:px-3 font-bold text-xs md:text-sm">Deskripsi</th>
+                          <th className="text-center py-2 px-2 md:px-3 font-bold text-xs md:text-sm">Qty</th>
+                          <th className="text-center py-2 px-2 md:px-3 font-bold text-xs md:text-sm">Satuan</th>
+                          <th className="text-right py-2 px-2 md:px-3 font-bold text-xs md:text-sm">Harga/Unit</th>
+                          <th className="text-right py-2 px-2 md:px-3 font-bold text-xs md:text-sm">Jumlah</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -877,23 +896,23 @@ Terima kasih! 🙏
                           if (parsedItems.length > 0) {
                             return parsedItems.map((item: any, idx: number) => (
                               <tr key={idx} className="border-b border-gray-200">
-                                <td className="py-3 px-4 text-sm">{idx + 1}</td>
-                                <td className="py-3 px-4 text-sm">{item.product_name}</td>
-                                <td className="py-3 px-4 text-sm text-center">{item.quantity}</td>
-                                <td className="py-3 px-4 text-sm text-center">{item.unit || 'pcs'}</td>
-                                <td className="py-3 px-4 text-sm text-right">{(item.price_per_unit || 0).toLocaleString('id-ID')}</td>
-                                <td className="py-3 px-4 text-sm text-right font-semibold">{(item.subtotal || 0).toLocaleString('id-ID')}</td>
+                                <td className="py-2 px-2 md:px-3 text-xs md:text-sm">{idx + 1}</td>
+                                <td className="py-2 px-2 md:px-3 text-xs md:text-sm">{item.product_name}</td>
+                                <td className="py-2 px-2 md:px-3 text-xs md:text-sm text-center">{item.quantity}</td>
+                                <td className="py-2 px-2 md:px-3 text-xs md:text-sm text-center">{item.unit || 'pcs'}</td>
+                                <td className="py-2 px-2 md:px-3 text-xs md:text-sm text-right">{(item.price_per_unit || 0).toLocaleString('id-ID')}</td>
+                                <td className="py-2 px-2 md:px-3 text-xs md:text-sm text-right font-semibold">{(item.subtotal || 0).toLocaleString('id-ID')}</td>
                               </tr>
                             ))
                           } else if (incomeData.product_name) {
                             return (
                               <tr className="border-b border-gray-200">
-                                <td className="py-3 px-4 text-sm">1</td>
-                                <td className="py-3 px-4 text-sm">{incomeData.product_name}</td>
-                                <td className="py-3 px-4 text-sm text-center">{incomeData.quantity || 1}</td>
-                                <td className="py-3 px-4 text-sm text-center">pcs</td>
-                                <td className="py-3 px-4 text-sm text-right">{(incomeData.price_per_unit || 0).toLocaleString('id-ID')}</td>
-                                <td className="py-3 px-4 text-sm text-right font-semibold">{incomeData.amount.toLocaleString('id-ID')}</td>
+                                <td className="py-2 px-2 md:px-3 text-xs md:text-sm">1</td>
+                                <td className="py-2 px-2 md:px-3 text-xs md:text-sm">{incomeData.product_name}</td>
+                                <td className="py-2 px-2 md:px-3 text-xs md:text-sm text-center">{incomeData.quantity || 1}</td>
+                                <td className="py-2 px-2 md:px-3 text-xs md:text-sm text-center">pcs</td>
+                                <td className="py-2 px-2 md:px-3 text-xs md:text-sm text-right">{(incomeData.price_per_unit || 0).toLocaleString('id-ID')}</td>
+                                <td className="py-2 px-2 md:px-3 text-xs md:text-sm text-right font-semibold">{incomeData.amount.toLocaleString('id-ID')}</td>
                               </tr>
                             )
                           }
@@ -902,27 +921,27 @@ Terima kasih! 🙏
                     </table>
 
                     {/* Summary */}
-                    <div className="flex justify-end mb-8">
-                      <div className="w-80">
+                    <div className="flex justify-end mb-4">
+                      <div className="w-full md:w-80">
                         {incomeData.subtotal > 0 && (
-                          <div className="flex justify-between py-2 text-sm border-b border-gray-200">
+                          <div className="flex justify-between py-1.5 text-xs md:text-sm border-b border-gray-200">
                             <span>Subtotal</span>
                             <span>Rp {incomeData.subtotal.toLocaleString('id-ID')}</span>
                           </div>
                         )}
                         {incomeData.discount > 0 && (
-                          <div className="flex justify-between py-2 text-sm border-b border-gray-200">
+                          <div className="flex justify-between py-1.5 text-xs md:text-sm border-b border-gray-200">
                             <span>Diskon</span>
                             <span>Rp {incomeData.discount.toLocaleString('id-ID')}</span>
                           </div>
                         )}
                         {incomeData.tax_ppn > 0 && (
-                          <div className="flex justify-between py-2 text-sm border-b border-gray-200">
+                          <div className="flex justify-between py-1.5 text-xs md:text-sm border-b border-gray-200">
                             <span>PPN 11%</span>
                             <span>Rp {incomeData.tax_ppn.toLocaleString('id-ID')}</span>
                           </div>
                         )}
-                        <div className="flex justify-between py-3 text-lg font-bold border-t-2 border-gray-800">
+                        <div className="flex justify-between py-2 text-base md:text-lg font-bold border-t-2 border-gray-800">
                           <span>TOTAL</span>
                           <span>Rp {incomeData.amount.toLocaleString('id-ID')}</span>
                         </div>
@@ -930,24 +949,24 @@ Terima kasih! 🙏
                     </div>
 
                     {/* Payment Info */}
-                    <div className="mb-8">
-                      <p className="font-bold text-sm mb-2">Pesan:</p>
-                      <p className="text-sm text-gray-700">Metode Pembayaran: {incomeData.payment_method}</p>
-                      <p className="text-sm text-gray-700">Status Pembayaran: <span className={incomeData.payment_status === 'Lunas' ? 'text-green-600 font-bold' : 'text-red-600 font-bold'}>{incomeData.payment_status}</span></p>
-                      <p className="text-sm text-gray-700 mt-2">Harap melakukan pembayaran sesuai nominal yang tertera.</p>
-                      <p className="text-sm text-gray-700">Terima kasih atas kepercayaan Anda.</p>
+                    <div className="mb-4">
+                      <p className="font-bold text-xs md:text-sm mb-1">Pesan:</p>
+                      <p className="text-xs md:text-sm text-gray-700">Metode Pembayaran: {incomeData.payment_method}</p>
+                      <p className="text-xs md:text-sm text-gray-700">Status Pembayaran: <span className={incomeData.payment_status === 'Lunas' ? 'text-green-600 font-bold' : 'text-red-600 font-bold'}>{incomeData.payment_status}</span></p>
+                      <p className="text-xs md:text-sm text-gray-700 mt-1">Harap melakukan pembayaran sesuai nominal yang tertera.</p>
+                      <p className="text-xs md:text-sm text-gray-700">Terima kasih atas kepercayaan Anda.</p>
                     </div>
 
                     {/* Signature */}
-                    <div className="flex justify-end mt-16">
+                    <div className="flex justify-end mt-8 md:mt-12">
                       <div className="text-center">
-                        <p className="text-sm mb-16">Dengan Hormat,</p>
-                        <p className="font-bold border-t border-gray-800 pt-2">{businessName}</p>
+                        <p className="text-xs md:text-sm mb-8 md:mb-12">Dengan Hormat,</p>
+                        <p className="font-bold border-t border-gray-800 pt-2 text-sm md:text-base">{businessName}</p>
                       </div>
                     </div>
 
                     {/* Footer */}
-                    <div className="text-center text-xs text-gray-500 mt-8 pt-4 border-t border-gray-200">
+                    <div className="text-center text-xs text-gray-900 mt-4 md:mt-6 pt-3 border-t border-gray-200">
                       Dokumen ini dibuat secara elektronik dan sah tanpa tanda tangan basah
                     </div>
                   </div>
