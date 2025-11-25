@@ -22,7 +22,6 @@ import {
   MinusCircleIcon,
   BuildingStorefrontIcon
 } from '@heroicons/react/24/outline'
-import { UserMenu } from '@/components/ui/UserMenu'
 
 interface SidebarProps {
   isOpen: boolean
@@ -116,30 +115,6 @@ export function Sidebar({ isOpen, onClose, collapsed, onToggleCollapse }: Sideba
   const router = useRouter()
   const supabase = createClient()
   const [loggingOut, setLoggingOut] = useState(false)
-  const [user, setUser] = useState<any>(null)
-  const [businessName, setBusinessName] = useState<string>('')
-
-  // Fetch user data and business name
-  useEffect(() => {
-    const loadUserData = async () => {
-      const { data: { user: currentUser } } = await supabase.auth.getUser()
-      if (currentUser) {
-        setUser(currentUser)
-        
-        // Fetch business name from profiles
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('business_name')
-          .eq('id', currentUser.id)
-          .maybeSingle()
-        
-        if (profile?.business_name) {
-          setBusinessName(profile.business_name)
-        }
-      }
-    }
-    loadUserData()
-  }, [supabase])
 
   const handleLogout = async () => {
     setLoggingOut(true)
@@ -271,11 +246,22 @@ export function Sidebar({ isOpen, onClose, collapsed, onToggleCollapse }: Sideba
             })}
           </nav>
 
-          {/* User Menu */}
+          {/* Logout Button */}
           <div className="p-3 border-t border-white/10">
-            {user && (
-              <UserMenu user={user} businessName={businessName} />
-            )}
+            <button
+              onClick={handleLogout}
+              disabled={loggingOut}
+              className={`
+                w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg
+                text-red-300 hover:bg-red-500/20 hover:text-red-200 transition-all
+                disabled:opacity-50 disabled:cursor-not-allowed
+                ${collapsed ? 'justify-center' : ''}
+              `}
+              title="Logout"
+            >
+              <ArrowLeftOnRectangleIcon className={`h-5 w-5 ${collapsed ? '' : 'mr-3'} flex-shrink-0`} />
+              {!collapsed && <span>{loggingOut ? 'Logging out...' : 'Logout'}</span>}
+            </button>
           </div>
         </div>
       </aside>

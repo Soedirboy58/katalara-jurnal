@@ -197,7 +197,7 @@ export function UserMenu({ user, businessName }: UserMenuProps) {
               className="w-10 h-10 rounded-full object-cover border-2 border-gray-200 dark:border-gray-700 group-hover:border-blue-500 transition-colors"
             />
           ) : (
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm border-2 border-gray-200 dark:border-gray-700 group-hover:border-blue-500 transition-colors">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#1088ff] to-[#f1c800] flex items-center justify-center text-white font-bold text-sm border-2 border-gray-200 dark:border-gray-700 group-hover:border-[#1088ff] transition-colors">
               {getInitials()}
             </div>
           )}
@@ -237,7 +237,7 @@ export function UserMenu({ user, businessName }: UserMenuProps) {
           {/* Menu Panel */}
           <div className="absolute left-0 bottom-full mb-2 w-80 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 z-50 animate-scale-in origin-bottom-left overflow-hidden">
             {/* Header */}
-            <div className="bg-gradient-to-r from-blue-500 to-purple-600 p-4 text-white">
+            <div className="bg-gradient-to-r from-[#1088ff] to-[#f1c800] p-4 text-white">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center font-bold text-lg">
                   {getInitials()}
@@ -246,9 +246,9 @@ export function UserMenu({ user, businessName }: UserMenuProps) {
                   <p className="font-bold text-sm truncate">
                     {user.user_metadata?.full_name || 'User'}
                   </p>
-                  <p className="text-xs text-blue-100 truncate">{user.email}</p>
+                  <p className="text-xs text-white/90 truncate">{user.email}</p>
                   {businessName && (
-                    <p className="text-xs text-blue-200 truncate mt-0.5">🏪 {businessName}</p>
+                    <p className="text-xs text-white/90 truncate mt-0.5">🏪 {businessName}</p>
                   )}
                 </div>
               </div>
@@ -276,12 +276,12 @@ export function UserMenu({ user, businessName }: UserMenuProps) {
                       }}
                       className="w-full px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors flex items-start gap-3 group"
                     >
-                      <div className="text-gray-500 dark:text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors mt-0.5">
+                      <div className="text-gray-500 dark:text-gray-400 group-hover:text-[#1088ff] dark:group-hover:text-[#1088ff] transition-colors mt-0.5">
                         {item.icon}
                       </div>
                       <div className="flex-1 text-left min-w-0">
                         <div className="flex items-center gap-2">
-                          <p className="text-sm font-medium text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                          <p className="text-sm font-medium text-gray-900 dark:text-white group-hover:text-[#1088ff] dark:group-hover:text-[#1088ff] transition-colors">
                             {item.label}
                           </p>
                           {item.badge && (
@@ -299,7 +299,7 @@ export function UserMenu({ user, businessName }: UserMenuProps) {
                         </p>
                       </div>
                       <svg
-                        className="w-4 h-4 text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors mt-1"
+                        className="w-4 h-4 text-gray-400 group-hover:text-[#1088ff] dark:group-hover:text-[#1088ff] transition-colors mt-1"
                         fill="none"
                         stroke="currentColor"
                         viewBox="0 0 24 24"

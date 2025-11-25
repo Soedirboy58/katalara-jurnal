@@ -254,12 +254,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 </button>
               </div>
             </div>
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2">
               {/* Notification Bell with Dropdown */}
               <div className="relative">
                 <button 
                   onClick={() => setNotificationOpen(!notificationOpen)}
-                  className="relative p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                  className="relative p-2 text-gray-600 hover:text-[#1088ff] hover:bg-blue-50 rounded-lg transition-all"
                 >
                   <BellIcon className="h-5 w-5" />
                   {unreadCount > 0 && (
@@ -371,48 +371,165 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 )}
               </div>
               
-              {/* User Name */}
-              <span className="text-sm font-medium text-gray-700 hidden md:block">{fullName || userEmail}</span>
-              
-              {/* Avatar Dropdown */}
+              {/* Avatar Dropdown - Katalara Style */}
               <div className="relative">
                 <button
                   onClick={() => setDropdownOpen(!dropdownOpen)}
-                  className="h-9 w-9 rounded-full bg-gradient-to-br from-blue-600 to-blue-700 flex items-center justify-center text-white font-semibold text-sm hover:shadow-lg transition-all ring-2 ring-blue-100"
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gradient-to-r from-[#1088ff] to-[#f1c800] hover:from-[#0d6ecc] hover:to-[#d1a800] transition-all shadow-md hover:shadow-lg"
                 >
-                  {(fullName || userEmail).charAt(0).toUpperCase()}
+                  <div className="h-8 w-8 rounded-full bg-white flex items-center justify-center text-[#1088ff] font-bold text-sm">
+                    {(fullName || userEmail).charAt(0).toUpperCase()}
+                  </div>
+                  <span className="text-sm font-semibold text-white hidden md:inline max-w-[120px] truncate">{fullName || userEmail}</span>
+                  <svg className={`h-4 w-4 text-white transition-transform hidden md:block ${dropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
                 </button>
                 
                 {/* Dropdown Menu */}
                 {dropdownOpen && (
                   <>
                     <div className="fixed inset-0 z-40" onClick={() => setDropdownOpen(false)}></div>
-                    <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-gray-200 py-2 z-50">
-                      <div className="px-4 py-3 border-b border-gray-100">
-                        <p className="text-sm font-semibold text-gray-900">{fullName || 'User'}</p>
-                        <p className="text-xs text-gray-500 truncate">{userEmail}</p>
+                    <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-2xl border border-gray-200 z-50 overflow-hidden animate-scale-in">
+                      {/* Header with gradient */}
+                      <div className="bg-gradient-to-r from-[#1088ff] to-[#f1c800] p-4 text-white">
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center font-bold text-lg">
+                            {(fullName || userEmail).charAt(0).toUpperCase()}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-bold text-sm truncate">{fullName || 'User'}</p>
+                            <p className="text-xs text-white/90 truncate">{userEmail}</p>
+                          </div>
+                        </div>
                       </div>
-                      <button
-                        onClick={() => {
-                          setDropdownOpen(false)
-                          router.push('/dashboard/profile')
-                        }}
-                        className="w-full flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 transition-colors"
-                      >
-                        <UserCircleIcon className="h-5 w-5 mr-3 text-gray-500" />
-                        Profile Settings
-                      </button>
-                      <button
-                        onClick={() => {
-                          setDropdownOpen(false)
-                          router.push('/dashboard/settings')
-                        }}
-                        className="w-full flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 transition-colors"
-                      >
-                        <Cog6ToothIcon className="h-5 w-5 mr-3 text-gray-500" />
-                        General Settings
-                      </button>
+                      
+                      {/* Menu Items */}
+                      <div className="py-2">
+                        {/* Account Section */}
+                        <div className="px-4 py-2">
+                          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Account</p>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setDropdownOpen(false)
+                            router.push('/dashboard/profile')
+                          }}
+                          className="w-full flex items-start gap-3 px-4 py-3 hover:bg-gray-50 transition-colors group"
+                        >
+                          <UserCircleIcon className="h-5 w-5 text-gray-500 group-hover:text-[#1088ff] transition-colors mt-0.5" />
+                          <div className="flex-1 text-left">
+                            <p className="text-sm font-medium text-gray-900 group-hover:text-[#1088ff] transition-colors">Profile</p>
+                            <p className="text-xs text-gray-500 truncate">Edit profil & info bisnis</p>
+                          </div>
+                          <svg className="w-4 h-4 text-gray-400 group-hover:text-[#1088ff] transition-colors mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={() => {
+                            setDropdownOpen(false)
+                            router.push('/dashboard/general-settings')
+                          }}
+                          className="w-full flex items-start gap-3 px-4 py-3 hover:bg-gray-50 transition-colors group"
+                        >
+                          <Cog6ToothIcon className="h-5 w-5 text-gray-500 group-hover:text-[#1088ff] transition-colors mt-0.5" />
+                          <div className="flex-1 text-left">
+                            <p className="text-sm font-medium text-gray-900 group-hover:text-[#1088ff] transition-colors">General Settings</p>
+                            <p className="text-xs text-gray-500 truncate">Tema, bahasa, notifikasi</p>
+                          </div>
+                          <svg className="w-4 h-4 text-gray-400 group-hover:text-[#1088ff] transition-colors mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </button>
+                        
+                        <div className="my-2 border-t border-gray-200"></div>
+                        
+                        {/* Activity Section */}
+                        <div className="px-4 py-2">
+                          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Activity</p>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setDropdownOpen(false)
+                            router.push('/dashboard/activity-log')
+                          }}
+                          className="w-full flex items-start gap-3 px-4 py-3 hover:bg-gray-50 transition-colors group"
+                        >
+                          <svg className="w-5 h-5 text-gray-500 group-hover:text-[#1088ff] transition-colors mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          <div className="flex-1 text-left">
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-medium text-gray-900 group-hover:text-[#1088ff] transition-colors">Activity Log</p>
+                              <span className="text-xs px-1.5 py-0.5 rounded-full font-semibold bg-green-100 text-green-700">NEW</span>
+                            </div>
+                            <p className="text-xs text-gray-500 truncate">Riwayat aktivitas</p>
+                          </div>
+                          <svg className="w-4 h-4 text-gray-400 group-hover:text-[#1088ff] transition-colors mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </button>
+                        
+                        <div className="my-2 border-t border-gray-200"></div>
+                        
+                        {/* Support Section */}
+                        <div className="px-4 py-2">
+                          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Support</p>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setDropdownOpen(false)
+                            router.push('/dashboard/help')
+                          }}
+                          className="w-full flex items-start gap-3 px-4 py-3 hover:bg-gray-50 transition-colors group"
+                        >
+                          <svg className="w-5 h-5 text-gray-500 group-hover:text-[#1088ff] transition-colors mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z" />
+                          </svg>
+                          <div className="flex-1 text-left">
+                            <p className="text-sm font-medium text-gray-900 group-hover:text-[#1088ff] transition-colors">Help & Support</p>
+                            <p className="text-xs text-gray-500 truncate">Dokumentasi & bantuan</p>
+                          </div>
+                          <svg className="w-4 h-4 text-gray-400 group-hover:text-[#1088ff] transition-colors mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </button>
+                      </div>
+                      
+                      {/* Footer - Logout */}
+                      <div className="border-t border-gray-200 p-2">
+                        <button
+                          onClick={async () => {
+                            setDropdownOpen(false)
+                            await supabase.auth.signOut()
+                            router.push('/login')
+                          }}
+                          className="w-full px-4 py-3 rounded-xl hover:bg-red-50 transition-colors flex items-center gap-3 group"
+                        >
+                          <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                          </svg>
+                          <span className="text-sm font-semibold text-red-600">Logout</span>
+                        </button>
+                      </div>
                     </div>
+                    
+                    <style jsx>{`
+                      @keyframes scale-in {
+                        from {
+                          opacity: 0;
+                          transform: scale(0.95) translateY(-10px);
+                        }
+                        to {
+                          opacity: 1;
+                          transform: scale(1) translateY(0);
+                        }
+                      }
+                      .animate-scale-in {
+                        animation: scale-in 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+                      }
+                    `}</style>
                   </>
                 )}
               </div>
