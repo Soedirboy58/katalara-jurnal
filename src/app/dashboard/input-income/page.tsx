@@ -291,19 +291,32 @@ export default function InputIncomePage() {
     console.log('🔄 Fetching transactions...')
     setLoadingTransactions(true)
     try {
-      // Fetch last 50 transactions to show more history
-      const response = await fetch('/api/income?limit=50&offset=0&sort=income_date&order=desc')
+      // Fetch last 100 transactions sorted by income_date descending
+      const url = '/api/income?limit=100&offset=0'
+      console.log('📡 API URL:', url)
+      
+      const response = await fetch(url)
       const result = await response.json()
       
-      console.log('📊 Transactions fetched:', result.success ? `${result.data?.length || 0} items` : result.error)
+      console.log('📊 API Response:', { 
+        success: result.success, 
+        count: result.data?.length || 0,
+        firstItem: result.data?.[0]?.income_date,
+        lastItem: result.data?.[result.data?.length - 1]?.income_date
+      })
       
       if (result.success) {
-        setTransactions(result.data || [])
+        // Sort by date descending on client side
+        const sorted = (result.data || []).sort((a: any, b: any) => {
+          return new Date(b.income_date).getTime() - new Date(a.income_date).getTime()
+        })
+        console.log('✅ Setting', sorted.length, 'transactions')
+        setTransactions(sorted)
       } else {
-        console.error('Failed to fetch transactions:', result.error)
+        console.error('❌ Failed to fetch transactions:', result.error)
       }
     } catch (error) {
-      console.error('Error fetching transactions:', error)
+      console.error('❌ Error fetching transactions:', error)
     } finally {
       setLoadingTransactions(false)
     }
@@ -2557,7 +2570,6 @@ export default function InputIncomePage() {
                       type="date"
                       value={dueDate}
                       onChange={(e) => setDueDate(e.target.value)}
-                      min={new Date().toISOString().split('T')[0]}
                       required={paymentType === 'tempo'}
                       className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 font-semibold"
                     />
