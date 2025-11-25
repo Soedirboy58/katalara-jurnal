@@ -36,6 +36,10 @@ export default function InputIncomePage() {
   const [selectedProductId, setSelectedProductId] = useState('')
   const [quantity, setQuantity] = useState('')
   const [pricePerUnit, setPricePerUnit] = useState('')
+  const [buyPrice, setBuyPrice] = useState(0) // NEW: Display buy price
+  const [sellPrice, setSellPrice] = useState('') // NEW: Editable sell price
+  const [lockSellPrice, setLockSellPrice] = useState(false) // NEW: Lock sell price permanently
+  const [currentStock, setCurrentStock] = useState(0) // NEW: Display current stock
   const [customerName, setCustomerName] = useState('')
   const [customUnit, setCustomUnit] = useState('') // User-defined unit
   
@@ -65,6 +69,16 @@ export default function InputIncomePage() {
   // 🟢 NEW: Quick Add Product Modal (FIXED: Full Fields)
   // ============================================
   const [showQuickAddModal, setShowQuickAddModal] = useState(false)
+  
+  // ============================================
+  // 🆕 NEW: Quick Add Customer Modal
+  // ============================================
+  const [showQuickAddCustomer, setShowQuickAddCustomer] = useState(false)
+  const [newCustomerName, setNewCustomerName] = useState('')
+  const [newCustomerPhone, setNewCustomerPhone] = useState('')
+  const [newCustomerEmail, setNewCustomerEmail] = useState('')
+  const [newCustomerAddress, setNewCustomerAddress] = useState('')
+  const [savingCustomer, setSavingCustomer] = useState(false)
   const [quickAddType, setQuickAddType] = useState<'physical' | 'service'>('physical')
   const [quickProductName, setQuickProductName] = useState('')
   const [quickProductBuyPrice, setQuickProductBuyPrice] = useState('')
@@ -130,9 +144,14 @@ export default function InputIncomePage() {
   // Summary & Tax
   const [discountPercent, setDiscountPercent] = useState(0)
   const [discountAmount, setDiscountAmount] = useState(0)
+  const [discountMode, setDiscountMode] = useState<'percent' | 'nominal'>('percent') // NEW: Toggle % or Rp
   const [taxPPN, setTaxPPN] = useState(11) // PPN 11%
   const [taxPPh, setTaxPPh] = useState(0) // PPh custom
+  const [pphPreset, setPphPreset] = useState<'0' | '1' | '2' | '3' | 'custom'>('0') // NEW: PPh preset
+  const [pphAmount, setPphAmount] = useState(0) // NEW: PPh calculated amount
   const [otherFees, setOtherFees] = useState(0) // Biaya pengiriman, dll
+  const [showOtherFees, setShowOtherFees] = useState(false) // NEW: Toggle other fees section
+  const [otherFeesItems, setOtherFeesItems] = useState<Array<{id: string, label: string, amount: number}>>([]) // NEW: Multiple other fees
   const [includeTax, setIncludeTax] = useState(false) // Toggle harga termasuk pajak
   const [downPayment, setDownPayment] = useState(0) // Uang muka
   
@@ -407,12 +426,39 @@ export default function InputIncomePage() {
     const discount = calculateDiscount()
     const ppn = calculatePPN()
     const pph = calculatePPh()
-    return subtotal - discount + ppn + pph + otherFees
+    const otherFeesTotal = otherFeesItems.reduce((sum, f) => sum + f.amount, 0)
+    return subtotal - discount + ppn + pph + otherFeesTotal
   }
   
   const calculateRemaining = () => {
     return calculateGrandTotal() - downPayment
   }
+  
+  // ============================================
+  // 🔄 AUTO-CALCULATIONS
+  // ============================================
+  // Auto-calculate discount amount from percent
+  useEffect(() => {
+    if (discountMode === 'percent' && discountPercent > 0) {
+      const subtotal = calculateSubtotal()
+      const discount = (subtotal * discountPercent) / 100
+      setDiscountAmount(discount)
+    } else if (discountMode === 'nominal') {
+      // In nominal mode, discountAmount is set directly by user
+      setDiscountPercent(0)
+    }
+  }, [calculateSubtotal(), discountPercent, discountMode])
+  
+  // Auto-calculate PPh from preset or custom percent
+  useEffect(() => {
+    if (taxPPh > 0) {
+      const base = calculateSubtotal() - calculateDiscount()
+      const pph = (base * taxPPh) / 100
+      setPphAmount(pph)
+    } else {
+      setPphAmount(0)
+    }
+  }, [calculateSubtotal(), calculateDiscount(), taxPPh])
   
   // Add item to list
   const handleAddItem = () => {
@@ -689,9 +735,13 @@ export default function InputIncomePage() {
           line_items: JSON.stringify(lineItems),
           subtotal: calculateSubtotal(),
           discount: calculateDiscount(),
+          discount_mode: discountMode,
           tax_ppn: calculatePPN(),
           tax_pph: calculatePPh(),
-          other_fees: otherFees,
+          pph_percent: taxPPh,
+          pph_amount: pphAmount,
+          other_fees: otherFeesItems.reduce((sum, f) => sum + f.amount, 0),
+          other_fees_details: JSON.stringify(otherFeesItems),
           down_payment: downPayment,
           remaining: remaining
         }
@@ -706,6 +756,23 @@ export default function InputIncomePage() {
         
         if (!result.success) throw new Error(result.error)
         
+        // Save locked sell price to product if checkbox is checked
+        if (lockSellPrice && selectedProductId && sellPrice) {
+          try {
+            const sellPriceValue = parseFloat(sellPrice.replace(/\./g, '')) || 0
+            await fetch(`/api/products/${selectedProductId}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                saved_sell_price: sellPriceValue,
+                price: sellPriceValue // Also update main price
+              })
+            })
+          } catch (err) {
+            console.error('Failed to save locked sell price:', err)
+          }
+        }
+        
         showToast('success', isEditMode ? '✅ Transaksi berhasil diupdate!' : '✅ Transaksi berhasil disimpan!')
         
         // Reset form and edit mode
@@ -716,9 +783,22 @@ export default function InputIncomePage() {
         setCustomerName('')
         setCustomerPhone('')
         setIsAnonymous(false)
+        setSelectedProductId('')
+        setBuyPrice(0)
+        setSellPrice('')
+        setLockSellPrice(false)
+        setCurrentStock(0)
+        setQuantity('')
+        setPricePerUnit('')
         setDiscountPercent(0)
         setDiscountAmount(0)
+        setDiscountMode('percent')
+        setTaxPPh(0)
+        setPphPreset('0')
+        setPphAmount(0)
         setOtherFees(0)
+        setOtherFeesItems([])
+        setShowOtherFees(false)
         setDownPayment(0)
         setNotes('')
         setTransactionNumber(`TR/${new Date().getFullYear()}/${String(Date.now()).slice(-6)}`)
@@ -1087,8 +1167,18 @@ export default function InputIncomePage() {
                     setSelectedProductId(e.target.value)
                     const product = products.find((p: Product) => p.id === e.target.value)
                     if (product) {
-                      setPricePerUnit(product.price.toString())
-                      // FIXED: Set unit from product database
+                      // Set buy price (cost_price from database)
+                      setBuyPrice((product as any).cost_price || 0)
+                      
+                      // Set sell price - use saved_sell_price if exists, otherwise use default price
+                      const savedSellPrice = (product as any).saved_sell_price || product.price
+                      setPricePerUnit(savedSellPrice.toString())
+                      setSellPrice(savedSellPrice.toString())
+                      
+                      // Set current stock
+                      setCurrentStock((product as any).stock || 0)
+                      
+                      // Set unit from product database
                       setCustomUnit((product as any).unit || (category === 'product_sales' ? 'pcs' : 'jam'))
                     }
                   }}
@@ -1238,6 +1328,61 @@ export default function InputIncomePage() {
                       }`}>
                         {profit > 0 ? '+' : ''}Rp {profit.toLocaleString('id-ID')}
                       </span>
+                    </div>
+                  </div>
+                  
+                  {/* Stock Display & Sell Price Lock */}
+                  <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {/* Current Stock Display */}
+                    <div className="bg-white rounded-lg px-3 py-2 border-2 border-indigo-200">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="text-xs font-semibold text-gray-600">📦 Stok Saat Ini</div>
+                          <div className={`text-xl font-bold mt-1 ${
+                            currentStock > 10 ? 'text-green-700' : 
+                            currentStock > 0 ? 'text-yellow-700' : 
+                            'text-red-700'
+                          }`}>
+                            {currentStock.toLocaleString('id-ID')} {customUnit || 'unit'}
+                          </div>
+                        </div>
+                        <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
+                          currentStock > 10 ? 'bg-green-100' : 
+                          currentStock > 0 ? 'bg-yellow-100' : 
+                          'bg-red-100'
+                        }`}>
+                          <span className="text-2xl">
+                            {currentStock > 10 ? '✅' : currentStock > 0 ? '⚠️' : '❌'}
+                          </span>
+                        </div>
+                      </div>
+                      {parseFloat(quantity.replace(/\./g, '') || '0') > currentStock && (
+                        <div className="mt-2 bg-red-50 border border-red-200 rounded px-2 py-1">
+                          <p className="text-xs text-red-700 font-medium">
+                            ⚠️ Jumlah melebihi stok! Sisa: {currentStock}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Lock Sell Price Checkbox */}
+                    <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg px-3 py-2 border-2 border-purple-200">
+                      <label className="flex items-center gap-3 cursor-pointer group h-full">
+                        <input
+                          type="checkbox"
+                          checked={lockSellPrice}
+                          onChange={(e) => setLockSellPrice(e.target.checked)}
+                          className="w-5 h-5 rounded border-2 border-purple-400 text-purple-600 focus:ring-purple-500"
+                        />
+                        <div className="flex-1">
+                          <div className="text-xs font-semibold text-gray-700 group-hover:text-purple-700 transition-colors">
+                            🔒 Tetapkan Harga Jual Permanen
+                          </div>
+                          <div className="text-xs text-gray-600 mt-1">
+                            Harga jual ini akan otomatis muncul di transaksi berikutnya
+                          </div>
+                        </div>
+                      </label>
                     </div>
                   </div>
                 </div>
@@ -1982,125 +2127,311 @@ export default function InputIncomePage() {
             SUMMARY CARD (FOR MULTI-ITEMS)
             ============================================ */}
         {['product_sales', 'service_income'].includes(category) && lineItems.length > 0 && (
-          <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl shadow-lg p-6">
+          <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 rounded-2xl shadow-xl p-6 border-2 border-indigo-200">
             {/* Header with Icon */}
-            <div className="flex items-center gap-2 mb-6">
-              <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
-                <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                </svg>
-              </div>
-              <h3 className="text-lg font-bold text-gray-800">Ringkasan Pembayaran</h3>
-            </div>
+            <h2 className="text-xl font-bold text-gray-800 mb-5 flex items-center gap-2">
+              <svg className="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+              </svg>
+              Ringkasan Pembayaran
+            </h2>
 
-            <div className="bg-white rounded-xl shadow-sm p-5 space-y-4">
+            <div className="bg-white/80 backdrop-blur-sm rounded-xl p-5 space-y-3 shadow-inner">
               {/* Subtotal */}
-              <div className="flex justify-between items-center text-gray-700">
-                <span className="font-medium">Subtotal:</span>
-                <span className="font-semibold text-lg">Rp {calculateSubtotal().toLocaleString('id-ID')}</span>
+              <div className="flex justify-between items-center pb-3">
+                <span className="text-gray-700 font-semibold">Subtotal</span>
+                <span className="text-xl font-bold text-gray-900">
+                  Rp {calculateSubtotal().toLocaleString('id-ID')}
+                </span>
               </div>
 
-              {/* Discount Section */}
-              <div className="border-t border-gray-200 pt-4">
-                <div className="flex justify-between items-center mb-3">
-                  <span className="font-medium text-gray-700">Diskon:</span>
-                  <div className="flex gap-2 items-center">
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      value={discountPercent}
-                      onChange={(e) => {
-                        const val = parseInt(e.target.value) || 0
-                        setDiscountPercent(Math.min(100, Math.max(0, val)))
-                      }}
-                      className="w-20 px-3 py-2 text-right border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-red-400 focus:border-red-400 transition-all"
-                      placeholder="0"
-                    />
-                    <span className="text-gray-600 font-medium">%</span>
+              <div className="border-t-2 border-gray-200 pt-3 space-y-3">
+                {/* Discount with Mode Toggle */}
+                <div className="bg-gradient-to-r from-orange-50 to-red-50 rounded-lg p-3 border border-orange-200">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-gray-700 font-semibold text-sm">💸 Diskon</span>
+                    {/* Toggle % or Rp */}
+                    <div className="flex items-center gap-1 bg-white rounded-lg p-1 shadow-sm">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDiscountMode('percent')
+                          setDiscountAmount(0)
+                          setDiscountPercent(0)
+                        }}
+                        className={`px-3 py-1 rounded text-xs font-semibold transition-all ${
+                          discountMode === 'percent' 
+                            ? 'bg-orange-500 text-white shadow' 
+                            : 'text-gray-600 hover:bg-gray-100'
+                        }`}
+                      >
+                        %
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDiscountMode('nominal')
+                          setDiscountPercent(0)
+                          setDiscountAmount(0)
+                        }}
+                        className={`px-3 py-1 rounded text-xs font-semibold transition-all ${
+                          discountMode === 'nominal' 
+                            ? 'bg-orange-500 text-white shadow' 
+                            : 'text-gray-600 hover:bg-gray-100'
+                        }`}
+                      >
+                        Rp
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center justify-between">
+                    {discountMode === 'percent' ? (
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          step="0.1"
+                          max="100"
+                          value={discountPercent || ''}
+                          onChange={(e) => {
+                            const val = parseFloat(e.target.value) || 0
+                            setDiscountPercent(Math.min(val, 100))
+                          }}
+                          placeholder="0"
+                          className="w-20 px-3 py-2 border-2 border-orange-300 rounded-lg text-sm text-center font-bold focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                        />
+                        <span className="text-gray-700 font-semibold">%</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <span className="text-gray-600 text-sm">Rp</span>
+                        <input
+                          type="number"
+                          inputMode="numeric"
+                          step="1000"
+                          max={calculateSubtotal()}
+                          value={discountAmount || ''}
+                          onChange={(e) => {
+                            const val = parseFloat(e.target.value) || 0
+                            setDiscountAmount(Math.min(val, calculateSubtotal()))
+                          }}
+                          placeholder="0"
+                          className="w-32 px-3 py-2 border-2 border-orange-300 rounded-lg text-sm text-right font-bold focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                        />
+                      </div>
+                    )}
+                    
+                    {calculateDiscount() > 0 && (
+                      <span className="text-red-600 font-bold text-sm">
+                        - Rp {calculateDiscount().toLocaleString('id-ID')}
+                      </span>
+                    )}
                   </div>
                 </div>
-                <div className="flex justify-between text-red-600 font-semibold">
-                  <span>Jumlah Diskon:</span>
-                  <span>- Rp {calculateDiscount().toLocaleString('id-ID')}</span>
-                </div>
-              </div>
 
-              {/* Tax Section */}
-              <div className="border-t border-gray-200 pt-4 space-y-4">
                 {/* PPN Checkbox */}
-                <div>
-                  <div className="flex items-center justify-between">
-                    <label className="flex items-center gap-3 cursor-pointer group">
+                <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-3 border border-green-200">
+                  <label className="flex items-center justify-between cursor-pointer group">
+                    <div className="flex items-center gap-3">
                       <input
                         type="checkbox"
                         checked={includeTax}
                         onChange={(e) => setIncludeTax(e.target.checked)}
-                        className="w-5 h-5 rounded border-2 border-gray-300 text-red-600 focus:ring-2 focus:ring-red-500 cursor-pointer transition-all"
+                        className="w-5 h-5 rounded border-2 border-green-400 text-green-600 focus:ring-green-500 focus:ring-offset-0"
                       />
-                      <span className="font-medium text-gray-700 group-hover:text-red-600 transition-colors">PPN 11%</span>
-                    </label>
+                      <div>
+                        <span className="text-gray-700 font-semibold text-sm group-hover:text-green-700 transition-colors">✅ PPN 11%</span>
+                        <p className="text-xs text-gray-500">Pajak Pertambahan Nilai</p>
+                      </div>
+                    </div>
                     {includeTax && (
-                      <span className="text-red-600 font-bold text-lg">
+                      <span className="text-green-700 font-bold text-sm">
                         + Rp {calculatePPN().toLocaleString('id-ID')}
                       </span>
                     )}
-                  </div>
-                  <p className="text-xs text-gray-500 ml-8 mt-1">Pajak Pertambahan Nilai</p>
+                  </label>
                 </div>
 
-                {/* PPh */}
-                <div className="flex justify-between items-center">
-                  <span className="font-medium text-gray-700">PPh:</span>
-                  <div className="flex gap-2 items-center">
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      value={taxPPh}
-                      onChange={(e) => {
-                        const val = parseInt(e.target.value) || 0
-                        setTaxPPh(Math.min(100, Math.max(0, val)))
-                      }}
-                      className="w-20 px-3 py-2 text-right border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-400 transition-all"
-                      placeholder="0"
-                    />
-                    <span className="text-gray-600 font-medium">%</span>
-                    {taxPPh > 0 && (
-                      <span className="text-red-600 font-bold ml-2">
-                        + Rp {calculatePPh().toLocaleString('id-ID')}
-                      </span>
-                    )}
+                {/* PPh with Preset */}
+                <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-lg p-3 border border-blue-200">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-gray-700 font-semibold text-sm">📊 PPh</span>
+                    <div className="flex items-center gap-1">
+                      {(['0', '1', '2', '3', 'custom'] as const).map((preset) => (
+                        <button
+                          key={preset}
+                          type="button"
+                          onClick={() => {
+                            setPphPreset(preset)
+                            if (preset !== 'custom') {
+                              setTaxPPh(parseInt(preset))
+                            }
+                          }}
+                          className={`px-2 py-1 rounded text-xs font-semibold transition-all ${
+                            pphPreset === preset
+                              ? 'bg-blue-500 text-white shadow'
+                              : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-300'
+                          }`}
+                        >
+                          {preset === 'custom' ? 'Custom' : `${preset}%`}
+                        </button>
+                      ))}
+                    </div>
                   </div>
+                  
+                  {pphPreset === 'custom' && (
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          step="0.1"
+                          max="100"
+                          value={taxPPh || ''}
+                          onChange={(e) => {
+                            const val = parseFloat(e.target.value) || 0
+                            setTaxPPh(Math.min(val, 100))
+                          }}
+                          placeholder="0"
+                          className="w-20 px-3 py-2 border-2 border-blue-300 rounded-lg text-sm text-center font-bold focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                        <span className="text-gray-700 font-semibold">%</span>
+                      </div>
+                      {pphAmount > 0 && (
+                        <span className="text-blue-700 font-bold text-sm">
+                          Rp {pphAmount.toLocaleString('id-ID')}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  
+                  {pphPreset !== 'custom' && pphAmount > 0 && (
+                    <div className="text-right text-blue-700 font-bold text-sm mt-1">
+                      Rp {pphAmount.toLocaleString('id-ID')}
+                    </div>
+                  )}
                 </div>
 
-                {/* Other Fees */}
-                <div className="flex justify-between items-center">
-                  <span className="font-medium text-gray-700">Biaya Lain:</span>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium">Rp</span>
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      value={formatNumber(otherFees.toString())}
-                      onChange={(e) => {
-                        const val = e.target.value.replace(/\./g, '')
-                        setOtherFees(parseInt(val) || 0)
-                      }}
-                      className="w-40 pl-9 pr-3 py-2 text-right border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-400 transition-all"
-                      placeholder="0"
-                    />
-                  </div>
+                {/* Other Fees - Collapsible with Multiple Items */}
+                <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-3 border border-purple-200">
+                  {!showOtherFees ? (
+                    <button
+                      type="button"
+                      onClick={() => setShowOtherFees(true)}
+                      className="w-full flex items-center justify-between text-left group"
+                    >
+                      <span className="text-gray-700 font-semibold text-sm group-hover:text-purple-700 transition-colors">💼 Biaya Lain</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-500">Ongkir, Packing, dll</span>
+                        <svg className="w-5 h-5 text-purple-600 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
+                      </div>
+                    </button>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-gray-700 font-semibold text-sm">💼 Biaya Lain</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowOtherFees(false)
+                            setOtherFeesItems([])
+                          }}
+                          className="text-red-500 hover:text-red-700 text-xs font-semibold"
+                        >
+                          Hapus Semua
+                        </button>
+                      </div>
+                      
+                      {otherFeesItems.map((fee) => (
+                        <div key={fee.id} className="flex items-center gap-2 bg-white rounded-lg p-2 border border-purple-200">
+                          <input
+                            type="text"
+                            value={fee.label}
+                            onChange={(e) => {
+                              setOtherFeesItems(prev => prev.map(f => 
+                                f.id === fee.id ? {...f, label: e.target.value} : f
+                              ))
+                            }}
+                            placeholder="Nama biaya"
+                            className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-purple-500"
+                          />
+                          <input
+                            type="number"
+                            inputMode="numeric"
+                            step="1000"
+                            value={fee.amount || ''}
+                            onChange={(e) => {
+                              const val = parseFloat(e.target.value) || 0
+                              setOtherFeesItems(prev => prev.map(f => 
+                                f.id === fee.id ? {...f, amount: val} : f
+                              ))
+                            }}
+                            placeholder="0"
+                            className="w-28 px-2 py-1 border border-gray-300 rounded text-sm text-right font-semibold focus:ring-2 focus:ring-purple-500"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setOtherFeesItems(prev => prev.filter(f => f.id !== fee.id))
+                            }}
+                            className="text-red-500 hover:text-red-700 p-1"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </div>
+                      ))}
+                      
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setOtherFeesItems(prev => [...prev, {
+                            id: Date.now().toString(),
+                            label: '',
+                            amount: 0
+                          }])
+                        }}
+                        className="w-full py-2 bg-purple-500 hover:bg-purple-600 text-white text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
+                        Tambah Biaya
+                      </button>
+                      
+                      {otherFeesItems.length > 0 && (
+                        <div className="text-right text-purple-700 font-bold text-sm pt-1 border-t border-purple-200">
+                          Total: Rp {otherFeesItems.reduce((sum, f) => sum + f.amount, 0).toLocaleString('id-ID')}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 
-              {/* Grand Total */}
-              <div className="border-t-2 border-gray-300 pt-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-xl font-bold text-gray-900">TOTAL:</span>
-                  <span className="text-3xl font-bold text-red-600">
+            </div>
+            
+            {/* Grand Total - Prominent Display */}
+            <div className="mt-4 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 rounded-xl p-4 shadow-lg">
+              <div className="flex justify-between items-center">
+                <div>
+                  <span className="text-white/80 text-xs font-semibold uppercase tracking-wider block mb-1">Grand Total</span>
+                  <span className="text-2xl font-bold text-white">
                     Rp {calculateGrandTotal().toLocaleString('id-ID')}
                   </span>
                 </div>
+                <svg className="w-10 h-10 text-white/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
               </div>
+            </div>
+
+            {/* Action Summary */}
+            <div className="mt-4 pt-4 border-t border-gray-200 text-sm text-gray-600 space-y-1">
 
               {/* Action Summary */}
               <div className="mt-4 pt-4 border-t border-gray-200 text-sm text-gray-600 space-y-1">
@@ -2227,6 +2558,26 @@ export default function InputIncomePage() {
                     <p className="text-xs text-gray-500 mt-2">
                       💡 Pilih jangka waktu standar atau set manual di bawah
                     </p>
+                  </div>
+
+                  {/* Due Date Display & Manual Input */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      📅 Tanggal Jatuh Tempo <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="date"
+                      value={dueDate}
+                      onChange={(e) => setDueDate(e.target.value)}
+                      min={new Date().toISOString().split('T')[0]}
+                      required={paymentType === 'tempo'}
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 font-semibold"
+                    />
+                    {dueDate && (
+                      <p className="text-sm text-orange-600 mt-2 font-medium">
+                        ⏰ Jatuh tempo: {new Date(dueDate).toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                      </p>
+                    )}
                   </div>
 
                   <div>
