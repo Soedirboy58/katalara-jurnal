@@ -10,6 +10,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useProducts } from '@/hooks/useProducts'
 import SupplierModal from '@/components/modals/SupplierModal'
 import POPreviewModal from '@/components/expenses/POPreviewModal'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 
 interface Product {
   id: string
@@ -98,6 +99,17 @@ export default function InputExpensesPageRedesigned() {
   // 💳 STATE: PAYMENT
   // ============================================
   const [paymentStatus, setPaymentStatus] = useState<'Lunas' | 'Tempo'>('Lunas')
+  
+  // ============================================
+  // 🆕 CONFIRM DIALOG STATE
+  // ============================================
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false)
+  const [confirmDialogConfig, setConfirmDialogConfig] = useState({
+    title: '',
+    message: '',
+    onConfirm: () => {},
+    variant: 'danger' as 'danger' | 'warning' | 'info'
+  })
   const [paymentMethod, setPaymentMethod] = useState('Tunai')
   const [downPayment, setDownPayment] = useState(0)
   const [remainingPayment, setRemainingPayment] = useState(0)
@@ -1897,10 +1909,17 @@ export default function InputExpensesPageRedesigned() {
               <div className="flex gap-2">
                 <button
                   onClick={() => {
-                    if (confirm(`Hapus ${selectedExpenses.length} transaksi?`)) {
-                      // TODO: Implement bulk delete
-                      console.log('Bulk delete:', selectedExpenses)
-                    }
+                    setConfirmDialogConfig({
+                      title: 'Hapus Transaksi Terpilih?',
+                      message: `Apakah Anda yakin ingin menghapus ${selectedExpenses.length} transaksi yang dipilih?\n\nData yang sudah dihapus tidak dapat dikembalikan.`,
+                      variant: 'danger',
+                      onConfirm: () => {
+                        // TODO: Implement bulk delete
+                        console.log('Bulk delete:', selectedExpenses)
+                        setShowConfirmDialog(false)
+                      }
+                    })
+                    setShowConfirmDialog(true)
                   }}
                   className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
                 >
@@ -2050,20 +2069,27 @@ export default function InputExpensesPageRedesigned() {
                         </svg>
                       </button>
                       <button
-                        onClick={async () => {
-                          if (confirm(`Hapus transaksi ${exp.purchase_order_number || exp.category}?\n\nData tidak dapat dikembalikan!`)) {
-                            try {
-                              const res = await fetch(`/api/expenses/${exp.id}`, { method: 'DELETE' })
-                              if (res.ok) {
-                                showToast('success', 'Transaksi dihapus')
-                                loadExpenses()
-                              } else {
-                                showToast('error', 'Gagal menghapus')
+                        onClick={() => {
+                          setConfirmDialogConfig({
+                            title: 'Hapus Transaksi?',
+                            message: `Apakah Anda yakin ingin menghapus transaksi ${exp.purchase_order_number || exp.category}?\n\nData yang sudah dihapus tidak dapat dikembalikan.`,
+                            variant: 'danger',
+                            onConfirm: async () => {
+                              try {
+                                const res = await fetch(`/api/expenses/${exp.id}`, { method: 'DELETE' })
+                                if (res.ok) {
+                                  showToast('success', '✅ Transaksi berhasil dihapus')
+                                  loadExpenses()
+                                } else {
+                                  showToast('error', '❌ Gagal menghapus transaksi')
+                                }
+                              } catch (error) {
+                                showToast('error', '❌ Error: ' + error)
                               }
-                            } catch (error) {
-                              showToast('error', 'Error: ' + error)
+                              setShowConfirmDialog(false)
                             }
-                          }
+                          })
+                          setShowConfirmDialog(true)
                         }}
                         className="p-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl transition-colors"
                         title="Hapus"
@@ -2161,20 +2187,27 @@ export default function InputExpensesPageRedesigned() {
                         </svg>
                       </button>
                       <button
-                        onClick={async () => {
-                          if (confirm(`Hapus transaksi ${exp.purchase_order_number || exp.category}?\n\nData tidak dapat dikembalikan!`)) {
-                            try {
-                              const res = await fetch(`/api/expenses/${exp.id}`, { method: 'DELETE' })
-                              if (res.ok) {
-                                showToast('success', 'Transaksi dihapus')
-                                loadExpenses()
-                              } else {
-                                showToast('error', 'Gagal menghapus')
+                        onClick={() => {
+                          setConfirmDialogConfig({
+                            title: 'Hapus Transaksi?',
+                            message: `Apakah Anda yakin ingin menghapus transaksi ${exp.purchase_order_number || exp.category}?\n\nData yang sudah dihapus tidak dapat dikembalikan.`,
+                            variant: 'danger',
+                            onConfirm: async () => {
+                              try {
+                                const res = await fetch(`/api/expenses/${exp.id}`, { method: 'DELETE' })
+                                if (res.ok) {
+                                  showToast('success', '✅ Transaksi berhasil dihapus')
+                                  loadExpenses()
+                                } else {
+                                  showToast('error', '❌ Gagal menghapus transaksi')
+                                }
+                              } catch (error) {
+                                showToast('error', '❌ Error: ' + error)
                               }
-                            } catch (error) {
-                              showToast('error', 'Error: ' + error)
+                              setShowConfirmDialog(false)
                             }
-                          }
+                          })
+                          setShowConfirmDialog(true)
                         }}
                         className="p-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
                         title="Hapus"
@@ -2720,6 +2753,18 @@ export default function InputExpensesPageRedesigned() {
           </div>
         </div>
       )}
+      
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        isOpen={showConfirmDialog}
+        title={confirmDialogConfig.title}
+        message={confirmDialogConfig.message}
+        variant={confirmDialogConfig.variant}
+        confirmLabel="Ya, Hapus"
+        cancelLabel="Batal"
+        onConfirm={confirmDialogConfig.onConfirm}
+        onCancel={() => setShowConfirmDialog(false)}
+      />
     </div>
   )
 }

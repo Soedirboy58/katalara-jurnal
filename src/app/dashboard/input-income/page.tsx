@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useProducts } from '@/hooks/useProducts'
 import { TransactionsTable } from '@/components/income/TransactionsTable'
 import CustomerModal from '@/components/modals/CustomerModal'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 
 interface Product {
   id: string
@@ -93,6 +94,17 @@ export default function InputIncomePage() {
   const [showCustomerModal, setShowCustomerModal] = useState(false)
   const [selectedCustomerId, setSelectedCustomerId] = useState('')
   const [isAnonymous, setIsAnonymous] = useState(false)
+  
+  // ============================================
+  // 🆕 Confirm Dialog State
+  // ============================================
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false)
+  const [confirmDialogConfig, setConfirmDialogConfig] = useState({
+    title: '',
+    message: '',
+    onConfirm: () => {},
+    variant: 'danger' as 'danger' | 'warning' | 'info'
+  })
   
   // ============================================
   // 🆕 Custom Unit Input
@@ -1176,7 +1188,7 @@ export default function InputIncomePage() {
                       setSellPrice(savedSellPrice.toString())
                       
                       // Set current stock
-                      setCurrentStock((product as any).stock || 0)
+                      setCurrentStock((product as any).stock_quantity || 0)
                       
                       // Set unit from product database
                       setCustomUnit((product as any).unit || (category === 'product_sales' ? 'pcs' : 'jam'))
@@ -2951,19 +2963,26 @@ export default function InputIncomePage() {
             onRefresh={fetchTransactions}
             onEdit={handleEditTransaction}
             onDelete={async (transaction) => {
-              if (confirm(`Hapus transaksi ${transaction.customer_name || 'Anonim'}?\n\nData tidak dapat dikembalikan!`)) {
-                try {
-                  const res = await fetch(`/api/income/${transaction.id}`, { method: 'DELETE' })
-                  if (res.ok) {
-                    showToast('success', '✅ Transaksi berhasil dihapus')
-                    fetchTransactions()
-                  } else {
-                    showToast('error', '❌ Gagal menghapus transaksi')
+              setConfirmDialogConfig({
+                title: 'Hapus Transaksi?',
+                message: `Apakah Anda yakin ingin menghapus transaksi dari ${transaction.customer_name || 'Anonim'}?\n\nData yang sudah dihapus tidak dapat dikembalikan.\n\nStok produk akan dikembalikan jika ini adalah transaksi penjualan produk.`,
+                variant: 'danger',
+                onConfirm: async () => {
+                  try {
+                    const res = await fetch(`/api/income/${transaction.id}`, { method: 'DELETE' })
+                    if (res.ok) {
+                      showToast('success', '✅ Transaksi berhasil dihapus & stok dikembalikan')
+                      fetchTransactions()
+                    } else {
+                      showToast('error', '❌ Gagal menghapus transaksi')
+                    }
+                  } catch (error) {
+                    showToast('error', '❌ Error: ' + error)
                   }
-                } catch (error) {
-                  showToast('error', '❌ Error: ' + error)
+                  setShowConfirmDialog(false)
                 }
-              }
+              })
+              setShowConfirmDialog(true)
             }}
           />
         )}
@@ -3181,6 +3200,18 @@ export default function InputIncomePage() {
           phone: customerPhone,
           is_active: true
         } : null}
+      />
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        isOpen={showConfirmDialog}
+        title={confirmDialogConfig.title}
+        message={confirmDialogConfig.message}
+        variant={confirmDialogConfig.variant}
+        confirmLabel="Ya, Hapus"
+        cancelLabel="Batal"
+        onConfirm={confirmDialogConfig.onConfirm}
+        onCancel={() => setShowConfirmDialog(false)}
       />
 
     </div>
