@@ -376,6 +376,45 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
+    // 🔄 RESTORE STOCK: Fetch all incomes first to restore stock
+    const { data: incomes, error: fetchError } = await supabase
+      .from('incomes')
+      .select('id, category, product_id, quantity')
+      .in('id', ids)
+      .eq('user_id', user.id)
+
+    if (!fetchError && incomes && incomes.length > 0) {
+      console.log(`🔄 Bulk delete income: Restoring stock for ${incomes.length} transactions...`)
+      
+      // Restore stock for each income that is product_sales
+      for (const income of incomes) {
+        if (income.category === 'product_sales' && income.product_id && income.quantity) {
+          // Get product details
+          const { data: product, error: productError } = await supabase
+            .from('products')
+            .select('stock_quantity, track_inventory, name')
+            .eq('id', income.product_id)
+            .single()
+
+          if (!productError && product && product.track_inventory) {
+            // ADD stock back (income delete = restore sold stock)
+            const restoredStock = (product.stock_quantity || 0) + parseFloat(income.quantity)
+            console.log(`  ➕ ${product.name}: ${product.stock_quantity} → ${restoredStock}`)
+            
+            const { error: updateError } = await supabase
+              .from('products')
+              .update({ stock_quantity: restoredStock })
+              .eq('id', income.product_id)
+            
+            if (updateError) {
+              console.error(`  ❌ Error restoring stock for ${product.name}:`, updateError)
+            }
+          }
+        }
+      }
+      console.log('  ✅ Stock restoration complete')
+    }
+
     // Delete incomes (only user's own incomes)
     const { error } = await supabase
       .from('incomes')

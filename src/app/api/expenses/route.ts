@@ -396,8 +396,45 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    // 🔄 RESTORE STOCK: Fetch all expenses first to restore stock
+    const { data: expenses, error: fetchError } = await supabase
+      .from('expenses')
+      .select('id, product_id, quantity')
+      .in('id', ids)
+
+    if (!fetchError && expenses && expenses.length > 0) {
+      console.log(`🔄 Bulk delete: Restoring stock for ${expenses.length} expenses...`)
+      
+      // Restore stock for each expense that has product
+      for (const expense of expenses) {
+        if (expense.product_id && expense.quantity) {
+          // Get product details
+          const { data: product, error: productError } = await supabase
+            .from('products')
+            .select('stock_quantity, track_inventory, name')
+            .eq('id', expense.product_id)
+            .single()
+
+          if (!productError && product && product.track_inventory) {
+            // SUBTRACT stock (expense delete = remove stock that was added)
+            const restoredStock = (product.stock_quantity || 0) - parseFloat(expense.quantity)
+            console.log(`  ➖ ${product.name}: ${product.stock_quantity} → ${restoredStock}`)
+            
+            const { error: updateError } = await supabase
+              .from('products')
+              .update({ stock_quantity: restoredStock })
+              .eq('id', expense.product_id)
+            
+            if (updateError) {
+              console.error(`  ❌ Error restoring stock for ${product.name}:`, updateError)
+            }
+          }
+        }
+      }
+      console.log('  ✅ Stock restoration complete')
+    }
+
     // Delete expenses (RLS will ensure user owns them)
-    // RLS policy sudah handle owner_id OR user_id
     const { error } = await supabase
       .from('expenses')
       .delete()
