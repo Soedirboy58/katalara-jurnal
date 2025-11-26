@@ -1683,8 +1683,6 @@ export default function InputExpensesPageRedesigned() {
                 </div>
               </div>
               
-              </div>
-              
               {/* Grand Total */}
               <div className="mt-4 pt-4 border-t-2 border-gray-300">
                 <div className="flex justify-between items-center">
