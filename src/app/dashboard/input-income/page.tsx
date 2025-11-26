@@ -953,54 +953,40 @@ export default function InputIncomePage() {
         </button>
       </div>
 
-      {/* KPI Stats - Professional Design */}
+      {/* KPI Stats - Clean & Minimal */}
       <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4 max-w-7xl mx-auto">
         {/* Today */}
-        <div className="bg-white rounded-xl shadow-md p-5 border-l-4 border-green-500 hover:shadow-lg transition-shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-500 font-medium">Hari Ini</p>
-              {loadingKpi ? (
-                <p className="text-2xl font-bold text-gray-400 mt-1 animate-pulse">Loading...</p>
-              ) : (
-                <p className="text-2xl font-bold text-gray-800 mt-1">
-                  Rp {kpiStats.today.amount.toLocaleString('id-ID')}
-                </p>
-              )}
+        <div className="bg-white rounded-lg shadow-sm p-5 border border-gray-200 hover:shadow-md transition-shadow">
+          <p className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-2">Hari Ini</p>
+          {loadingKpi ? (
+            <p className="text-2xl font-bold text-gray-300 animate-pulse">Loading...</p>
+          ) : (
+            <>
+              <p className="text-2xl font-bold text-gray-900">
+                Rp {kpiStats.today.amount.toLocaleString('id-ID')}
+              </p>
               <p className="text-xs text-gray-400 mt-1">{kpiStats.today.count} transaksi</p>
-            </div>
-            <div className="bg-green-100 rounded-full p-3">
-              <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-          </div>
+            </>
+          )}
         </div>
         
         {/* Week */}
-        <div className="bg-white rounded-xl shadow-md p-5 border-l-4 border-blue-500 hover:shadow-lg transition-shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-500 font-medium">Minggu Ini</p>
-              {loadingKpi ? (
-                <p className="text-2xl font-bold text-gray-400 mt-1 animate-pulse">Loading...</p>
-              ) : (
-                <p className="text-2xl font-bold text-gray-800 mt-1">
-                  Rp {kpiStats.week.amount.toLocaleString('id-ID')}
-                </p>
-              )}
+        <div className="bg-white rounded-lg shadow-sm p-5 border border-gray-200 hover:shadow-md transition-shadow">
+          <p className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-2">Minggu Ini</p>
+          {loadingKpi ? (
+            <p className="text-2xl font-bold text-gray-300 animate-pulse">Loading...</p>
+          ) : (
+            <>
+              <p className="text-2xl font-bold text-gray-900">
+                Rp {kpiStats.week.amount.toLocaleString('id-ID')}
+              </p>
               <p className="text-xs text-gray-400 mt-1">{kpiStats.week.count} transaksi</p>
-            </div>
-            <div className="bg-blue-100 rounded-full p-3">
-              <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-              </svg>
-            </div>
-          </div>
+            </>
+          )}
         </div>
         
         {/* Month */}
-        <div className="bg-white rounded-xl shadow-md p-5 border-l-4 border-purple-500 hover:shadow-lg transition-shadow">
+        <div className="bg-white rounded-lg shadow-sm p-5 border border-gray-200 hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-500 font-medium">Bulan Ini</p>
@@ -1012,11 +998,6 @@ export default function InputIncomePage() {
                 </p>
               )}
               <p className="text-xs text-gray-400 mt-1">{kpiStats.month.count} transaksi</p>
-            </div>
-            <div className="bg-purple-100 rounded-full p-3">
-              <svg className="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
             </div>
           </div>
         </div>
@@ -1394,7 +1375,7 @@ export default function InputIncomePage() {
                   type="button"
                   onClick={handleAddItem}
                   disabled={!selectedProductId || !quantity || !pricePerUnit}
-                  className="w-full h-[42px] bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                  className="w-full h-[42px] bg-gray-700 hover:bg-gray-800 text-white font-semibold rounded-lg disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -1511,12 +1492,9 @@ export default function InputIncomePage() {
             💰 LOAN INPUT (SPECIAL FOR LOAN_RECEIVED)
             ============================================ */}
         {category === 'loan_received' && (
-          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg shadow-md border-2 border-blue-300 p-6">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                <span className="text-white text-lg">🏦</span>
-              </div>
-              <h3 className="text-lg font-bold text-gray-800">Informasi Pinjaman & Cicilan</h3>
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div className="mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Informasi Pinjaman & Cicilan</h3>
             </div>
             
             <div className="space-y-4">
@@ -1651,9 +1629,8 @@ export default function InputIncomePage() {
                 type="button"
                 onClick={calculateLoanPreview}
                 disabled={!amount || !loanInterestRate || !loanTermMonths || !loanFirstPaymentDate}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg shadow-md hover:shadow-lg transition-all disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="w-full bg-gray-700 hover:bg-gray-800 text-white font-semibold py-3 rounded-lg shadow-sm transition-all disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                <span>🧮</span>
                 <span>Hitung Preview Cicilan</span>
               </button>
 
@@ -1916,7 +1893,7 @@ export default function InputIncomePage() {
               </div>
 
               {/* Reminder Toggle */}
-              <div className="bg-purple-100 border border-purple-200 rounded-lg p-4">
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
                 <label className="flex items-start gap-3 cursor-pointer">
                   <input
                     type="checkbox"
@@ -1939,9 +1916,8 @@ export default function InputIncomePage() {
                 type="button"
                 onClick={calculateProfitSharePreview}
                 disabled={!amount || !profitSharePercentage || !investorName || !investmentStartDate}
-                className="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 rounded-lg shadow-md hover:shadow-lg transition-all disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="w-full bg-gray-700 hover:bg-gray-800 text-white font-semibold py-3 rounded-lg shadow-sm transition-all disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                <span>🧮</span>
                 <span>Hitung Preview Profit Sharing</span>
               </button>
 
@@ -1983,7 +1959,7 @@ export default function InputIncomePage() {
 
             {/* Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-              <div className="bg-purple-50 rounded-lg p-4 border border-purple-200">
+              <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
                 <p className="text-xs text-gray-600 mb-1">Investasi</p>
                 <p className="text-xl font-bold text-purple-700">
                   Rp {profitSharePreview.investmentAmount.toLocaleString('id-ID')}
@@ -2279,7 +2255,7 @@ export default function InputIncomePage() {
                   )}
                   
                   {pphPreset !== 'custom' && pphAmount > 0 && (
-                    <div className="text-right text-blue-700 font-bold text-sm mt-1">
+                    <div className="text-right text-gray-900 font-semibold text-sm mt-1">
                       Rp {pphAmount.toLocaleString('id-ID')}
                     </div>
                   )}
@@ -2367,7 +2343,7 @@ export default function InputIncomePage() {
                             amount: 0
                           }])
                         }}
-                        className="w-full py-2 bg-purple-500 hover:bg-purple-600 text-white text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1"
+                        className="w-full py-2 bg-white hover:bg-gray-50 border border-gray-300 text-gray-700 text-xs font-medium rounded-lg transition-colors flex items-center justify-center gap-1"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -2387,11 +2363,11 @@ export default function InputIncomePage() {
 
             </div>
             
-            {/* Grand Total - Prominent Display */}
-            <div className="mt-4 bg-gray-900 rounded-lg p-4 border-t-2 border-gray-700">
+            {/* Grand Total - Clean Display */}
+            <div className="mt-4 pt-4 border-t-2 border-gray-900">
               <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-400">Grand Total</span>
-                <span className="text-xl font-semibold text-white">
+                <span className="text-sm text-gray-500 font-medium uppercase tracking-wide">Grand Total</span>
+                <span className="text-2xl font-bold text-gray-900">
                   Rp {calculateGrandTotal().toLocaleString('id-ID')}
                 </span>
               </div>
@@ -2822,43 +2798,26 @@ export default function InputIncomePage() {
         </div>
       )}
 
-      {/* Toast Notification */}
+      {/* Toast Notification - Clean & Minimal */}
       {toast.show && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] animate-slide-in">
+        <div className="fixed top-4 right-4 z-[100] animate-fade-in">
           <div className={`
-            rounded-lg shadow-2xl p-4 min-w-[300px] max-w-md
-            flex items-start gap-3 border-l-4
+            flex items-center gap-3 px-5 py-3.5 rounded-lg shadow-lg border bg-white
             ${
-              toast.type === 'success' ? 'bg-green-50 border-green-500' :
-              toast.type === 'error' ? 'bg-red-50 border-red-500' :
-              'bg-amber-50 border-amber-500'
+              toast.type === 'success' ? 'border-green-300' :
+              toast.type === 'error' ? 'border-red-300' :
+              'border-orange-300'
             }
           `}>
-            <span className="text-2xl flex-shrink-0">
-              {toast.type === 'success' ? '✅' : toast.type === 'error' ? '❌' : '⚠️'}
-            </span>
-            <div className="flex-1">
-              <p className={`
-                text-sm font-medium
-                ${
-                  toast.type === 'success' ? 'text-green-900' :
-                  toast.type === 'error' ? 'text-red-900' :
-                  'text-amber-900'
-                }
-              `}>
-                {toast.message}
-              </p>
-            </div>
+            <div className={`w-1.5 h-8 rounded-full ${
+              toast.type === 'success' ? 'bg-green-500' :
+              toast.type === 'error' ? 'bg-red-500' :
+              'bg-orange-500'
+            }`} />
+            <div className="font-medium text-sm text-gray-800 max-w-xs">{toast.message}</div>
             <button
               onClick={() => setToast({ ...toast, show: false })}
-              className={`
-                flex-shrink-0 rounded-full p-1 transition-colors
-                ${
-                  toast.type === 'success' ? 'hover:bg-green-200' :
-                  toast.type === 'error' ? 'hover:bg-red-200' :
-                  'hover:bg-amber-200'
-                }
-              `}
+              className="ml-2 text-gray-400 hover:text-gray-600 transition-colors"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -3105,7 +3064,7 @@ export default function InputIncomePage() {
                 <button
                   onClick={handleQuickAddProduct}
                   disabled={savingQuickProduct}
-                  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className="flex-1 px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {savingQuickProduct ? (
                     <>
@@ -3113,7 +3072,7 @@ export default function InputIncomePage() {
                       Menyimpan...
                     </>
                   ) : (
-                    <>✅ Simpan</>
+                    <>Simpan</>
                   )}
                 </button>
               </div>
