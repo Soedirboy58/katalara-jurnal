@@ -1,7 +1,8 @@
-# 🚀 Deployment Checklist - User Menu Feature
+# 🚀 Deployment Checklist - Production Deployment
 
 ## ✅ Pre-Deployment (Completed)
 
+### Frontend Features
 - [x] Created UserMenu component with full features
 - [x] Created Profile page with form validation
 - [x] Created Activity Log page with filters
@@ -12,9 +13,83 @@
 - [x] Created database migration files
 - [x] Created documentation
 
+### Finance Domain (v1.0) - 🔒 Frozen & Stable
+- [x] Created 6 entities: Expenses, Suppliers, Customers, Incomes, Loans, Investments
+- [x] Implemented modular SQL architecture (24 files)
+- [x] Added 45+ functions, 27+ triggers, 128+ indexes
+- [x] Secured with 36 RLS policies
+- [x] Created comprehensive smoke tests (`finance.debug.sql`)
+- [x] Tagged as `finance-domain-v1.0`
+- [x] Created Master Setup documentation
+
 ## 📋 Deployment Steps
 
-### Step 1: Database Migration (Required First!)
+### Step 1: Finance Domain Migration (Required First!)
+
+**⚠️ CRITICAL: Run Smoke Tests Before Production**
+
+```bash
+# Run mandatory smoke tests in dev/staging first
+psql -h your-staging-db -U postgres -d your-db -f sql/domain/finance/finance.debug.sql
+
+# Expected output: All 9 sections pass without errors
+# ✅ Health Check
+# ✅ Revenue Summary
+# ✅ Piutang Aging
+# ✅ Customer Analytics
+# ✅ Supplier Analytics
+# ✅ Expense Analytics
+# ✅ Profit Analysis
+# ✅ Performance Validation
+# ✅ Data Integrity
+```
+
+**Deploy Finance Domain (if smoke tests pass):**
+
+```bash
+# Phase 1: Schema (in order - respects foreign keys)
+psql -f sql/domain/finance/suppliers.schema.sql
+psql -f sql/domain/finance/customers.schema.sql
+psql -f sql/domain/finance/expenses.schema.sql
+psql -f sql/domain/finance/incomes.schema.sql
+psql -f sql/domain/finance/loans.schema.sql
+psql -f sql/domain/finance/investments.schema.sql
+
+# Phase 2: Logic (functions & triggers)
+psql -f sql/domain/finance/suppliers.logic.sql
+psql -f sql/domain/finance/customers.logic.sql
+psql -f sql/domain/finance/expenses.logic.sql
+psql -f sql/domain/finance/incomes.logic.sql
+psql -f sql/domain/finance/loans.logic.sql
+psql -f sql/domain/finance/investments.logic.sql
+
+# Phase 3: Security (RLS policies)
+psql -f sql/domain/finance/suppliers.policies.sql
+psql -f sql/domain/finance/customers.policies.sql
+psql -f sql/domain/finance/expenses.policies.sql
+psql -f sql/domain/finance/incomes.policies.sql
+psql -f sql/domain/finance/loans.policies.sql
+psql -f sql/domain/finance/investments.policies.sql
+
+# Phase 4: Performance (indexes & constraints)
+psql -f sql/domain/finance/suppliers.index.sql
+psql -f sql/domain/finance/customers.index.sql
+psql -f sql/domain/finance/expenses.index.sql
+psql -f sql/domain/finance/incomes.index.sql
+psql -f sql/domain/finance/loans.index.sql
+psql -f sql/domain/finance/investments.index.sql
+
+# Verify deployment
+psql -f sql/domain/finance/finance.debug.sql
+```
+
+**Supabase Alternative:**
+1. Login to Supabase Dashboard → SQL Editor
+2. Run each file content in order (copy-paste)
+3. Verify: No errors in execution log
+4. Run smoke tests last
+
+### Step 2: User Menu Migration (Required Second!)
 
 **Option A: Supabase SQL Editor (Recommended)**
 1. Login to Supabase Dashboard
@@ -45,7 +120,7 @@ WHERE table_name = 'business_configurations'
   AND column_name IN ('theme', 'language', 'currency');
 ```
 
-### Step 2: Deploy to Vercel
+### Step 3: Deploy to Vercel
 
 ```bash
 cd katalara-nextjs
@@ -58,7 +133,17 @@ vercel --prod
 🔗 https://your-app.vercel.app
 ```
 
-### Step 3: Post-Deployment Testing
+### Step 4: Post-Deployment Testing
+
+#### Finance Domain Tests (MANDATORY)
+- [ ] Run smoke tests in production: `finance.debug.sql`
+- [ ] All 9 sections pass without errors
+- [ ] Query performance < 100ms (sample data)
+- [ ] RLS policies working (test with 2+ users)
+- [ ] Functions callable from frontend
+- [ ] Triggers executing correctly
+- [ ] No foreign key violations
+- [ ] Index usage verified
 
 #### Test 1: User Menu Dropdown
 - [ ] Login to dashboard
@@ -136,22 +221,51 @@ Look for:
 
 ## 🐛 Common Issues & Fixes
 
-### Issue: "activity_logs table does not exist"
-**Fix:** Run database migrations (Step 1)
+### Finance Domain Issues
 
-### Issue: "column does not exist" in business_configurations
+#### Issue: "table does not exist" (expenses/incomes/etc)
+**Fix:** Deploy schema files in correct order (see Step 1)
+
+#### Issue: "function does not exist" (get_revenue_summary)
+**Fix:** Deploy logic files: `entity.logic.sql`
+
+#### Issue: "permission denied" on finance tables
+**Fix:** Deploy RLS policies: `entity.policies.sql`
+
+#### Issue: "foreign key constraint violation"
+**Fix:** 
+- Check deployment order (suppliers before expenses, customers before incomes)
+- Verify referenced record exists
+- Check owner_id matches
+
+#### Issue: Smoke tests fail
+**Fix:**
+- Review error messages in `finance.debug.sql` output
+- Check if all files deployed successfully
+- Verify data exists in tables
+- Re-run failed section individually
+
+#### Issue: Poor query performance
+**Fix:** Deploy index files: `entity.index.sql`
+
+### User Menu Issues
+
+#### Issue: "activity_logs table does not exist"
+**Fix:** Run database migrations (Step 2)
+
+#### Issue: "column does not exist" in business_configurations
 **Fix:** Run `sql/add_settings_to_business_config.sql`
 
-### Issue: "permission denied for table activity_logs"
+#### Issue: "permission denied for table activity_logs"
 **Fix:** Check RLS policies are created correctly
 
-### Issue: User menu not appearing
+#### Issue: User menu not appearing
 **Fix:** 
 - Check user is logged in
 - Clear browser cache
 - Check console for errors
 
-### Issue: Settings not saving
+#### Issue: Settings not saving
 **Fix:**
 - Verify business_configurations migration ran
 - Check Supabase connection
@@ -220,7 +334,24 @@ After deployment, verify:
 
 ## ✅ Sign-Off Checklist
 
+### Finance Domain v1.0
+- [ ] Schema migrations successful (6 entities)
+- [ ] Logic migrations successful (45+ functions)
+- [ ] RLS policies active (36 policies)
+- [ ] Indexes created (128+ indexes)
+- [ ] Smoke tests pass (`finance.debug.sql`)
+- [ ] Performance benchmarks met (< 100ms)
+- [ ] Documentation reviewed (`MASTER_SETUP_FINANCE.md`)
+- [ ] Git tag created: `finance-domain-v1.0`
+- [ ] Status: 🔒 Frozen & Stable
+
+### User Menu Feature
 - [ ] Database migrations successful
+- [ ] Activity logs table created
+- [ ] Settings columns added
+- [ ] RLS policies active
+
+### General
 - [ ] Vercel deployment successful
 - [ ] All tests passed
 - [ ] No errors in console
@@ -235,9 +366,16 @@ After deployment, verify:
 
 ### Announce to Users
 ```
-🎉 New Features Available!
+🎉 Major Platform Update!
 
-✨ User Menu
+💰 Finance Domain (v1.0) - Production Ready
+- Modular SQL architecture for better performance
+- 6 interconnected entities: Expenses, Suppliers, Customers, Incomes, Loans, Investments
+- Enhanced data integrity and security
+- Comprehensive analytics and reporting
+- All existing data preserved (backward-compatible)
+
+✨ User Menu & Settings
 - Click your avatar for quick access to profile and settings
 
 👤 Profile Page
@@ -254,14 +392,31 @@ Check out the new features and let us know what you think!
 ```
 
 ### Monitor for 24 Hours
-- [ ] Check error rates
+- [ ] Check error rates (Finance domain queries)
+- [ ] Monitor query performance (< 100ms target)
+- [ ] Verify smoke tests pass in production
+- [ ] Check RLS working correctly
 - [ ] Monitor user engagement
 - [ ] Gather user feedback
 - [ ] Fix any issues quickly
+
+### Weekly Maintenance (Finance Domain)
+- [ ] Run `finance.debug.sql` smoke tests
+- [ ] Check index usage statistics
+- [ ] Monitor dead tuples (run VACUUM if > 20%)
+- [ ] Review slow query log
+- [ ] Verify data integrity constraints
 
 ---
 
 **Deployment Date:** _________________  
 **Deployed By:** _________________  
+**Finance Domain Version:** v1.0 (Frozen & Stable)  
+**Git Tag:** finance-domain-v1.0  
 **Status:** ☐ Pending ☐ In Progress ☐ Complete  
 **Notes:** _________________________________
+
+**References:**
+- Finance Domain Setup: `sql/domain/finance/MASTER_SETUP_FINANCE.md`
+- Smoke Tests: `sql/domain/finance/finance.debug.sql`
+- Entity Documentation: `sql/domain/finance/README.md`
