@@ -56,22 +56,25 @@ Domain Finance mengelola seluruh aspek keuangan bisnis UMKM dengan struktur modu
 └─────┬────┘         └───────────┘
       │
       ▼
-┌─────────────┐       ┌──────────┐
-│INCOME_ITEMS │──────>│ PRODUCTS │
-│ - Products  │ links │          │
-│ - Qty/Price │       │ - Stock  │
-│ - Profit    │       │ - Price  │
-└─────────────┘       └──────────┘
+┌─────────────┐       ┌──────────────────┐
+│INCOME_ITEMS │──────>│ PRODUCTS         │ ← INVENTORY DOMAIN
+│ - product_id│ FK    │ (Master Data)    │
+│ - Qty/Price │       │ - Stock          │
+│ - Profit    │       │ - Cost/Sell Price│
+└─────────────┘       └──────────────────┘
 ```
 
 **Alur:**
 1. User input income dengan customer
-2. Select products → Auto-fill price & calculate profit
-3. Jika payment_method = 'tempo' → Create piutang
-4. Auto-update `customers.outstanding_balance`
-5. Auto-update `customers.total_purchases` & CLV metrics
-6. Trigger credit limit check
-7. Track via `get_revenue_summary()` & `get_piutang_aging()`
+2. Select products (dari INVENTORY domain) → Auto-fill price & calculate profit
+3. Link via `income_items.product_id` → `inventory.products.id`
+4. Jika payment_method = 'tempo' → Create piutang
+5. Auto-update `customers.outstanding_balance`
+6. Auto-update `customers.total_purchases` & CLV metrics
+7. Trigger credit limit check
+8. Track via `get_revenue_summary()` & `get_piutang_aging()`
+
+**⚠️ PENTING:** Products master data sekarang di INVENTORY domain, bukan di FINANCE!
 
 ### 3. **Loans/Investments ↔ Incomes/Expenses**
 

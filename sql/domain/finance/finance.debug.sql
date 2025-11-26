@@ -1,470 +1,525 @@
 -- =====================================================
--- FINANCE DOMAIN - DEBUG & SMOKE TEST QUERIES
--- PURPOSE: Manual testing & validation setelah deployment
+-- FINANCE DOMAIN - HEALTH CHECK & DEBUG SCRIPT
+-- Purpose: Validate deployment & test functionality
+-- Version: 1.0
 -- =====================================================
 
--- =====================================================
--- SECTION 1: TABLE HEALTH CHECK
--- =====================================================
+\echo '================================================='
+\echo 'FINANCE DOMAIN - HEALTH CHECK'
+\echo '================================================='
+\echo ''
 
--- Check all finance tables exist
+-- =====================================================
+-- SECTION 1: TABLE EXISTENCE
+-- =====================================================
+\echo '1️⃣  CHECKING TABLES...'
+\echo ''
+
 SELECT 
-  table_name,
-  table_type
-FROM information_schema.tables 
-WHERE table_schema = 'public' 
+  CASE 
+    WHEN COUNT(*) = 12 THEN '✅ All tables exist (12/12)'
+    ELSE '❌ Missing tables: ' || (12 - COUNT(*))::TEXT
+  END AS status
+FROM information_schema.tables
+WHERE table_schema = 'public'
   AND table_name IN (
     'expenses', 'expense_items',
     'suppliers',
-    'incomes', 'income_items',
     'customers',
+    'incomes', 'income_items',
+    'loans', 'loan_installments',
+    'investments', 'profit_sharing_history'
+  );
+
+SELECT 
+  table_name,
+  (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = 'public' AND table_name = t.table_name) AS column_count
+FROM information_schema.tables t
+WHERE table_schema = 'public'
+  AND table_name IN (
+    'expenses', 'expense_items',
+    'suppliers',
+    'customers',
+    'incomes', 'income_items',
     'loans', 'loan_installments',
     'investments', 'profit_sharing_history'
   )
 ORDER BY table_name;
 
--- Check RLS enabled on all tables
+\echo ''
+
+-- =====================================================
+-- SECTION 2: RLS STATUS
+-- =====================================================
+\echo '2️⃣  CHECKING RLS (Row Level Security)...'
+\echo ''
+
 SELECT 
-  schemaname,
   tablename,
-  rowsecurity as rls_enabled
-FROM pg_tables 
-WHERE schemaname = 'public' 
-  AND tablename IN ('expenses', 'incomes', 'suppliers', 'customers', 'loans', 'investments')
+  CASE 
+    WHEN rowsecurity THEN '✅ RLS Enabled'
+    ELSE '❌ RLS Disabled'
+  END AS rls_status
+FROM pg_tables
+WHERE schemaname = 'public'
+  AND tablename IN (
+    'expenses', 'expense_items',
+    'suppliers',
+    'customers',
+    'incomes', 'income_items',
+    'loans', 'loan_installments',
+    'investments', 'profit_sharing_history'
+  )
 ORDER BY tablename;
 
--- Check all functions exist
+\echo ''
+
+-- =====================================================
+-- SECTION 3: POLICIES
+-- =====================================================
+\echo '3️⃣  CHECKING RLS POLICIES...'
+\echo ''
+
 SELECT 
-  routine_name,
-  routine_type
-FROM information_schema.routines 
-WHERE routine_schema = 'public' 
-  AND (
-    routine_name LIKE '%income%' 
-    OR routine_name LIKE '%expense%'
-    OR routine_name LIKE '%supplier%'
-    OR routine_name LIKE '%customer%'
+  tablename,
+  COUNT(*) AS policy_count
+FROM pg_policies
+WHERE schemaname = 'public'
+  AND tablename IN (
+    'expenses', 'expense_items',
+    'suppliers',
+    'customers',
+    'incomes', 'income_items',
+    'loans', 'loan_installments',
+    'investments', 'profit_sharing_history'
+  )
+GROUP BY tablename
+ORDER BY tablename;
+
+SELECT 
+  CASE 
+    WHEN COUNT(*) >= 36 THEN '✅ All policies exist (' || COUNT(*) || '/36+)'
+    ELSE '❌ Missing policies: ' || (36 - COUNT(*))::TEXT
+  END AS status
+FROM pg_policies
+WHERE schemaname = 'public'
+  AND tablename IN (
+    'expenses', 'expense_items',
+    'suppliers',
+    'customers',
+    'incomes', 'income_items',
+    'loans', 'loan_installments',
+    'investments', 'profit_sharing_history'
+  );
+
+\echo ''
+
+-- =====================================================
+-- SECTION 4: FUNCTIONS
+-- =====================================================
+\echo '4️⃣  CHECKING FUNCTIONS...'
+\echo ''
+
+SELECT 
+  routine_name AS function_name,
+  routine_type AS type
+FROM information_schema.routines
+WHERE routine_schema = 'public'
+  AND routine_name IN (
+    -- Customers
+    'update_customer_updated_at',
+    'update_customer_outstanding_balance',
+    'update_customer_clv_metrics',
+    'check_customer_credit_limit',
+    'update_customer_tier',
+    'get_customer_summary',
+    -- Suppliers
+    'update_supplier_updated_at',
+    'update_supplier_outstanding_balance',
+    'update_supplier_purchase_metrics',
+    'check_supplier_credit_limit',
+    'generate_supplier_code',
+    'get_supplier_summary',
+    'get_top_suppliers',
+    'get_suppliers_by_category',
+    -- Expenses
+    'update_expense_updated_at',
+    'calculate_expense_totals',
+    'get_expense_summary',
+    -- Incomes
+    'update_income_updated_at',
+    'calculate_income_totals',
+    'calculate_income_profit',
+    'get_revenue_summary',
+    'get_piutang_aging',
+    -- Loans
+    'update_loan_updated_at',
+    'generate_loan_repayment_schedule',
+    'get_loan_summary',
+    -- Investments
+    'update_investment_updated_at',
+    'calculate_investment_roi',
+    'get_investment_summary'
   )
 ORDER BY routine_name;
 
--- =====================================================
--- SECTION 2: REVENUE SUMMARY QUERIES
--- =====================================================
-
--- ✅ TEST: Show revenue summary per month (current year)
-SELECT 
-  TO_CHAR(income_date, 'YYYY-MM') as month,
-  income_type,
-  COUNT(*) as transaction_count,
-  SUM(grand_total) as total_revenue,
-  SUM(paid_amount) as total_paid,
-  SUM(remaining_payment) as total_outstanding,
-  ROUND(AVG(grand_total), 2) as avg_transaction_value
-FROM incomes
-WHERE owner_id = auth.uid()
-  AND income_date >= DATE_TRUNC('year', CURRENT_DATE)
-GROUP BY TO_CHAR(income_date, 'YYYY-MM'), income_type
-ORDER BY month DESC, income_type;
-
--- ✅ TEST: Revenue by income type (Operating vs Investing vs Financing)
-SELECT 
-  income_type,
-  income_category,
-  COUNT(*) as count,
-  SUM(grand_total) as total_revenue,
-  ROUND(SUM(grand_total) / NULLIF((SELECT SUM(grand_total) FROM incomes WHERE owner_id = auth.uid()), 0) * 100, 2) as percentage
-FROM incomes
-WHERE owner_id = auth.uid()
-  AND income_date >= DATE_TRUNC('month', CURRENT_DATE)
-GROUP BY income_type, income_category
-ORDER BY total_revenue DESC;
-
--- ✅ TEST: Daily revenue trend (last 30 days)
-SELECT 
-  income_date,
-  COUNT(*) as transactions,
-  SUM(grand_total) as revenue,
-  SUM(CASE WHEN payment_status = 'paid' THEN grand_total ELSE 0 END) as paid,
-  SUM(CASE WHEN payment_status != 'paid' THEN remaining_payment ELSE 0 END) as outstanding
-FROM incomes
-WHERE owner_id = auth.uid()
-  AND income_date >= CURRENT_DATE - INTERVAL '30 days'
-GROUP BY income_date
-ORDER BY income_date DESC;
-
--- ✅ TEST: Using built-in revenue summary function
-SELECT * FROM get_revenue_summary(
-  p_owner_id := auth.uid(),
-  p_start_date := DATE_TRUNC('month', CURRENT_DATE),
-  p_end_date := CURRENT_DATE,
-  p_income_type := NULL
-);
-
--- =====================================================
--- SECTION 3: PIUTANG (ACCOUNTS RECEIVABLE) QUERIES
--- =====================================================
-
--- ✅ TEST: List piutang jatuh tempo > 30 hari
-SELECT 
-  i.invoice_number,
-  i.customer_name,
-  i.income_date,
-  i.due_date,
-  EXTRACT(DAY FROM (CURRENT_DATE - i.due_date))::INT as days_overdue,
-  i.grand_total,
-  i.paid_amount,
-  i.remaining_payment,
-  i.payment_status
-FROM incomes i
-WHERE i.owner_id = auth.uid()
-  AND i.payment_status IN ('unpaid', 'partial')
-  AND i.due_date IS NOT NULL
-  AND i.due_date < CURRENT_DATE - INTERVAL '30 days'
-ORDER BY days_overdue DESC, remaining_payment DESC;
-
--- ✅ TEST: Piutang aging report (using built-in function)
-SELECT * FROM get_piutang_aging(auth.uid())
-ORDER BY days_overdue DESC;
-
--- ✅ TEST: Piutang summary by aging category
 SELECT 
   CASE 
-    WHEN due_date IS NULL THEN 'No Due Date'
-    WHEN CURRENT_DATE <= due_date THEN 'Current'
-    WHEN EXTRACT(DAY FROM (CURRENT_DATE - due_date)) <= 30 THEN '1-30 Days'
-    WHEN EXTRACT(DAY FROM (CURRENT_DATE - due_date)) <= 60 THEN '31-60 Days'
-    WHEN EXTRACT(DAY FROM (CURRENT_DATE - due_date)) <= 90 THEN '61-90 Days'
-    ELSE 'Over 90 Days'
-  END as aging_category,
-  COUNT(*) as invoice_count,
-  SUM(remaining_payment) as total_outstanding
-FROM incomes
-WHERE owner_id = auth.uid()
-  AND payment_status IN ('unpaid', 'partial')
-  AND remaining_payment > 0
-GROUP BY aging_category
-ORDER BY 
-  CASE aging_category
-    WHEN 'Current' THEN 1
-    WHEN '1-30 Days' THEN 2
-    WHEN '31-60 Days' THEN 3
-    WHEN '61-90 Days' THEN 4
-    WHEN 'Over 90 Days' THEN 5
-    ELSE 6
-  END;
+    WHEN COUNT(*) >= 27 THEN '✅ All functions exist (' || COUNT(*) || '/27+)'
+    ELSE '❌ Missing functions: ' || (27 - COUNT(*))::TEXT
+  END AS status
+FROM information_schema.routines
+WHERE routine_schema = 'public'
+  AND routine_name IN (
+    'update_customer_updated_at', 'update_customer_outstanding_balance',
+    'update_customer_clv_metrics', 'check_customer_credit_limit',
+    'update_customer_tier', 'get_customer_summary',
+    'update_supplier_updated_at', 'update_supplier_outstanding_balance',
+    'update_supplier_purchase_metrics', 'check_supplier_credit_limit',
+    'generate_supplier_code', 'get_supplier_summary',
+    'get_top_suppliers', 'get_suppliers_by_category',
+    'update_expense_updated_at', 'calculate_expense_totals',
+    'get_expense_summary',
+    'update_income_updated_at', 'calculate_income_totals',
+    'calculate_income_profit', 'get_revenue_summary',
+    'get_piutang_aging',
+    'update_loan_updated_at', 'generate_loan_repayment_schedule',
+    'get_loan_summary',
+    'update_investment_updated_at', 'calculate_investment_roi',
+    'get_investment_summary'
+  );
 
--- ✅ TEST: Total piutang by customer
-SELECT 
-  customer_id,
-  customer_name,
-  COUNT(*) as unpaid_invoices,
-  SUM(remaining_payment) as total_piutang,
-  MIN(due_date) as oldest_due_date,
-  MAX(income_date) as last_transaction_date
-FROM incomes
-WHERE owner_id = auth.uid()
-  AND payment_status IN ('unpaid', 'partial')
-  AND remaining_payment > 0
-GROUP BY customer_id, customer_name
-ORDER BY total_piutang DESC;
+\echo ''
 
 -- =====================================================
--- SECTION 4: CUSTOMER ANALYTICS
+-- SECTION 5: INDEXES
 -- =====================================================
+\echo '5️⃣  CHECKING INDEXES...'
+\echo ''
 
--- ✅ TEST: Top 10 customers by CLV (Customer Lifetime Value)
 SELECT 
-  c.id,
-  c.name,
-  c.tier,
-  c.total_purchases,
-  c.lifetime_value,
-  c.purchase_frequency,
-  c.average_order_value,
-  c.outstanding_balance,
-  c.last_purchase_date
-FROM customers c
-WHERE c.owner_id = auth.uid()
-  AND c.is_active = TRUE
-ORDER BY c.lifetime_value DESC
-LIMIT 10;
+  tablename,
+  COUNT(*) AS index_count
+FROM pg_indexes
+WHERE schemaname = 'public'
+  AND tablename IN (
+    'expenses', 'expense_items',
+    'suppliers',
+    'customers',
+    'incomes', 'income_items',
+    'loans', 'loan_installments',
+    'investments', 'profit_sharing_history'
+  )
+GROUP BY tablename
+ORDER BY tablename;
 
--- ✅ TEST: Customer segmentation by tier
 SELECT 
-  tier,
-  COUNT(*) as customer_count,
-  SUM(total_purchases) as total_revenue,
-  ROUND(AVG(total_purchases), 2) as avg_revenue_per_customer,
-  SUM(outstanding_balance) as total_outstanding,
-  ROUND(AVG(purchase_frequency), 1) as avg_purchase_frequency
-FROM customers
-WHERE owner_id = auth.uid()
-  AND is_active = TRUE
-GROUP BY tier
-ORDER BY 
-  CASE tier
-    WHEN 'platinum' THEN 1
-    WHEN 'gold' THEN 2
-    WHEN 'silver' THEN 3
-    WHEN 'bronze' THEN 4
-    ELSE 5
-  END;
+  CASE 
+    WHEN COUNT(*) >= 128 THEN '✅ All indexes exist (' || COUNT(*) || '/128+)'
+    ELSE '⚠️  Indexes: ' || COUNT(*) || ' (expected 128+)'
+  END AS status
+FROM pg_indexes
+WHERE schemaname = 'public'
+  AND tablename IN (
+    'expenses', 'expense_items',
+    'suppliers',
+    'customers',
+    'incomes', 'income_items',
+    'loans', 'loan_installments',
+    'investments', 'profit_sharing_history'
+  );
 
--- ✅ TEST: Customer summary using built-in function
-SELECT * FROM get_customer_summary(
-  p_owner_id := auth.uid(),
-  p_customer_id := NULL
-)
-LIMIT 10;
-
--- ✅ TEST: Customers exceeding credit limit
-SELECT 
-  c.name,
-  c.credit_limit,
-  c.outstanding_balance,
-  (c.outstanding_balance - c.credit_limit) as over_amount,
-  ROUND((c.outstanding_balance / NULLIF(c.credit_limit, 0)) * 100, 2) as utilization_pct
-FROM customers c
-WHERE c.owner_id = auth.uid()
-  AND c.credit_limit > 0
-  AND c.outstanding_balance > c.credit_limit
-ORDER BY over_amount DESC;
+\echo ''
 
 -- =====================================================
--- SECTION 5: SUPPLIER ANALYTICS
+-- SECTION 6: CONSTRAINTS
 -- =====================================================
+\echo '6️⃣  CHECKING CONSTRAINTS...'
+\echo ''
 
--- ✅ TEST: Top 10 suppliers by total purchases
 SELECT 
-  s.id,
-  s.name,
-  s.total_purchases,
-  s.outstanding_balance,
-  s.last_purchase_date,
-  ROUND((s.outstanding_balance / NULLIF(s.total_purchases, 0)) * 100, 2) as payable_ratio
-FROM suppliers s
-WHERE s.owner_id = auth.uid()
-  AND s.is_active = TRUE
-ORDER BY s.total_purchases DESC
-LIMIT 10;
+  table_name,
+  COUNT(*) AS constraint_count
+FROM information_schema.table_constraints
+WHERE table_schema = 'public'
+  AND table_name IN (
+    'expenses', 'expense_items',
+    'suppliers',
+    'customers',
+    'incomes', 'income_items',
+    'loans', 'loan_installments',
+    'investments', 'profit_sharing_history'
+  )
+GROUP BY table_name
+ORDER BY table_name;
 
--- ✅ TEST: Suppliers with outstanding payables
 SELECT 
-  s.name,
-  s.credit_limit,
-  s.outstanding_balance,
-  COUNT(e.id) as unpaid_expenses,
-  MIN(e.due_date) as oldest_due_date
-FROM suppliers s
-LEFT JOIN expenses e ON e.supplier_id = s.id 
-  AND e.payment_status IN ('unpaid', 'partial')
-WHERE s.owner_id = auth.uid()
-  AND s.outstanding_balance > 0
-GROUP BY s.id, s.name, s.credit_limit, s.outstanding_balance
-ORDER BY s.outstanding_balance DESC;
+  CASE 
+    WHEN COUNT(*) >= 91 THEN '✅ All constraints exist (' || COUNT(*) || '/91+)'
+    ELSE '⚠️  Constraints: ' || COUNT(*) || ' (expected 91+)'
+  END AS status
+FROM information_schema.table_constraints
+WHERE table_schema = 'public'
+  AND table_name IN (
+    'expenses', 'expense_items',
+    'suppliers',
+    'customers',
+    'incomes', 'income_items',
+    'loans', 'loan_installments',
+    'investments', 'profit_sharing_history'
+  );
 
--- ✅ TEST: Supplier summary using built-in function
-SELECT * FROM get_supplier_summary(
-  p_owner_id := auth.uid(),
-  p_supplier_id := NULL
-)
-LIMIT 10;
+\echo ''
 
 -- =====================================================
--- SECTION 6: EXPENSE ANALYTICS
+-- SECTION 7: VIEWS
 -- =====================================================
+\echo '7️⃣  CHECKING VIEWS...'
+\echo ''
 
--- ✅ TEST: Expense summary per month
 SELECT 
-  TO_CHAR(expense_date, 'YYYY-MM') as month,
-  expense_type,
-  COUNT(*) as transaction_count,
-  SUM(grand_total) as total_expense,
-  SUM(paid_amount) as total_paid,
-  SUM(remaining_payment) as total_outstanding
-FROM expenses
-WHERE owner_id = auth.uid()
-  AND expense_date >= DATE_TRUNC('year', CURRENT_DATE)
-GROUP BY TO_CHAR(expense_date, 'YYYY-MM'), expense_type
-ORDER BY month DESC, expense_type;
+  table_name AS view_name
+FROM information_schema.views
+WHERE table_schema = 'public'
+  AND table_name IN (
+    'active_customers_summary',
+    'customers_with_outstanding',
+    'my_customers_list',
+    'active_suppliers_summary',
+    'suppliers_with_outstanding',
+    'my_suppliers_list'
+  )
+ORDER BY table_name;
 
--- ✅ TEST: Top expense categories
 SELECT 
-  category,
-  COUNT(*) as count,
-  SUM(grand_total) as total,
-  ROUND(AVG(grand_total), 2) as avg_per_transaction
-FROM expenses
-WHERE owner_id = auth.uid()
-  AND expense_date >= DATE_TRUNC('month', CURRENT_DATE)
-GROUP BY category
-ORDER BY total DESC
-LIMIT 10;
+  CASE 
+    WHEN COUNT(*) >= 6 THEN '✅ All views exist (' || COUNT(*) || '/6+)'
+    ELSE '⚠️  Views: ' || COUNT(*) || ' (expected 6+)'
+  END AS status
+FROM information_schema.views
+WHERE table_schema = 'public'
+  AND table_name IN (
+    'active_customers_summary',
+    'customers_with_outstanding',
+    'my_customers_list',
+    'active_suppliers_summary',
+    'suppliers_with_outstanding',
+    'my_suppliers_list'
+  );
 
--- ✅ TEST: Expense summary using built-in function
-SELECT * FROM get_expense_summary(
-  p_owner_id := auth.uid(),
-  p_start_date := DATE_TRUNC('month', CURRENT_DATE),
-  p_end_date := CURRENT_DATE,
-  p_expense_type := NULL
-);
+\echo ''
 
 -- =====================================================
--- SECTION 7: PROFIT & MARGIN ANALYSIS
+-- SECTION 8: DATA OVERVIEW
 -- =====================================================
+\echo '8️⃣  DATA OVERVIEW...'
+\echo ''
 
--- ✅ TEST: Gross profit by product (from income_items)
-SELECT 
-  ii.product_name,
-  COUNT(DISTINCT ii.income_id) as sales_count,
-  SUM(ii.qty) as total_qty_sold,
-  SUM(ii.subtotal) as total_revenue,
-  SUM(ii.qty * ii.buy_price) as total_cost,
-  SUM(ii.total_profit) as gross_profit,
-  ROUND((SUM(ii.total_profit) / NULLIF(SUM(ii.subtotal), 0)) * 100, 2) as profit_margin_pct
-FROM income_items ii
-WHERE ii.owner_id = auth.uid()
-  AND ii.created_at >= DATE_TRUNC('month', CURRENT_DATE)
-GROUP BY ii.product_name
-ORDER BY gross_profit DESC
-LIMIT 20;
+SELECT 'expenses' AS table_name, COUNT(*) AS row_count FROM expenses
+UNION ALL
+SELECT 'expense_items', COUNT(*) FROM expense_items
+UNION ALL
+SELECT 'suppliers', COUNT(*) FROM suppliers
+UNION ALL
+SELECT 'customers', COUNT(*) FROM customers
+UNION ALL
+SELECT 'incomes', COUNT(*) FROM incomes
+UNION ALL
+SELECT 'income_items', COUNT(*) FROM income_items
+UNION ALL
+SELECT 'loans', COUNT(*) FROM loans
+UNION ALL
+SELECT 'loan_installments', COUNT(*) FROM loan_installments
+UNION ALL
+SELECT 'investments', COUNT(*) FROM investments
+UNION ALL
+SELECT 'profit_sharing_history', COUNT(*) FROM profit_sharing_history
+ORDER BY table_name;
 
--- ✅ TEST: Operating income breakdown (using built-in function)
-SELECT * FROM get_operating_income_breakdown(
-  p_owner_id := auth.uid(),
-  p_start_date := CURRENT_DATE - INTERVAL '30 days',
-  p_end_date := CURRENT_DATE
-);
-
--- ✅ TEST: Overall profit margin (operating income only)
-SELECT 
-  SUM(i.grand_total) as total_revenue,
-  SUM(
-    (SELECT SUM(ii.qty * ii.buy_price) FROM income_items ii WHERE ii.income_id = i.id)
-  ) as total_cost,
-  SUM(
-    (SELECT SUM(ii.total_profit) FROM income_items ii WHERE ii.income_id = i.id)
-  ) as gross_profit,
-  ROUND(
-    (SUM(
-      (SELECT SUM(ii.total_profit) FROM income_items ii WHERE ii.income_id = i.id)
-    ) / NULLIF(SUM(i.grand_total), 0)) * 100, 
-    2
-  ) as profit_margin_pct
-FROM incomes i
-WHERE i.owner_id = auth.uid()
-  AND i.income_type = 'operating'
-  AND i.income_date >= DATE_TRUNC('month', CURRENT_DATE);
+\echo ''
 
 -- =====================================================
--- SECTION 8: PERFORMANCE VALIDATION
+-- SECTION 9: REVENUE & EXPENSE SUMMARY (if data exists)
 -- =====================================================
+\echo '9️⃣  REVENUE & EXPENSE SUMMARY...'
+\echo ''
 
--- ✅ TEST: Check index usage (should use indexes, not seq scan)
-EXPLAIN ANALYZE
-SELECT * FROM incomes 
-WHERE owner_id = auth.uid() 
-  AND income_date >= CURRENT_DATE - INTERVAL '30 days';
-
--- ✅ TEST: Check trigger execution (insert test data)
--- DO NOT RUN IN PRODUCTION - FOR TESTING ONLY
-/*
-BEGIN;
-
--- Insert test income
-INSERT INTO incomes (
-  owner_id, income_type, income_category, income_date,
-  subtotal, discount_value, ppn_enabled, payment_method
-) VALUES (
-  auth.uid(), 'operating', 'product_sales', CURRENT_DATE,
-  1000000, 50000, TRUE, 'tempo'
-);
-
--- Verify triggers executed
-SELECT 
-  discount_amount, -- Should be calculated
-  ppn_amount,      -- Should be calculated
-  grand_total,     -- Should be calculated
-  payment_status,  -- Should be 'unpaid'
-  remaining_payment -- Should equal grand_total
-FROM incomes 
-WHERE owner_id = auth.uid() 
-ORDER BY created_at DESC 
-LIMIT 1;
-
-ROLLBACK; -- Don't commit test data
-*/
-
--- ✅ TEST: Check RLS policies (should only see own data)
--- User should only see their own records
-SELECT COUNT(*) as my_income_count
-FROM incomes
-WHERE owner_id = auth.uid();
-
--- Should return 0 or error (cannot see other users' data)
--- SELECT COUNT(*) FROM incomes WHERE owner_id != auth.uid();
-
--- =====================================================
--- SECTION 9: DATA INTEGRITY CHECKS
--- =====================================================
-
--- ✅ TEST: Find incomes with mismatched subtotals
-SELECT 
-  i.id,
-  i.invoice_number,
-  i.subtotal as header_subtotal,
-  COALESCE(SUM(ii.subtotal), 0) as items_subtotal,
-  i.subtotal - COALESCE(SUM(ii.subtotal), 0) as difference
-FROM incomes i
-LEFT JOIN income_items ii ON ii.income_id = i.id
-WHERE i.owner_id = auth.uid()
-GROUP BY i.id, i.invoice_number, i.subtotal
-HAVING ABS(i.subtotal - COALESCE(SUM(ii.subtotal), 0)) > 0.01
-ORDER BY difference DESC;
-
--- ✅ TEST: Find customers with mismatched outstanding balance
-SELECT 
-  c.id,
-  c.name,
-  c.outstanding_balance as customer_balance,
-  COALESCE(SUM(i.remaining_payment), 0) as calculated_balance,
-  c.outstanding_balance - COALESCE(SUM(i.remaining_payment), 0) as difference
-FROM customers c
-LEFT JOIN incomes i ON i.customer_id = c.id AND i.payment_status IN ('unpaid', 'partial')
-WHERE c.owner_id = auth.uid()
-GROUP BY c.id, c.name, c.outstanding_balance
-HAVING ABS(c.outstanding_balance - COALESCE(SUM(i.remaining_payment), 0)) > 0.01
-ORDER BY difference DESC;
-
--- ✅ TEST: Find suppliers with mismatched outstanding balance
-SELECT 
-  s.id,
-  s.name,
-  s.outstanding_balance as supplier_balance,
-  COALESCE(SUM(e.remaining_payment), 0) as calculated_balance,
-  s.outstanding_balance - COALESCE(SUM(e.remaining_payment), 0) as difference
-FROM suppliers s
-LEFT JOIN expenses e ON e.supplier_id = s.id AND e.payment_status IN ('unpaid', 'partial')
-WHERE s.owner_id = auth.uid()
-GROUP BY s.id, s.name, s.outstanding_balance
-HAVING ABS(s.outstanding_balance - COALESCE(SUM(e.remaining_payment), 0)) > 0.01
-ORDER BY difference DESC;
-
--- =====================================================
--- SUCCESS MESSAGE
--- =====================================================
-DO $$ 
-BEGIN 
-  RAISE NOTICE '✅ Finance Domain - Debug Queries Ready';
-  RAISE NOTICE '   - Section 1: Health checks (tables, RLS, functions)';
-  RAISE NOTICE '   - Section 2: Revenue summary queries';
-  RAISE NOTICE '   - Section 3: Piutang (AR) aging analysis';
-  RAISE NOTICE '   - Section 4: Customer analytics (CLV, tiers)';
-  RAISE NOTICE '   - Section 5: Supplier analytics';
-  RAISE NOTICE '   - Section 6: Expense analytics';
-  RAISE NOTICE '   - Section 7: Profit & margin analysis';
-  RAISE NOTICE '   - Section 8: Performance validation';
-  RAISE NOTICE '   - Section 9: Data integrity checks';
-  RAISE NOTICE '';
-  RAISE NOTICE '💡 Run these queries after deployment for smoke testing!';
+DO $$
+DECLARE
+  income_count INTEGER;
+  expense_count INTEGER;
+BEGIN
+  SELECT COUNT(*) INTO income_count FROM incomes LIMIT 1;
+  SELECT COUNT(*) INTO expense_count FROM expenses LIMIT 1;
+  
+  IF income_count > 0 OR expense_count > 0 THEN
+    RAISE NOTICE '';
+    RAISE NOTICE 'Revenue by Type:';
+  ELSE
+    RAISE NOTICE 'No data found - skipping summary queries';
+  END IF;
 END $$;
+
+-- Revenue by income_type (only if data exists)
+SELECT 
+  income_type,
+  COUNT(*) AS count,
+  SUM(grand_total) AS total_revenue
+FROM incomes
+GROUP BY income_type
+ORDER BY total_revenue DESC;
+
+\echo ''
+
+-- Expenses by expense_type (only if data exists)
+SELECT 
+  expense_type,
+  COUNT(*) AS count,
+  SUM(grand_total) AS total_expenses
+FROM expenses
+GROUP BY expense_type
+ORDER BY total_expenses DESC;
+
+\echo ''
+
+-- =====================================================
+-- SECTION 10: PIUTANG (AR) AGING (if data exists)
+-- =====================================================
+\echo '🔟 PIUTANG (AR) AGING...'
+\echo ''
+
+SELECT 
+  payment_status,
+  COUNT(*) AS count,
+  SUM(remaining_payment) AS total_piutang
+FROM incomes
+WHERE payment_status IN ('unpaid', 'partial')
+GROUP BY payment_status
+ORDER BY payment_status;
+
+\echo ''
+
+-- =====================================================
+-- SECTION 11: HUTANG (AP) OVERVIEW (if data exists)
+-- =====================================================
+\echo '1️⃣1️⃣  HUTANG (AP) OVERVIEW...'
+\echo ''
+
+SELECT 
+  payment_status,
+  COUNT(*) AS count,
+  SUM(remaining_payment) AS total_hutang
+FROM expenses
+WHERE payment_status IN ('unpaid', 'partial')
+GROUP BY payment_status
+ORDER BY payment_status;
+
+\echo ''
+
+-- =====================================================
+-- SECTION 12: FUNCTIONAL TEST NOTES
+-- =====================================================
+\echo '1️⃣2️⃣  FUNCTIONAL TEST (manual after authentication)...'
+\echo ''
+\echo '   To test FINANCE domain functions:'
+\echo ''
+\echo '   -- Create test customer'
+\echo '   INSERT INTO customers (owner_id, name, phone)'
+\echo '   VALUES (auth.uid(), ''Test Customer'', ''628123456789'');'
+\echo ''
+\echo '   -- Create test supplier'
+\echo '   INSERT INTO suppliers (owner_id, name, phone)'
+\echo '   VALUES (auth.uid(), ''Test Supplier'', ''628987654321'');'
+\echo ''
+\echo '   -- Create test income'
+\echo '   INSERT INTO incomes (owner_id, income_type, income_category, grand_total)'
+\echo '   VALUES (auth.uid(), ''operating'', ''product_sales'', 100000);'
+\echo ''
+\echo '   -- Create test expense'
+\echo '   INSERT INTO expenses (owner_id, expense_type, expense_category, grand_total)'
+\echo '   VALUES (auth.uid(), ''operating'', ''raw_materials'', 50000);'
+\echo ''
+\echo '   -- Test revenue summary'
+\echo '   SELECT * FROM get_revenue_summary(auth.uid());'
+\echo ''
+\echo '   -- Test expense summary'
+\echo '   SELECT * FROM get_expense_summary(auth.uid());'
+\echo ''
+\echo '   -- Clean up test data'
+\echo '   DELETE FROM incomes WHERE owner_id = auth.uid() AND grand_total = 100000;'
+\echo '   DELETE FROM expenses WHERE owner_id = auth.uid() AND grand_total = 50000;'
+\echo '   DELETE FROM customers WHERE owner_id = auth.uid() AND name = ''Test Customer'';'
+\echo '   DELETE FROM suppliers WHERE owner_id = auth.uid() AND name = ''Test Supplier'';'
+\echo ''
+
+-- =====================================================
+-- SECTION 13: PERFORMANCE CHECK
+-- =====================================================
+\echo '1️⃣3️⃣  PERFORMANCE CHECK...'
+\echo ''
+\echo '   Sample queries with EXPLAIN ANALYZE (run manually):'
+\echo ''
+
+DO $$
+DECLARE
+  income_count INTEGER;
+BEGIN
+  SELECT COUNT(*) INTO income_count FROM incomes LIMIT 1;
+  
+  IF income_count > 0 THEN
+    RAISE NOTICE 'Data exists - run these queries:';
+    RAISE NOTICE '';
+    RAISE NOTICE 'EXPLAIN ANALYZE SELECT * FROM get_revenue_summary(auth.uid());';
+    RAISE NOTICE 'EXPLAIN ANALYZE SELECT * FROM get_piutang_aging(auth.uid());';
+    RAISE NOTICE 'EXPLAIN ANALYZE SELECT * FROM get_customer_summary(auth.uid(), NULL);';
+    RAISE NOTICE 'EXPLAIN ANALYZE SELECT * FROM get_supplier_summary(auth.uid(), NULL);';
+  ELSE
+    RAISE NOTICE 'No data found - add data first before running performance tests';
+  END IF;
+END $$;
+
+\echo ''
+
+-- =====================================================
+-- SECTION 14: SUMMARY
+-- =====================================================
+\echo '================================================='
+\echo 'HEALTH CHECK SUMMARY'
+\echo '================================================='
+\echo ''
+
+SELECT 
+  '✅ FINANCE Domain Health Check Complete' AS status,
+  (SELECT COUNT(*) FROM information_schema.tables 
+   WHERE table_schema = 'public' 
+   AND table_name IN ('expenses', 'expense_items', 'suppliers', 'customers', 'incomes', 'income_items', 'loans', 'loan_installments', 'investments', 'profit_sharing_history')) AS tables_count,
+  (SELECT COUNT(*) FROM pg_policies 
+   WHERE schemaname = 'public' 
+   AND tablename IN ('expenses', 'expense_items', 'suppliers', 'customers', 'incomes', 'income_items', 'loans', 'loan_installments', 'investments', 'profit_sharing_history')) AS policies_count,
+  (SELECT COUNT(*) FROM information_schema.routines 
+   WHERE routine_schema = 'public' 
+   AND routine_name IN (
+     'update_customer_updated_at', 'update_customer_outstanding_balance',
+     'update_supplier_updated_at', 'update_supplier_outstanding_balance',
+     'update_expense_updated_at', 'calculate_expense_totals',
+     'update_income_updated_at', 'calculate_income_totals',
+     'update_loan_updated_at', 'generate_loan_repayment_schedule',
+     'update_investment_updated_at', 'calculate_investment_roi'
+   )) AS functions_count,
+  (SELECT COUNT(*) FROM information_schema.views 
+   WHERE table_schema = 'public' 
+   AND table_name IN ('active_customers_summary', 'customers_with_outstanding', 'my_customers_list', 'active_suppliers_summary', 'suppliers_with_outstanding', 'my_suppliers_list')) AS views_count,
+  (SELECT COUNT(*) FROM pg_indexes 
+   WHERE schemaname = 'public' 
+   AND tablename IN ('expenses', 'expense_items', 'suppliers', 'customers', 'incomes', 'income_items', 'loans', 'loan_installments', 'investments', 'profit_sharing_history')) AS indexes_count;
+
+\echo ''
+\echo 'Next Steps:'
+\echo '1. Run functional tests (Section 12) after authentication'
+\echo '2. Run performance tests (Section 13) with real data'
+\echo '3. Check integration with INVENTORY domain (if deployed)'
+\echo '4. Monitor query performance in production'
+\echo ''
+\echo '================================================='
+\echo 'END OF HEALTH CHECK'
+\echo '================================================='

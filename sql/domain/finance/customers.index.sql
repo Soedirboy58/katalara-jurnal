@@ -36,11 +36,11 @@ CREATE INDEX idx_customers_name_lower ON customers(owner_id, LOWER(name));
 -- ANALYTICS INDEXES
 -- =====================================================
 
--- Customer performance queries (CLV, total purchases)
+-- Customer performance queries (total purchases, last purchase)
 DROP INDEX IF EXISTS idx_customers_performance;
-CREATE INDEX idx_customers_performance ON customers(owner_id, total_purchases DESC, lifetime_value DESC);
+CREATE INDEX idx_customers_performance ON customers(owner_id, total_purchases DESC, last_purchase_date DESC);
 
--- Receivables monitoring (customers with outstanding balance)
+-- Credit monitoring (customers with outstanding balance/piutang)
 DROP INDEX IF EXISTS idx_customers_outstanding;
 CREATE INDEX idx_customers_outstanding ON customers(owner_id, outstanding_balance DESC) 
 WHERE outstanding_balance > 0;
@@ -50,15 +50,20 @@ DROP INDEX IF EXISTS idx_customers_overlimit;
 CREATE INDEX idx_customers_overlimit ON customers(owner_id, credit_limit, outstanding_balance) 
 WHERE credit_limit > 0 AND outstanding_balance > credit_limit;
 
+-- Customer Lifetime Value (CLV) ranking
+DROP INDEX IF EXISTS idx_customers_clv;
+CREATE INDEX idx_customers_clv ON customers(owner_id, lifetime_value DESC) 
+WHERE lifetime_value > 0;
+
 -- =====================================================
 -- SEGMENTATION INDEXES
 -- =====================================================
 
--- Customer by type (individual, company, reseller)
+-- Customer by type (for targeted marketing)
 DROP INDEX IF EXISTS idx_customers_type;
 CREATE INDEX idx_customers_type ON customers(owner_id, customer_type) WHERE customer_type IS NOT NULL;
 
--- Customer by tier (loyalty segmentation)
+-- Customer by tier (for loyalty programs)
 DROP INDEX IF EXISTS idx_customers_tier;
 CREATE INDEX idx_customers_tier ON customers(owner_id, tier) WHERE tier IS NOT NULL;
 
@@ -67,20 +72,18 @@ DROP INDEX IF EXISTS idx_customers_location;
 CREATE INDEX idx_customers_location ON customers(owner_id, province, city) WHERE province IS NOT NULL;
 
 -- =====================================================
--- CLV & LOYALTY INDEXES
+-- REPORTING INDEXES
 -- =====================================================
 
--- Top customers by lifetime value
-DROP INDEX IF EXISTS idx_customers_clv;
-CREATE INDEX idx_customers_clv ON customers(owner_id, lifetime_value DESC NULLS LAST);
-
--- Frequent buyers
+-- Purchase frequency analysis
 DROP INDEX IF EXISTS idx_customers_frequency;
-CREATE INDEX idx_customers_frequency ON customers(owner_id, purchase_frequency DESC);
+CREATE INDEX idx_customers_frequency ON customers(owner_id, purchase_frequency DESC) 
+WHERE purchase_frequency > 0;
 
--- High value per transaction
-DROP INDEX IF EXISTS idx_customers_avg_order;
-CREATE INDEX idx_customers_avg_order ON customers(owner_id, average_order_value DESC NULLS LAST);
+-- Average order value analysis
+DROP INDEX IF EXISTS idx_customers_aov;
+CREATE INDEX idx_customers_aov ON customers(owner_id, average_order_value DESC) 
+WHERE average_order_value > 0;
 
 -- =====================================================
 -- TIMESTAMP INDEXES (for audit trails)
@@ -92,9 +95,6 @@ CREATE INDEX idx_customers_created ON customers(owner_id, created_at DESC);
 
 DROP INDEX IF EXISTS idx_customers_updated;
 CREATE INDEX idx_customers_updated ON customers(owner_id, updated_at DESC);
-
-DROP INDEX IF EXISTS idx_customers_last_purchase;
-CREATE INDEX idx_customers_last_purchase ON customers(owner_id, last_purchase_date DESC NULLS LAST);
 
 -- =====================================================
 -- UNIQUE CONSTRAINTS
@@ -148,10 +148,10 @@ CHECK (lifetime_value >= 0);
 
 -- Average order value must be non-negative
 ALTER TABLE customers 
-DROP CONSTRAINT IF EXISTS customers_avg_order_check;
+DROP CONSTRAINT IF EXISTS customers_aov_check;
 
 ALTER TABLE customers 
-ADD CONSTRAINT customers_avg_order_check 
+ADD CONSTRAINT customers_aov_check 
 CHECK (average_order_value >= 0);
 
 -- Purchase frequency must be non-negative
@@ -178,14 +178,6 @@ ALTER TABLE customers
 ADD CONSTRAINT customers_loyalty_points_check 
 CHECK (loyalty_points >= 0);
 
--- Tier must be valid value
-ALTER TABLE customers 
-DROP CONSTRAINT IF EXISTS customers_tier_check;
-
-ALTER TABLE customers 
-ADD CONSTRAINT customers_tier_check 
-CHECK (tier IS NULL OR tier IN ('bronze', 'silver', 'gold', 'platinum'));
-
 -- Email format validation (basic check)
 ALTER TABLE customers 
 DROP CONSTRAINT IF EXISTS customers_email_format_check;
@@ -193,6 +185,14 @@ DROP CONSTRAINT IF EXISTS customers_email_format_check;
 ALTER TABLE customers 
 ADD CONSTRAINT customers_email_format_check 
 CHECK (email IS NULL OR email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}$');
+
+-- Valid customer tier values
+ALTER TABLE customers 
+DROP CONSTRAINT IF EXISTS customers_tier_check;
+
+ALTER TABLE customers 
+ADD CONSTRAINT customers_tier_check 
+CHECK (tier IS NULL OR tier IN ('bronze', 'silver', 'gold', 'platinum'));
 
 -- =====================================================
 -- QUERY OPTIMIZATION
@@ -205,11 +205,11 @@ ANALYZE customers;
 -- =====================================================
 COMMENT ON INDEX idx_customers_owner IS 'Primary filter - used in 99% of queries';
 COMMENT ON INDEX idx_customers_active IS 'Partial index for dropdown lists - only active customers';
-COMMENT ON INDEX idx_customers_outstanding IS 'Partial index for receivables monitoring - only customers with AR';
+COMMENT ON INDEX idx_customers_outstanding IS 'Partial index for receivables monitoring - only customers with piutang';
 COMMENT ON INDEX idx_customers_overlimit IS 'Alert index - customers exceeding credit limit';
 COMMENT ON INDEX idx_customers_name_search IS 'Full-text search for customer discovery';
-COMMENT ON INDEX idx_customers_clv IS 'VIP customer identification by lifetime value';
-COMMENT ON INDEX idx_customers_tier IS 'Loyalty program queries - segmentation by tier';
+COMMENT ON INDEX idx_customers_clv IS 'Partial index for VIP/high-value customer analysis';
+COMMENT ON INDEX idx_customers_tier IS 'Loyalty tier segmentation index';
 
 -- =====================================================
 -- SUCCESS MESSAGE
@@ -217,9 +217,8 @@ COMMENT ON INDEX idx_customers_tier IS 'Loyalty program queries - segmentation b
 DO $$ 
 BEGIN 
   RAISE NOTICE '✅ Finance Domain - Customers Indexes Created';
-  RAISE NOTICE '   - 18 indexes: owner, code, active, name search, CLV, loyalty, segmentation';
-  RAISE NOTICE '   - 10 constraints: credit limit, balance, purchases, CLV metrics, tier, email';
-  RAISE NOTICE '   - Partial indexes for: active customers, outstanding AR, over-limit alerts';
+  RAISE NOTICE '   - 17 indexes: owner, code, active, name search, performance, CLV, segmentation';
+  RAISE NOTICE '   - 11 constraints: credit limit, balance, purchases, CLV, AOV, frequency, loyalty, email, tier';
+  RAISE NOTICE '   - Partial indexes for: active customers, outstanding balance, over-limit alerts, CLV';
   RAISE NOTICE '   - Full-text search enabled on customer name';
-  RAISE NOTICE '   - CLV & loyalty tracking optimized';
 END $$;

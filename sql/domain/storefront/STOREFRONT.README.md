@@ -112,15 +112,27 @@ business_storefronts
 
 **CRITICAL ARCHITECTURE**:
 ```
-products (Inventory) ←──[product_id FK]──→ storefront_products
+inventory.products ←──[product_id FK]──→ storefront.storefront_products
   Master data                              Display layer
 ```
 
+**⚠️ IMPORTANT**: `storefront_products` is NOT master data!
+- Master products live in **INVENTORY domain** (`products` table)
+- This table is for DISPLAY ONLY (lapak-specific price, visibility, branding)
+- Link via `product_id` FK to `inventory.products.id`
+
+**Workflow**:
+1. User creates product in INVENTORY module → `products` table
+2. User publishes to storefront → call `publish_product_to_storefront(product_id, storefront_id, display_price)`
+3. Function creates record in `storefront_products` with `product_id` FK
+4. Public views product at `/lapak/[slug]` → reads from `storefront_products`
+5. Master data (cost price, stock) remains in INVENTORY domain
+
 **Key Columns**:
-- `product_id` (FK): **Link to master products table** (Inventory domain)
+- `product_id` (FK): **Link to inventory.products.id** (CRITICAL)
 - `storefront_id` (FK): Parent storefront
-- `name`, `description`: Display info (can differ from master)
-- `price`: Storefront-specific price
+- `name`, `description`: Display info (can override master)
+- `price`: Storefront-specific price (can differ from master `selling_price`)
 - `product_type`: 'barang' (goods) or 'jasa' (services)
 - `is_visible`, `is_featured`: Visibility flags
 - `view_count`, `click_count`, `cart_add_count`: Analytics
@@ -128,15 +140,15 @@ products (Inventory) ←──[product_id FK]──→ storefront_products
 **Public Access**: ✅ SELECT (WHERE is_visible = true AND storefront.is_active = true)
 
 **Functions**:
-- `publish_product_to_storefront(product_id, storefront_id, price)` → **Link master → display**
-- `sync_product_from_master(storefront_product_id)` → Sync from master
+- `publish_product_to_storefront(product_id, storefront_id, display_price)` → **Link master → display**
+- `sync_product_from_master(storefront_product_id)` → Sync from INVENTORY
 - `increment_product_views(product_id)` → View counter
-- `check_stock_availability(product_id, quantity)` → Stock check
+- `check_stock_availability(product_id, quantity)` → Stock check (via INVENTORY)
 
 **Constraints**:
 - Price > 0
 - compare_at_price >= price (if set)
-- stock_quantity >= 0
+- stock_quantity >= 0 (if tracked)
 - product_type IN ('barang', 'jasa')
 
 **Views**:
