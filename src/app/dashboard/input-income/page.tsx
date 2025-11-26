@@ -1164,8 +1164,8 @@ export default function InputIncomePage() {
                     setSelectedProductId(e.target.value)
                     const product = products.find((p: Product) => p.id === e.target.value)
                     if (product) {
-                      // Set buy price (cost_price from database)
-                      setBuyPrice((product as any).cost_price || 0)
+                      // Set buy price (buy_price from database - FIXED)
+                      setBuyPrice((product as any).buy_price || 0)
                       
                       // 🎯 FIXED: Always use sell_price from database (synced from expense/edit)
                       const sellPriceFromDB = (product as any).sell_price || product.price
