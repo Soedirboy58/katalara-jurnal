@@ -987,17 +987,28 @@ export default function InputIncomePage() {
         
         {/* Month */}
         <div className="bg-white rounded-lg shadow-sm p-5 border border-gray-200 hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-500 font-medium">Bulan Ini</p>
-              {loadingKpi ? (
-                <p className="text-2xl font-bold text-gray-400 mt-1 animate-pulse">Loading...</p>
-              ) : (
-                <p className="text-2xl font-bold text-gray-800 mt-1">
-                  Rp {kpiStats.month.amount.toLocaleString('id-ID')}
-                </p>
-              )}
+          <p className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-2">Bulan Ini</p>
+          {loadingKpi ? (
+            <p className="text-2xl font-bold text-gray-300 animate-pulse">Loading...</p>
+          ) : (
+            <>
+              <p className="text-2xl font-bold text-gray-900">
+                Rp {kpiStats.month.amount.toLocaleString('id-ID')}
+              </p>
               <p className="text-xs text-gray-400 mt-1">{kpiStats.month.count} transaksi</p>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Main Form */}
+      <div className="bg-white rounded-xl shadow-md p-6 md:p-8">
+        {/* Header with icon - Clean */}
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-8 h-8 bg-gray-900 rounded-lg flex items-center justify-center">
+            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
             </div>
           </div>
         </div>
@@ -1375,7 +1386,7 @@ export default function InputIncomePage() {
                   type="button"
                   onClick={handleAddItem}
                   disabled={!selectedProductId || !quantity || !pricePerUnit}
-                  className="w-full h-[42px] bg-gray-700 hover:bg-gray-800 text-white font-semibold rounded-lg disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                  className="w-full h-[42px] bg-gray-900 hover:bg-gray-800 text-white font-semibold rounded-lg disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -1492,9 +1503,12 @@ export default function InputIncomePage() {
             💰 LOAN INPUT (SPECIAL FOR LOAN_RECEIVED)
             ============================================ */}
         {category === 'loan_received' && (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <div className="mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Informasi Pinjaman & Cicilan</h3>
+          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg shadow-md border-2 border-blue-300 p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-8 h-8 bg-gray-900 rounded-lg flex items-center justify-center">
+                <span className="text-white text-lg">🏦</span>
+              </div>
+              <h3 className="text-lg font-bold text-gray-800">Informasi Pinjaman & Cicilan</h3>
             </div>
             
             <div className="space-y-4">
@@ -1629,8 +1643,9 @@ export default function InputIncomePage() {
                 type="button"
                 onClick={calculateLoanPreview}
                 disabled={!amount || !loanInterestRate || !loanTermMonths || !loanFirstPaymentDate}
-                className="w-full bg-gray-700 hover:bg-gray-800 text-white font-semibold py-3 rounded-lg shadow-sm transition-all disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="w-full bg-gray-900 hover:bg-gray-800 text-white font-semibold py-3 rounded-lg shadow-md hover:shadow-lg transition-all disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
+                <span>🧮</span>
                 <span>Hitung Preview Cicilan</span>
               </button>
 
@@ -1690,7 +1705,7 @@ export default function InputIncomePage() {
                   Rp {loanInstallmentPreview.reduce((sum, inst) => sum + inst.installment_amount, 0).toLocaleString('id-ID')}
                 </p>
               </div>
-              <div className="bg-purple-50 rounded-lg p-3 border border-purple-200">
+              <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
                 <p className="text-xs text-gray-600 mb-1">Total Bunga</p>
                 <p className="text-sm font-bold text-purple-700">
                   Rp {loanInstallmentPreview.reduce((sum, inst) => sum + inst.interest_amount, 0).toLocaleString('id-ID')}
@@ -1765,7 +1780,7 @@ export default function InputIncomePage() {
         {category === 'investor_funding' && (
           <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg shadow-md border-2 border-purple-300 p-6">
             <div className="flex items-center gap-2 mb-4">
-              <div className="w-8 h-8 bg-purple-600 rounded-lg flex items-center justify-center">
+              <div className="w-8 h-8 bg-gray-900 rounded-lg flex items-center justify-center">
                 <span className="text-white text-lg">🤝</span>
               </div>
               <h3 className="text-lg font-bold text-gray-800">Informasi Investor & Profit Sharing</h3>
@@ -1893,7 +1908,7 @@ export default function InputIncomePage() {
               </div>
 
               {/* Reminder Toggle */}
-              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+              <div className="bg-gray-100 border border-gray-200 rounded-lg p-4">
                 <label className="flex items-start gap-3 cursor-pointer">
                   <input
                     type="checkbox"
@@ -1916,8 +1931,9 @@ export default function InputIncomePage() {
                 type="button"
                 onClick={calculateProfitSharePreview}
                 disabled={!amount || !profitSharePercentage || !investorName || !investmentStartDate}
-                className="w-full bg-gray-700 hover:bg-gray-800 text-white font-semibold py-3 rounded-lg shadow-sm transition-all disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 rounded-lg shadow-md hover:shadow-lg transition-all disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
+                <span>🧮</span>
                 <span>Hitung Preview Profit Sharing</span>
               </button>
 
@@ -2352,7 +2368,7 @@ export default function InputIncomePage() {
                       </button>
                       
                       {otherFeesItems.length > 0 && (
-                        <div className="text-right text-purple-700 font-bold text-sm pt-1 border-t border-purple-200">
+                        <div className="text-right text-gray-900 font-semibold text-sm pt-2 border-t border-gray-300">
                           Total: Rp {otherFeesItems.reduce((sum, f) => sum + f.amount, 0).toLocaleString('id-ID')}
                         </div>
                       )}
@@ -3064,7 +3080,7 @@ export default function InputIncomePage() {
                 <button
                   onClick={handleQuickAddProduct}
                   disabled={savingQuickProduct}
-                  className="flex-1 px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className="flex-1 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {savingQuickProduct ? (
                     <>
@@ -3072,7 +3088,7 @@ export default function InputIncomePage() {
                       Menyimpan...
                     </>
                   ) : (
-                    <>Simpan</>
+                    <>✅ Simpan</>
                   )}
                 </button>
               </div>
