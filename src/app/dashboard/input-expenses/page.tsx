@@ -685,53 +685,51 @@ export default function InputExpensesPageRedesigned() {
           </button>
         </div>
 
-        {/* ============================================ */}
-        {/* 📊 KPI STATS SECTION - Professional Design with Icons */}
-        {/* ============================================ */}
+        {/* KPI Stats - Clean & Minimal */}
         <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Today */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 border-l-4 border-l-red-500 p-5 hover:shadow-md transition-shadow">
-            <div className="space-y-1">
-              <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Hari Ini</p>
-              {loadingKpi ? (
-                <p className="text-2xl font-bold text-gray-400 animate-pulse">Loading...</p>
-              ) : (
+          <div className="bg-white rounded-lg shadow-sm p-5 border border-gray-200 hover:shadow-md transition-shadow">
+            <p className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-2">Hari Ini</p>
+            {loadingKpi ? (
+              <p className="text-2xl font-bold text-gray-300 animate-pulse">Loading...</p>
+            ) : (
+              <>
                 <p className="text-2xl font-bold text-gray-900">
                   Rp {formatCurrency(kpiStats.today.amount)}
                 </p>
-              )}
-              <p className="text-sm text-gray-500">{kpiStats.today.count} transaksi</p>
-            </div>
+                <p className="text-xs text-gray-400 mt-1">{kpiStats.today.count} transaksi</p>
+              </>
+            )}
           </div>
           
           {/* Week */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 border-l-4 border-l-amber-500 p-5 hover:shadow-md transition-shadow">
-            <div className="space-y-1">
-              <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">7 Hari Terakhir</p>
-              {loadingKpi ? (
-                <p className="text-2xl font-bold text-gray-400 animate-pulse">Loading...</p>
-              ) : (
+          <div className="bg-white rounded-lg shadow-sm p-5 border border-gray-200 hover:shadow-md transition-shadow">
+            <p className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-2">7 Hari Terakhir</p>
+            {loadingKpi ? (
+              <p className="text-2xl font-bold text-gray-300 animate-pulse">Loading...</p>
+            ) : (
+              <>
                 <p className="text-2xl font-bold text-gray-900">
                   Rp {formatCurrency(kpiStats.week.amount)}
                 </p>
-              )}
-              <p className="text-sm text-gray-500">{kpiStats.week.count} transaksi</p>
-            </div>
+                <p className="text-xs text-gray-400 mt-1">{kpiStats.week.count} transaksi</p>
+              </>
+            )}
           </div>
           
           {/* Month */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 border-l-4 border-l-blue-500 p-5 hover:shadow-md transition-shadow">
-            <div className="space-y-1">
-              <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Bulan Ini</p>
-              {loadingKpi ? (
-                <p className="text-2xl font-bold text-gray-400 animate-pulse">Loading...</p>
-              ) : (
+          <div className="bg-white rounded-lg shadow-sm p-5 border border-gray-200 hover:shadow-md transition-shadow">
+            <p className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-2">Bulan Ini</p>
+            {loadingKpi ? (
+              <p className="text-2xl font-bold text-gray-300 animate-pulse">Loading...</p>
+            ) : (
+              <>
                 <p className="text-2xl font-bold text-gray-900">
                   Rp {formatCurrency(kpiStats.month.amount)}
                 </p>
-              )}
-              <p className="text-sm text-gray-500">{kpiStats.month.count} transaksi</p>
-            </div>
+                <p className="text-xs text-gray-400 mt-1">{kpiStats.month.count} transaksi</p>
+              </>
+            )}
           </div>
         </div>
         
@@ -1396,29 +1394,26 @@ export default function InputExpensesPageRedesigned() {
             </div>
             )}
             
-            {/* RINGKASAN PEMBAYARAN - Clean & Professional */}
+            {/* Ringkasan Pembayaran - Clean & Professional */}
             {(category && category.trim() !== '') && (
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-              <h2 className="text-lg font-bold text-gray-900 mb-4 pb-3 border-b border-gray-200">
-                Ringkasan Pembayaran
-              </h2>
+            <div className="bg-white rounded-lg shadow-sm p-6 mb-6 border border-gray-200">
+              <h2 className="text-lg font-bold text-gray-900 mb-5">Ringkasan Pembayaran</h2>
               
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {/* Subtotal */}
-                <div className="flex justify-between items-center py-2">
+                <div className="flex justify-between items-center pb-3 border-b border-gray-200">
                   <span className="text-sm text-gray-600">Subtotal</span>
                   <span className="text-lg font-bold text-gray-900">
                     Rp {formatCurrency(subtotal)}
                   </span>
                 </div>
                 
-                <div className="border-t border-gray-200 pt-3 mt-3 space-y-3">
-                  {/* Discount with Mode Toggle */}
+                <div className="space-y-3">
+                  {/* Discount */}
                   <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium text-gray-700">Diskon</span>
-                      {/* Toggle % or Rp */}
-                      <div className="flex items-center gap-1 bg-white rounded-lg p-1 border border-gray-200">
+                      <span className="text-sm text-gray-700 font-medium">Diskon</span>
+                      <div className="flex items-center gap-1">
                         <button
                           type="button"
                           onClick={() => {
@@ -1426,10 +1421,10 @@ export default function InputExpensesPageRedesigned() {
                             setDiscountAmount(0)
                             setDiscountPercent(0)
                           }}
-                          className={`px-3 py-1 rounded text-xs font-semibold transition-all ${
+                          className={`px-2 py-1 rounded text-xs font-medium transition-all ${
                             discountMode === 'percent' 
-                              ? 'bg-gray-900 text-white' 
-                              : 'text-gray-600 hover:bg-gray-100'
+                              ? 'bg-gray-700 text-white' 
+                              : 'bg-white text-gray-600 border border-gray-300'
                           }`}
                         >
                           %
@@ -1441,10 +1436,10 @@ export default function InputExpensesPageRedesigned() {
                             setDiscountPercent(0)
                             setDiscountAmount(0)
                           }}
-                          className={`px-3 py-1 rounded text-xs font-semibold transition-all ${
+                          className={`px-2 py-1 rounded text-xs font-medium transition-all ${
                             discountMode === 'nominal' 
-                              ? 'bg-gray-900 text-white' 
-                              : 'text-gray-600 hover:bg-gray-100'
+                              ? 'bg-gray-700 text-white' 
+                              : 'bg-white text-gray-600 border border-gray-300'
                           }`}
                         >
                           Rp
@@ -1466,13 +1461,13 @@ export default function InputExpensesPageRedesigned() {
                               setDiscountPercent(Math.min(val, 100))
                             }}
                             placeholder="0"
-                            className="w-20 px-3 py-2 border border-gray-300 rounded-lg text-sm text-center font-semibold focus:ring-1 focus:ring-gray-400 focus:border-gray-400"
+                            className="w-20 px-3 py-1.5 border border-gray-300 rounded text-sm text-center focus:ring-1 focus:ring-gray-400 focus:border-gray-400"
                           />
-                          <span className="text-gray-700 font-semibold">%</span>
+                          <span className="text-sm text-gray-600">%</span>
                         </div>
                       ) : (
                         <div className="flex items-center gap-2">
-                          <span className="text-gray-600 text-sm">Rp</span>
+                          <span className="text-sm text-gray-600">Rp</span>
                           <input
                             type="number"
                             inputMode="numeric"
@@ -1484,22 +1479,22 @@ export default function InputExpensesPageRedesigned() {
                               setDiscountAmount(Math.min(val, subtotal))
                             }}
                             placeholder="0"
-                            className="w-32 px-3 py-2 border border-gray-300 rounded-lg text-sm text-right font-semibold focus:ring-1 focus:ring-gray-400 focus:border-gray-400"
+                            className="w-32 px-3 py-1.5 border border-gray-300 rounded text-sm text-right focus:ring-1 focus:ring-gray-400 focus:border-gray-400"
                           />
                         </div>
                       )}
                       
                       {discountAmount > 0 && (
-                        <span className="text-red-600 font-bold text-sm">
+                        <span className="text-sm font-medium text-gray-900">
                           - Rp {formatCurrency(discountAmount)}
                         </span>
                       )}
                     </div>
                   </div>
                   
-                  {/* PPN Checkbox */}
+                  {/* PPN */}
                   <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-                    <label className="flex items-center justify-between cursor-pointer group">
+                    <label className="flex items-center justify-between cursor-pointer">
                       <div className="flex items-center gap-3">
                         <input
                           type="checkbox"
@@ -1512,25 +1507,25 @@ export default function InputExpensesPageRedesigned() {
                               setTaxAmount(0)
                             }
                           }}
-                          className="w-4 h-4 rounded border-gray-300 text-gray-900 focus:ring-gray-500 focus:ring-offset-0"
+                          className="w-4 h-4 rounded border-gray-300 text-gray-700 focus:ring-gray-400"
                         />
                         <div>
-                          <span className="text-sm font-medium text-gray-700">PPN 11%</span>
+                          <span className="text-sm text-gray-700 font-medium">PPN 11%</span>
                           <p className="text-xs text-gray-500">Pajak Pertambahan Nilai</p>
                         </div>
                       </div>
                       {taxAmount > 0 && (
-                        <span className="text-sm font-semibold text-gray-900">
+                        <span className="text-sm font-medium text-gray-900">
                           + Rp {formatCurrency(taxAmount)}
                         </span>
                       )}
                     </label>
                   </div>
                   
-                  {/* PPh with Preset */}
+                  {/* PPh */}
                   <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium text-gray-700">PPh</span>
+                      <span className="text-sm text-gray-700 font-medium">PPh</span>
                       <div className="flex items-center gap-1">
                         {(['0', '1', '2', '3', 'custom'] as const).map((preset) => (
                           <button
@@ -1542,10 +1537,10 @@ export default function InputExpensesPageRedesigned() {
                                 setPphPercent(parseInt(preset))
                               }
                             }}
-                            className={`px-2 py-1 rounded text-xs font-semibold transition-all ${
+                            className={`px-2 py-1 rounded text-xs font-medium transition-all ${
                               pphPreset === preset
-                                ? 'bg-gray-900 text-white'
-                                : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-300'
+                                ? 'bg-gray-700 text-white'
+                                : 'bg-white text-gray-600 border border-gray-300'
                             }`}
                           >
                             {preset === 'custom' ? 'Custom' : `${preset}%`}
@@ -1568,12 +1563,12 @@ export default function InputExpensesPageRedesigned() {
                               setPphPercent(Math.min(val, 100))
                             }}
                             placeholder="0"
-                            className="w-20 px-3 py-2 border border-gray-300 rounded-lg text-sm text-center font-semibold focus:ring-1 focus:ring-gray-400 focus:border-gray-400"
+                            className="w-20 px-3 py-1.5 border border-gray-300 rounded text-sm text-center focus:ring-1 focus:ring-gray-400 focus:border-gray-400"
                           />
-                          <span className="text-gray-700 font-semibold">%</span>
+                          <span className="text-sm text-gray-600">%</span>
                         </div>
                         {pphAmount > 0 && (
-                          <span className="text-blue-700 font-bold text-sm">
+                          <span className="text-sm font-medium text-gray-900">
                             Rp {formatCurrency(pphAmount)}
                           </span>
                         )}
@@ -1581,24 +1576,24 @@ export default function InputExpensesPageRedesigned() {
                     )}
                     
                     {pphPreset !== 'custom' && pphAmount > 0 && (
-                      <div className="text-right text-blue-700 font-bold text-sm mt-1">
+                      <div className="text-right text-sm font-medium text-gray-900 mt-1">
                         Rp {formatCurrency(pphAmount)}
                       </div>
                     )}
                   </div>
                   
-                  {/* Other Fees - Collapsible with Multiple Items */}
+                  {/* Other Fees */}
                   <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
                     {!showOtherFees ? (
                       <button
                         type="button"
                         onClick={() => setShowOtherFees(true)}
-                        className="w-full flex items-center justify-between text-left group"
+                        className="w-full flex items-center justify-between text-left"
                       >
-                        <span className="text-sm font-medium text-gray-700">Biaya Lain</span>
+                        <span className="text-sm text-gray-700 font-medium">Biaya Lain</span>
                         <div className="flex items-center gap-2">
                           <span className="text-xs text-gray-500">Ongkir, Packing, dll</span>
-                          <svg className="w-5 h-5 text-purple-600 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                           </svg>
                         </div>
@@ -1606,21 +1601,21 @@ export default function InputExpensesPageRedesigned() {
                     ) : (
                       <div className="space-y-2">
                         <div className="flex items-center justify-between mb-2">
-                          <span className="text-gray-700 font-semibold text-sm">💼 Biaya Lain</span>
+                          <span className="text-sm text-gray-700 font-medium">Biaya Lain</span>
                           <button
                             type="button"
                             onClick={() => {
                               setShowOtherFees(false)
                               setOtherFeesItems([])
                             }}
-                            className="text-red-500 hover:text-red-700 text-xs font-semibold"
+                            className="text-xs text-gray-500 hover:text-gray-700"
                           >
                             Hapus Semua
                           </button>
                         </div>
                         
                         {otherFeesItems.map((fee) => (
-                          <div key={fee.id} className="flex items-center gap-2 bg-white rounded-lg p-2 border border-purple-200">
+                          <div key={fee.id} className="flex items-center gap-2 bg-white rounded p-2 border border-gray-200">
                             <input
                               type="text"
                               value={fee.label}
@@ -1630,7 +1625,7 @@ export default function InputExpensesPageRedesigned() {
                                 ))
                               }}
                               placeholder="Nama biaya"
-                              className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-purple-500"
+                              className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-gray-400"
                             />
                             <input
                               type="number"
@@ -1644,14 +1639,14 @@ export default function InputExpensesPageRedesigned() {
                                 ))
                               }}
                               placeholder="0"
-                              className="w-28 px-2 py-1 border border-gray-300 rounded text-sm text-right font-semibold focus:ring-2 focus:ring-purple-500"
+                              className="w-28 px-2 py-1 border border-gray-300 rounded text-sm text-right focus:ring-1 focus:ring-gray-400"
                             />
                             <button
                               type="button"
                               onClick={() => {
                                 setOtherFeesItems(prev => prev.filter(f => f.id !== fee.id))
                               }}
-                              className="text-red-500 hover:text-red-700 p-1"
+                              className="text-gray-400 hover:text-red-500 p-1"
                             >
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -1669,7 +1664,7 @@ export default function InputExpensesPageRedesigned() {
                               amount: 0
                             }])
                           }}
-                          className="w-full py-2 bg-purple-500 hover:bg-purple-600 text-white text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1"
+                          className="w-full py-1.5 bg-gray-200 hover:bg-gray-300 text-gray-700 text-xs font-medium rounded transition-colors flex items-center justify-center gap-1"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -1678,7 +1673,7 @@ export default function InputExpensesPageRedesigned() {
                         </button>
                         
                         {otherFeesItems.length > 0 && (
-                          <div className="text-right text-purple-700 font-bold text-sm pt-1 border-t border-purple-200">
+                          <div className="text-right text-sm font-medium text-gray-900 pt-1 border-t border-gray-200">
                             Total: Rp {formatCurrency(otherFeesItems.reduce((sum, f) => sum + f.amount, 0))}
                           </div>
                         )}
@@ -1687,13 +1682,14 @@ export default function InputExpensesPageRedesigned() {
                   </div>
                 </div>
               </div>
+              
               </div>
               
-              {/* Grand Total - Clean Display */}
+              {/* Grand Total */}
               <div className="mt-4 pt-4 border-t-2 border-gray-300">
                 <div className="flex justify-between items-center">
-                  <span className="text-sm font-medium text-gray-600 uppercase tracking-wide">Grand Total</span>
-                  <span className="text-3xl font-bold text-gray-900">
+                  <span className="text-sm font-medium text-gray-600 uppercase tracking-wide">Total Pembayaran</span>
+                  <span className="text-2xl font-bold text-gray-900">
                     Rp {formatCurrency(grandTotal)}
                   </span>
                 </div>
@@ -1701,12 +1697,12 @@ export default function InputExpensesPageRedesigned() {
               
               {/* Payment Status Info */}
               {paymentStatus === 'Tempo' && remainingPayment > 0 && (
-                <div className="mt-4 bg-amber-50 border border-amber-200 rounded-lg p-3">
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="text-gray-600">Dibayar (DP)</span>
-                    <span className="font-medium text-gray-900">Rp {formatCurrency(downPayment)}</span>
+                <div className="mt-3 bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm">
+                  <div className="flex justify-between mb-1 text-gray-600">
+                    <span>Dibayar (DP)</span>
+                    <span className="font-medium">Rp {formatCurrency(downPayment)}</span>
                   </div>
-                  <div className="flex justify-between text-sm font-semibold text-amber-700">
+                  <div className="flex justify-between font-bold text-gray-900">
                     <span>Sisa Pembayaran</span>
                     <span>Rp {formatCurrency(remainingPayment)}</span>
                   </div>
@@ -1714,20 +1710,22 @@ export default function InputExpensesPageRedesigned() {
               )}
               
               {/* Action Summary */}
-              <div className="mt-4 pt-4 border-t border-gray-200 text-sm text-gray-600 space-y-1">
-                {lineItems.length > 0 && (
-                  <div className="flex items-center gap-2">
-                    <div className="w-1.5 h-1.5 rounded-full bg-green-500"></div>
-                    <span>Auto-update inventory ({lineItems.filter(i => i.product_id).length} produk)</span>
-                  </div>
-                )}
-                {selectedSupplier && (
-                  <div className="flex items-center gap-2">
-                    <div className="w-1.5 h-1.5 rounded-full bg-green-500"></div>
-                    <span>Update hutang supplier</span>
-                  </div>
-                )}
-              </div>
+              {(lineItems.length > 0 || selectedSupplier) && (
+                <div className="mt-3 pt-3 border-t border-gray-200 text-xs text-gray-500 space-y-1">
+                  {lineItems.length > 0 && (
+                    <div className="flex items-center gap-2">
+                      <div className="w-1 h-1 rounded-full bg-gray-400"></div>
+                      <span>Auto-update inventory ({lineItems.filter(i => i.product_id).length} produk)</span>
+                    </div>
+                  )}
+                  {selectedSupplier && (
+                    <div className="flex items-center gap-2">
+                      <div className="w-1 h-1 rounded-full bg-gray-400"></div>
+                      <span>Update hutang supplier</span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
             )}
 
@@ -2725,39 +2723,29 @@ export default function InputExpensesPageRedesigned() {
         businessName={businessName}
       />
       
-      {/* Toast Notification - Clean & Professional */}
+      {/* Toast Notification - Clean & Minimal */}
       {toast.show && (
-        <div className="fixed top-4 right-4 z-[9999] animate-fade-in-down">
+        <div className="fixed top-4 right-4 z-[9999] animate-fade-in">
           <div className={`
-            min-w-[320px] bg-white rounded-lg shadow-lg border-l-4 p-4
-            ${toast.type === 'success' ? 'border-green-500' : ''}
-            ${toast.type === 'error' ? 'border-red-500' : ''}
-            ${toast.type === 'warning' ? 'border-amber-500' : ''}
+            flex items-center gap-3 px-5 py-3.5 rounded-lg shadow-lg border
+            ${toast.type === 'success' ? 'bg-white border-green-300 text-gray-800' : ''}
+            ${toast.type === 'error' ? 'bg-white border-red-300 text-gray-800' : ''}
+            ${toast.type === 'warning' ? 'bg-white border-orange-300 text-gray-800' : ''}
           `}>
-            <div className="flex items-start gap-3">
-              <div className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center
-                ${toast.type === 'success' ? 'bg-green-100' : ''}
-                ${toast.type === 'error' ? 'bg-red-100' : ''}
-                ${toast.type === 'warning' ? 'bg-amber-100' : ''}
-              `}>
-                <div className={`w-2 h-2 rounded-full
-                  ${toast.type === 'success' ? 'bg-green-500' : ''}
-                  ${toast.type === 'error' ? 'bg-red-500' : ''}
-                  ${toast.type === 'warning' ? 'bg-amber-500' : ''}
-                `}></div>
-              </div>
-              <div className="flex-1">
-                <p className="text-sm font-medium text-gray-900">{toast.message}</p>
-              </div>
-              <button 
-                onClick={() => setToast({ ...toast, show: false })}
-                className="flex-shrink-0 text-gray-400 hover:text-gray-600 transition-colors"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
+            <div className={`w-1.5 h-8 rounded-full ${
+              toast.type === 'success' ? 'bg-green-500' :
+              toast.type === 'error' ? 'bg-red-500' :
+              'bg-orange-500'
+            }`} />
+            <div className="font-medium text-sm max-w-xs">{toast.message}</div>
+            <button 
+              onClick={() => setToast({ ...toast, show: false })}
+              className="ml-2 text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
         </div>
       )}
