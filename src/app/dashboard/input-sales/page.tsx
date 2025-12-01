@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useProducts } from '@/hooks/useProducts'
 import { InvoiceModal } from '@/components/sales/InvoiceModal'
+import { ProductModal } from '@/components/products/ProductModal'
 import { createClient } from '@/lib/supabase/client'
 
 export const dynamic = 'force-dynamic'
@@ -21,11 +22,12 @@ export default function InputSalesPage() {
   const [invoiceData, setInvoiceData] = useState<any>(null)
   const [businessName, setBusinessName] = useState('Bisnis Saya')
   const [saving, setSaving] = useState(false)
+  const [showProductModal, setShowProductModal] = useState(false)
 
   const supabase = createClient()
 
   // Fetch products from database
-  const { products, loading: loadingProducts } = useProducts()
+  const { products, loading: loadingProducts, refetch: refetchProducts } = useProducts()
 
   // Load business name
   useEffect(() => {
@@ -105,6 +107,16 @@ export default function InputSalesPage() {
       const priceNum = parseInt(pricePerUnit.replace(/\./g, ''))
       const total = qtyNum * priceNum
 
+      // Check stock availability
+      if (product && product.track_inventory) {
+        const currentStock = product.stock_quantity || 0
+        if (currentStock < qtyNum) {
+          alert(`Stok tidak cukup! Stok tersedia: ${currentStock}`)
+          setSaving(false)
+          return
+        }
+      }
+
       // Generate invoice number
       const invoiceNumber = `INV-${Date.now()}-${Math.random().toString(36).substr(2, 5).toUpperCase()}`
 
@@ -128,6 +140,27 @@ export default function InputSalesPage() {
 
       setInvoiceData(invoice)
       setShowInvoice(true)
+
+      // Update stock in database if product tracks inventory
+      if (product && product.track_inventory) {
+        const newStock = Math.max(0, (product.stock_quantity || 0) - qtyNum)
+        const { error: stockError } = await supabase
+          .from('products')
+          .update({ 
+            stock_quantity: newStock,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', selectedProductId)
+
+        if (stockError) {
+          console.error('Error updating stock:', stockError)
+          // Don't block the transaction, just log the error
+        } else {
+          console.log(`✅ Stock updated: ${product.name} - ${qtyNum} units deducted`)
+          // Refetch products to update the list
+          refetchProducts()
+        }
+      }
 
       // Reset form
       setSelectedProductId('')
@@ -207,39 +240,61 @@ export default function InputSalesPage() {
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Produk / Item
             </label>
-            <select 
-              value={selectedProductId}
-              onChange={(e) => {
-                const productId = e.target.value
-                setSelectedProductId(productId)
-                
-                // Auto-fill price when product is selected
-                if (productId) {
-                  const product = products.find(p => p.id === productId)
-                  if (product) {
-                    setPricePerUnit(formatNumber(product.selling_price.toString()))
+            <div className="flex gap-2">
+              <select 
+                value={selectedProductId}
+                onChange={(e) => {
+                  const productId = e.target.value
+                  setSelectedProductId(productId)
+                  
+                  // Auto-fill price when product is selected
+                  if (productId) {
+                    const product = products.find(p => p.id === productId)
+                    if (product) {
+                      setPricePerUnit(formatNumber(product.selling_price.toString()))
+                    }
+                  } else {
+                    setPricePerUnit('')
                   }
-                } else {
-                  setPricePerUnit('')
-                }
-              }}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
-              disabled={loadingProducts}
-            >
-              <option value="">
-                {loadingProducts ? 'Memuat produk...' : 'Pilih produk...'}
-              </option>
-              {products.map((product) => (
-                <option key={product.id} value={product.id}>
-                  {product.name} - Rp {formatNumber(product.selling_price.toString())}
+                }}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                disabled={loadingProducts}
+              >
+                <option value="">
+                  {loadingProducts ? 'Memuat produk...' : 'Pilih produk...'}
                 </option>
-              ))}
-            </select>
-            {selectedProductId && products.length > 0 && (
-              <p className="text-xs text-green-600 mt-1">
-                ✓ Harga otomatis terisi dari database produk
-              </p>
-            )}
+                {products.map((product) => (
+                  <option key={product.id} value={product.id}>
+                    {product.name} - Rp {formatNumber(product.selling_price.toString())} {product.track_inventory ? `(Stok: ${product.stock_quantity || 0})` : ''}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={() => setShowProductModal(true)}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 whitespace-nowrap"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Produk Baru
+              </button>
+            </div>
+            {selectedProductId && products.length > 0 && (() => {
+              const product = products.find(p => p.id === selectedProductId)
+              return product ? (
+                <div className="mt-2 space-y-1">
+                  <p className="text-xs text-green-600">
+                    ✓ Harga otomatis terisi dari database produk
+                  </p>
+                  {product.track_inventory && (
+                    <p className="text-xs text-blue-600">
+                      📦 Stok tersedia: {product.stock_quantity || 0} {product.unit || 'pcs'}
+                    </p>
+                  )}
+                </div>
+              ) : null
+            })()}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -434,6 +489,17 @@ export default function InputSalesPage() {
           businessName={businessName}
         />
       )}
+
+      {/* Product Modal - Quick Add Product */}
+      <ProductModal
+        isOpen={showProductModal}
+        onClose={() => setShowProductModal(false)}
+        product={null}
+        onSuccess={() => {
+          refetchProducts()
+          setShowProductModal(false)
+        }}
+      />
 
       {/* Recent Transactions */}
       <div className="mt-6 bg-white rounded-lg shadow-sm border border-gray-200 p-6">
