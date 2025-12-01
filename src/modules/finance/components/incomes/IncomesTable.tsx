@@ -352,7 +352,7 @@ export function TransactionsTable({ transactions, businessName, onRefresh, onEdi
                     {transaction.customer_name || '-'}
                   </td>
                   <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">
-                    Rp {transaction.amount.toLocaleString('id-ID')}
+                    Rp {(transaction.amount || 0).toLocaleString('id-ID')}
                   </td>
                   <td className="px-4 py-3 text-center">
                     <div className="flex flex-col items-center gap-1">
@@ -456,7 +456,7 @@ export function TransactionsTable({ transactions, businessName, onRefresh, onEdi
               {/* Amount and action */}
               <div className="flex items-center justify-between pt-2 border-t border-gray-100">
                 <div className="text-xl font-bold text-gray-900">
-                  Rp {transaction.amount.toLocaleString('id-ID')}
+                  Rp {(transaction.amount || 0).toLocaleString('id-ID')}
                 </div>
                 <div className="flex items-center gap-2">
                   <button
