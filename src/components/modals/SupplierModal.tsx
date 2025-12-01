@@ -68,11 +68,25 @@ export default function SupplierModal({ isOpen, onClose, onSelect, selectedSuppl
   const fetchSuppliers = async () => {
     setIsLoading(true)
     try {
-      const res = await fetch('/api/suppliers?active=true')
-      const json = await res.json()
-      if (json.success) {
-        setSuppliers(json.data)
-        setFilteredSuppliers(json.data)
+      // Use Supabase directly instead of API
+      const { createClient } = await import('@/lib/supabase/client')
+      const supabase = createClient()
+      
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      
+      const { data, error } = await supabase
+        .from('suppliers')
+        .select('*')
+        .eq('owner_id', user.id)
+        .eq('is_active', true)
+        .order('name')
+      
+      if (error) {
+        console.error('Error fetching suppliers:', error)
+      } else {
+        setSuppliers(data || [])
+        setFilteredSuppliers(data || [])
       }
     } catch (error) {
       console.error('Error fetching suppliers:', error)
@@ -92,34 +106,69 @@ export default function SupplierModal({ isOpen, onClose, onSelect, selectedSuppl
 
     setIsSubmitting(true)
     try {
-      const res = await fetch('/api/suppliers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newSupplier)
-      })
-
-      const json = await res.json()
+      // Use Supabase client directly
+      const { createClient } = await import('@/lib/supabase/client')
+      const supabase = createClient()
       
-      if (json.success) {
-        // Refresh list & select new supplier
-        await fetchSuppliers()
-        onSelect(json.data)
-        setShowQuickAdd(false)
-        setErrorMessage(null)
-        setNewSupplier({
-          name: '',
-          supplier_type: 'finished_goods',
-          phone: '',
-          email: '',
-          address: ''
-        })
-      } else {
-        console.error('API error:', json.error)
-        setErrorMessage('Gagal menyimpan supplier. Silakan coba lagi.')
+      // Get current user
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      if (authError || !user) {
+        setErrorMessage('User tidak terautentikasi')
+        setIsSubmitting(false)
+        return
       }
-    } catch (error) {
+      
+      // Check for duplicate supplier name
+      const { data: existing } = await supabase
+        .from('suppliers')
+        .select('id')
+        .eq('owner_id', user.id)
+        .ilike('name', newSupplier.name.trim())
+        .maybeSingle()
+      
+      if (existing) {
+        setErrorMessage('Supplier dengan nama ini sudah ada')
+        setIsSubmitting(false)
+        return
+      }
+      
+      // Insert new supplier
+      const { data, error } = await supabase
+        .from('suppliers')
+        .insert({
+          owner_id: user.id,
+          name: newSupplier.name.trim(),
+          supplier_type: newSupplier.supplier_type,
+          phone: newSupplier.phone.trim() || null,
+          email: newSupplier.email.trim() || null,
+          address: newSupplier.address.trim() || null,
+          is_active: true
+        })
+        .select()
+        .single()
+      
+      if (error) {
+        console.error('Supabase error:', error)
+        setErrorMessage(`Error: ${error.message}`)
+        setIsSubmitting(false)
+        return
+      }
+      
+      // Success! Refresh list & select new supplier
+      await fetchSuppliers()
+      onSelect(data)
+      setShowQuickAdd(false)
+      setErrorMessage(null)
+      setNewSupplier({
+        name: '',
+        supplier_type: 'finished_goods',
+        phone: '',
+        email: '',
+        address: ''
+      })
+    } catch (error: any) {
       console.error('Error adding supplier:', error)
-      setErrorMessage('Gagal menyimpan supplier. Silakan coba lagi.')
+      setErrorMessage(error.message || 'Gagal menyimpan supplier')
     } finally {
       setIsSubmitting(false)
     }

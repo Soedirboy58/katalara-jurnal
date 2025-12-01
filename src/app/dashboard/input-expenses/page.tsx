@@ -197,7 +197,7 @@ export default function InputExpensesPage() {
       const { data: expense, error: expenseError } = await supabase
         .from('expenses')
         .insert({
-          user_id: user.id,
+          owner_id: user.id,
           transaction_date: formState.header.transactionDate,
           po_number: formState.header.poNumber,
           description: formState.header.description,
@@ -428,6 +428,92 @@ export default function InputExpensesPage() {
           onShowProductModal={() => actions.toggleUI('showProductModal', true)}
           categoryType={formState.category.category as any}
         />
+        
+        {/* Production Output (for raw materials -> finished goods) */}
+        {formState.category.category === 'raw_materials' && formState.items.lineItems.length > 0 && (
+          <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg shadow-sm p-6 border-2 border-green-200">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                  🏭 Output Produksi
+                  <span className="text-sm font-normal text-gray-600">(Opsional)</span>
+                </h3>
+                <p className="text-sm text-gray-600 mt-1">
+                  Bahan baku ini akan menghasilkan produk jadi berapa banyak?
+                </p>
+              </div>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formState.productionOutput.show}
+                  onChange={(e) => actions.toggleProductionOutput(e.target.checked)}
+                  className="w-5 h-5 text-green-600 rounded focus:ring-2 focus:ring-green-500"
+                />
+                <span className="text-sm font-medium text-gray-700">Aktifkan</span>
+              </label>
+            </div>
+            
+            {formState.productionOutput.show && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-green-200">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Produk Jadi Yang Dihasilkan
+                  </label>
+                  <select
+                    value={formState.productionOutput.productId}
+                    onChange={(e) => actions.setProductionOutput({ productId: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                  >
+                    <option value="">Pilih produk jadi...</option>
+                    {products
+                      .filter(p => (p as any).business_category === 'finished_goods')
+                      .map(p => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Jumlah Output
+                  </label>
+                  <input
+                    type="number"
+                    value={formState.productionOutput.quantity}
+                    onChange={(e) => actions.setProductionOutput({ quantity: e.target.value })}
+                    placeholder="0"
+                    min="0"
+                    step="0.01"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Satuan
+                  </label>
+                  <select
+                    value={formState.productionOutput.unit}
+                    onChange={(e) => actions.setProductionOutput({ unit: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                  >
+                    <option value="pcs">Pcs</option>
+                    <option value="kg">Kg</option>
+                    <option value="liter">Liter</option>
+                    <option value="pack">Pack</option>
+                    <option value="box">Box</option>
+                  </select>
+                </div>
+              </div>
+            )}
+            
+            <div className="bg-white rounded-lg p-3 mt-4">
+              <p className="text-xs text-gray-600">
+                <strong>💡 Contoh:</strong> Beli 10kg tepung + 5kg gula → Output: 100 pcs kue
+              </p>
+            </div>
+          </div>
+        )}
         
         {/* Payment Summary & Method */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

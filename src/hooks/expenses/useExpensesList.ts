@@ -116,7 +116,7 @@ export const useExpensesList = (options: UseExpensesListOptions = {}) => {
       let query = supabase
         .from('expenses')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('owner_id', user.id)
       
       // Apply filters
       if (debouncedFilters.searchQuery) {
