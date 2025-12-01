@@ -172,7 +172,7 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                       </div>
                       <div className="text-xs text-gray-500 flex items-center justify-end gap-1 mt-1">
                         <Calendar className="w-3 h-3" />
-                        {formatDate(expense.transaction_date)}
+                        {formatDate(expense.expense_date)}
                       </div>
                     </div>
                   </div>

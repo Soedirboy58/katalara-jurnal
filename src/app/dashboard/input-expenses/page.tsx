@@ -119,6 +119,14 @@ export default function InputExpensesPage() {
     showToast('success', 'Item ditambahkan')
   }, [formState.items.currentItem, actions, showToast])
   
+  // Show educational modal on first visit
+  useEffect(() => {
+    const hasSeenTutorial = localStorage.getItem('katalara_expenses_tutorial_seen_v1')
+    if (!hasSeenTutorial) {
+      setShowTutorial(true)
+    }
+  }, [])
+  
   // Handle PPh preset changes
   useEffect(() => {
     const pphPresetMap = {
@@ -198,7 +206,7 @@ export default function InputExpensesPage() {
         .from('expenses')
         .insert({
           owner_id: user.id,
-          transaction_date: formState.header.transactionDate,
+          expense_date: formState.header.transactionDate,
           po_number: formState.header.poNumber,
           description: formState.header.description,
           supplier_id: formState.supplier ? formState.supplier.id : null,
@@ -715,13 +723,32 @@ export default function InputExpensesPage() {
                 </div>
               </div>
               
-              <div className="mt-6 flex justify-end">
-                <button
-                  onClick={() => setShowTutorial(false)}
-                  className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium"
-                >
-                  Mengerti
-                </button>
+              <div className="mt-6 space-y-3">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="dontShowAgain"
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        localStorage.setItem('katalara_expenses_tutorial_seen_v1', 'true')
+                      } else {
+                        localStorage.removeItem('katalara_expenses_tutorial_seen_v1')
+                      }
+                    }}
+                    className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <label htmlFor="dontShowAgain" className="text-sm text-gray-600 cursor-pointer">
+                    Jangan tampilkan panduan ini lagi
+                  </label>
+                </div>
+                <div className="flex justify-end">
+                  <button
+                    onClick={() => setShowTutorial(false)}
+                    className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium"
+                  >
+                    Mengerti
+                  </button>
+                </div>
               </div>
             </div>
           </div>

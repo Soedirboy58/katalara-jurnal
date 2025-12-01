@@ -24,7 +24,7 @@ import { createClient } from '@/lib/supabase/client'
 
 export interface Expense {
   id: string
-  transaction_date: string
+  expense_date: string
   po_number: string
   description: string
   supplier_id: string | null
@@ -77,7 +77,7 @@ export const useExpensesList = (options: UseExpensesListOptions = {}) => {
   const {
     filters = {},
     limit = 50,
-    orderBy = { column: 'transaction_date', ascending: false },
+    orderBy = { column: 'expense_date', ascending: false },
     debounceMs = 500
   } = options
   
@@ -129,8 +129,8 @@ export const useExpensesList = (options: UseExpensesListOptions = {}) => {
       
       if (debouncedFilters.dateRange) {
         query = query
-          .gte('transaction_date', debouncedFilters.dateRange.start)
-          .lte('transaction_date', debouncedFilters.dateRange.end)
+          .gte('expense_date', debouncedFilters.dateRange.start)
+          .lte('expense_date', debouncedFilters.dateRange.end)
       }
       
       if (debouncedFilters.category) {
