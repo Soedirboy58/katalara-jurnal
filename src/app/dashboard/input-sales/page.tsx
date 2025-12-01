@@ -27,7 +27,7 @@ export default function InputSalesPage() {
   const supabase = createClient()
 
   // Fetch products from database
-  const { products, loading: loadingProducts, refetch: refetchProducts } = useProducts()
+  const { products, loading: loadingProducts, refresh: refreshProducts } = useProducts()
 
   // Load business name
   useEffect(() => {
@@ -157,8 +157,8 @@ export default function InputSalesPage() {
           // Don't block the transaction, just log the error
         } else {
           console.log(`✅ Stock updated: ${product.name} - ${qtyNum} units deducted`)
-          // Refetch products to update the list
-          refetchProducts()
+          // Refresh products to update the list
+          refreshProducts()
         }
       }
 
@@ -496,7 +496,7 @@ export default function InputSalesPage() {
         onClose={() => setShowProductModal(false)}
         product={null}
         onSuccess={() => {
-          refetchProducts()
+          refreshProducts()
           setShowProductModal(false)
         }}
       />
