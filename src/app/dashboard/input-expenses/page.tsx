@@ -32,7 +32,7 @@ import {
 } from '@/components/expenses'
 import SupplierModal from '@/components/modals/SupplierModal'
 import { ProductModal } from '@/components/products/ProductModal'
-import { Save, X, CheckCircle, AlertTriangle } from 'lucide-react'
+import { Save, X, CheckCircle, AlertTriangle, HelpCircle } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
@@ -78,6 +78,9 @@ export default function InputExpensesPage() {
     type: 'success' | 'error' | 'warning'
     message: string
   }>({ show: false, type: 'success', message: '' })
+  
+  // Tutorial modal
+  const [showTutorial, setShowTutorial] = useState(false)
   
   // ============================================
   // HANDLERS
@@ -163,10 +166,7 @@ export default function InputExpensesPage() {
       return
     }
     
-    if (!formState.supplier) {
-      showToast('warning', 'Pilih supplier terlebih dahulu')
-      return
-    }
+    // Supplier is now optional - can be anonymous
     
     if (!formState.category.category) {
       showToast('warning', 'Pilih kategori pengeluaran')
@@ -181,6 +181,13 @@ export default function InputExpensesPage() {
     actions.setSubmitting(true)
     
     try {
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        showToast('error', 'User tidak terautentikasi')
+        return
+      }
+      
       // Calculate remaining payment
       const remainingPayment = formState.payment.status === 'Tempo'
         ? calculations.grandTotal - formState.payment.downPayment
@@ -190,10 +197,11 @@ export default function InputExpensesPage() {
       const { data: expense, error: expenseError } = await supabase
         .from('expenses')
         .insert({
+          user_id: user.id,
           transaction_date: formState.header.transactionDate,
           po_number: formState.header.poNumber,
           description: formState.header.description,
-          supplier_id: formState.supplier.id,
+          supplier_id: formState.supplier ? formState.supplier.id : null,
           category: formState.category.category,
           expense_type: formState.category.expenseType,
           payment_status: formState.payment.status,
@@ -318,6 +326,17 @@ export default function InputExpensesPage() {
     <div className="min-h-screen bg-gray-50 p-6">
       <form onSubmit={handleSubmit} className="max-w-7xl mx-auto space-y-6">
         
+        {/* Tutorial Button - Fixed Position */}
+        <button
+          type="button"
+          onClick={() => setShowTutorial(true)}
+          className="fixed bottom-6 right-6 z-40 bg-blue-600 hover:bg-blue-700 text-white rounded-full p-4 shadow-lg flex items-center gap-2 transition-all hover:scale-110"
+          title="Panduan Penggunaan"
+        >
+          <HelpCircle className="w-6 h-6" />
+          <span className="font-medium">Tutorial</span>
+        </button>
+        
         {/* Header */}
         <ExpenseHeader
           poNumber={formState.header.poNumber}
@@ -336,7 +355,7 @@ export default function InputExpensesPage() {
           {/* Supplier Selection */}
           <div className="bg-white rounded-lg shadow-sm p-6">
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Supplier
+              Supplier <span className="text-gray-400 text-xs">(Opsional - bisa kosong)</span>
             </label>
             {formState.supplier ? (
               <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
@@ -514,10 +533,113 @@ export default function InputExpensesPage() {
           onClose={() => actions.toggleUI('showProductModal', false)}
           product={null}
           onSuccess={() => {
+            showToast('success', 'Produk berhasil dibuat!')
             actions.toggleUI('showProductModal', false)
             refreshProducts()
           }}
         />
+      )}
+      
+      {/* Tutorial Modal */}
+      {showTutorial && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-2xl font-bold text-gray-800">📚 Panduan Input Pengeluaran</h2>
+                <button
+                  onClick={() => setShowTutorial(false)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-800 mb-2">1️⃣ Informasi Dasar</h3>
+                  <p className="text-gray-600 mb-2">Isi informasi transaksi:</p>
+                  <ul className="list-disc list-inside text-gray-600 space-y-1">
+                    <li>Tanggal transaksi akan otomatis terisi hari ini</li>
+                    <li>Deskripsi: jelaskan tujuan pengeluaran (contoh: "Pembelian bahan baku bulan Januari")</li>
+                    <li>Catatan: tambahan informasi jika diperlukan (opsional)</li>
+                  </ul>
+                </div>
+                
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-800 mb-2">2️⃣ Supplier</h3>
+                  <p className="text-gray-600 mb-2"><strong>Supplier bersifat opsional</strong> - Anda bisa:</p>
+                  <ul className="list-disc list-inside text-gray-600 space-y-1">
+                    <li>Pilih supplier yang sudah ada</li>
+                    <li>Buat supplier baru dengan klik "+ Tambah Supplier Baru"</li>
+                    <li><strong>Atau langsung lanjut tanpa supplier (Anonymous)</strong></li>
+                  </ul>
+                </div>
+                
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-800 mb-2">3️⃣ Kategori Pengeluaran</h3>
+                  <p className="text-gray-600 mb-2">Pilih jenis dan kategori:</p>
+                  <ul className="list-disc list-inside text-gray-600 space-y-1">
+                    <li><strong>Operasional:</strong> Bahan baku, barang jadi, utilitas, marketing, dll</li>
+                    <li><strong>Investasi:</strong> Peralatan, teknologi, properti, kendaraan</li>
+                    <li><strong>Financing:</strong> Pembayaran pinjaman, bunga, dividen</li>
+                  </ul>
+                </div>
+                
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-800 mb-2">4️⃣ Tambah Item</h3>
+                  <p className="text-gray-600 mb-2">Masukkan detail barang/jasa:</p>
+                  <ul className="list-disc list-inside text-gray-600 space-y-1">
+                    <li>Nama produk/item</li>
+                    <li>Jumlah (quantity) dan satuan</li>
+                    <li>Harga per satuan</li>
+                    <li>Klik "Tambah" untuk menambahkan ke daftar</li>
+                    <li>Bisa menambahkan banyak item sekaligus</li>
+                  </ul>
+                </div>
+                
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-800 mb-2">5️⃣ Perhitungan</h3>
+                  <p className="text-gray-600 mb-2">Sistem otomatis menghitung:</p>
+                  <ul className="list-disc list-inside text-gray-600 space-y-1">
+                    <li><strong>Diskon:</strong> Bisa dalam persen (%) atau nominal (Rp)</li>
+                    <li><strong>PPN 11%:</strong> Centang jika ada pajak pertambahan nilai</li>
+                    <li><strong>PPh:</strong> Pilih preset PPh 22/23/4(2) atau custom</li>
+                    <li><strong>Biaya Lain:</strong> Tambahkan biaya tambahan jika ada</li>
+                  </ul>
+                </div>
+                
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-800 mb-2">6️⃣ Metode Pembayaran</h3>
+                  <p className="text-gray-600 mb-2">Pilih status pembayaran:</p>
+                  <ul className="list-disc list-inside text-gray-600 space-y-1">
+                    <li><strong>Lunas:</strong> Dibayar penuh (Cash/Transfer)</li>
+                    <li><strong>Tempo:</strong> Bayar nanti dengan opsi DP dan jatuh tempo</li>
+                  </ul>
+                </div>
+                
+                <div className="bg-blue-50 p-4 rounded-lg">
+                  <h4 className="font-semibold text-blue-800 mb-2">💡 Tips:</h4>
+                  <ul className="list-disc list-inside text-blue-700 space-y-1 text-sm">
+                    <li>Untuk pembelian bahan baku/barang jadi, stok produk akan otomatis bertambah</li>
+                    <li>Gunakan fitur "Buat Produk Baru" jika produk belum terdaftar</li>
+                    <li>Nomor PO akan di-generate otomatis</li>
+                    <li>Semua transaksi tersimpan di "Riwayat Pengeluaran" di bawah</li>
+                  </ul>
+                </div>
+              </div>
+              
+              <div className="mt-6 flex justify-end">
+                <button
+                  onClick={() => setShowTutorial(false)}
+                  className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium"
+                >
+                  Mengerti
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
       
       {/* Toast Notification */}

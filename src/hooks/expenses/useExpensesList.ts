@@ -103,15 +103,20 @@ export const useExpensesList = (options: UseExpensesListOptions = {}) => {
       
       const supabase = createClient()
       
-      // Start query
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        setError('User not authenticated')
+        setExpenses([])
+        setLoading(false)
+        return
+      }
+      
+      // Start query with user filter
       let query = supabase
         .from('expenses')
-        .select(`
-          *,
-          suppliers (
-            name
-          )
-        `)
+        .select('*')
+        .eq('user_id', user.id)
       
       // Apply filters
       if (debouncedFilters.searchQuery) {
@@ -153,13 +158,33 @@ export const useExpensesList = (options: UseExpensesListOptions = {}) => {
       
       if (fetchError) throw fetchError
       
-      // Transform data to include supplier name
-      const transformedData: Expense[] = (data || []).map((expense: any) => ({
-        ...expense,
-        supplier_name: expense.suppliers?.name || null
-      }))
-      
-      setExpenses(transformedData)
+      // If we have expenses with supplier_id, fetch supplier names separately
+      const expenses = data || []
+      if (expenses.length > 0) {
+        const supplierIds = expenses
+          .map((e: any) => e.supplier_id)
+          .filter((id: any) => id !== null)
+        
+        if (supplierIds.length > 0) {
+          const { data: suppliers } = await supabase
+            .from('suppliers')
+            .select('id, name')
+            .in('id', supplierIds)
+          
+          const supplierMap = new Map(suppliers?.map(s => [s.id, s.name]) || [])
+          
+          const enrichedExpenses = expenses.map((expense: any) => ({
+            ...expense,
+            supplier_name: expense.supplier_id ? supplierMap.get(expense.supplier_id) || 'Unknown' : null
+          }))
+          
+          setExpenses(enrichedExpenses)
+        } else {
+          setExpenses(expenses)
+        }
+      } else {
+        setExpenses([])
+      }
     } catch (err) {
       console.error('Error fetching expenses:', err)
       setError(err instanceof Error ? err.message : 'Failed to fetch expenses')
