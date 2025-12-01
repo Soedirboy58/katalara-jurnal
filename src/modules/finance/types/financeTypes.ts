@@ -24,7 +24,7 @@ export type PaymentStatus = 'unpaid' | 'partial' | 'paid'
 
 export interface Income {
   id: string
-  owner_id: string
+  user_id: string
   income_type: IncomeType
   income_category: IncomeCategory
   income_description?: string
@@ -75,7 +75,7 @@ export interface Income {
 export interface IncomeItem {
   id: string
   income_id: string
-  owner_id: string
+  user_id: string
   
   // Product Reference
   product_id?: string // FK to products table (INVENTORY domain)
@@ -112,7 +112,7 @@ export type ExpenseCategory =
 
 export interface Expense {
   id: string
-  owner_id: string
+  user_id: string
   expense_type: ExpenseType
   expense_category: ExpenseCategory
   expense_description?: string
@@ -164,7 +164,7 @@ export interface Expense {
 export interface ExpenseItem {
   id: string
   expense_id: string
-  owner_id: string
+  user_id: string
   
   // Product Reference
   product_id?: string // FK to products table (INVENTORY domain)
@@ -247,7 +247,7 @@ export type SupplierType = 'raw_materials' | 'finished_goods' | 'both' | 'servic
 
 export interface Supplier {
   id: string
-  user_id: string
+  owner_id: string
   
   // Basic Info
   name: string

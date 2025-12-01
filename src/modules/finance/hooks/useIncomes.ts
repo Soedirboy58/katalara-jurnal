@@ -102,7 +102,7 @@ export function useIncomes(options: UseIncomesOptions = {}): UseIncomesReturn {
       let query = supabase
         .from('incomes')
         .select('*', { count: 'exact' })
-        .eq('owner_id', session.user.id)
+        .eq('user_id', session.user.id)
       
       // Apply filters
       if (filters.startDate) {
@@ -214,7 +214,7 @@ export function useIncomes(options: UseIncomesOptions = {}): UseIncomesReturn {
       
       // Prepare income data
       const incomeData: any = {
-        owner_id: session.user.id,
+        user_id: session.user.id,
         income_type: formData.income_type,
         income_category: formData.income_category,
         income_date: formData.income_date,
@@ -241,7 +241,7 @@ export function useIncomes(options: UseIncomesOptions = {}): UseIncomesReturn {
       // Insert line items
       const itemsData = formData.lineItems.map(item => ({
         income_id: newIncome.id,
-        owner_id: session.user.id,
+        user_id: session.user.id,
         product_id: item.product_id || null,
         product_name: item.product_name,
         qty: item.qty,
