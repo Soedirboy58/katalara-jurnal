@@ -385,14 +385,21 @@ export async function DELETE(request: Request) {
           })
           
           if (stockError) {
-            // Fallback: Direct UPDATE
-            console.log('⚠️ RPC not found, using direct UPDATE...')
-            await supabase
+            // Fallback: Get current stock and update
+            console.log('⚠️ RPC not found, using fallback logic...')
+            const { data: product } = await supabase
               .from('products')
-              .update({ 
-                stock_quantity: supabase.raw(`GREATEST(0, stock_quantity - ${qty})`)
-              })
+              .select('stock_quantity')
               .eq('id', item.product_id)
+              .single()
+            
+            if (product) {
+              const newStock = Math.max(0, (product.stock_quantity || 0) - qty)
+              await supabase
+                .from('products')
+                .update({ stock_quantity: newStock })
+                .eq('id', item.product_id)
+            }
           } else {
             console.log(`✅ Stock rolled back for product ${item.product_id}`)
           }
@@ -424,12 +431,22 @@ export async function DELETE(request: Request) {
           const qty = parseFloat(expense.quantity)
           console.log(`📉 (Legacy) Removing ${qty} from product ${expense.product_id}...`)
           
-          await supabase
+          // Get current stock and update
+          const { data: product } = await supabase
             .from('products')
-            .update({ 
-              stock_quantity: supabase.raw(`GREATEST(0, stock_quantity - ${qty})`)
-            })
+            .select('stock_quantity')
             .eq('id', expense.product_id)
+            .single()
+          
+          if (product) {
+            const newStock = Math.max(0, (product.stock_quantity || 0) - qty)
+            await supabase
+              .from('products')
+              .update({ 
+                stock_quantity: newStock
+              })
+              .eq('id', expense.product_id)
+          }
         }
       }
     }
