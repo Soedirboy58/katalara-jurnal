@@ -109,7 +109,7 @@ export default function InputSalesPage() {
 
       // Check stock availability
       if (product && product.track_inventory) {
-        const currentStock = product.stock_quantity || 0
+        const currentStock = (product as any).stock_quantity || 0
         if (currentStock < qtyNum) {
           alert(`Stok tidak cukup! Stok tersedia: ${currentStock}`)
           setSaving(false)
@@ -143,7 +143,7 @@ export default function InputSalesPage() {
 
       // Update stock in database if product tracks inventory
       if (product && product.track_inventory) {
-        const newStock = Math.max(0, (product.stock_quantity || 0) - qtyNum)
+        const newStock = Math.max(0, ((product as any).stock_quantity || 0) - qtyNum)
         const { error: stockError } = await supabase
           .from('products')
           .update({ 
@@ -265,7 +265,7 @@ export default function InputSalesPage() {
                 </option>
                 {products.map((product) => (
                   <option key={product.id} value={product.id}>
-                    {product.name} - Rp {formatNumber(product.selling_price.toString())} {product.track_inventory ? `(Stok: ${product.stock_quantity || 0})` : ''}
+                    {product.name} - Rp {formatNumber(product.selling_price.toString())} {product.track_inventory ? `(Stok: ${(product as any).stock_quantity || 0})` : ''}
                   </option>
                 ))}
               </select>
@@ -289,7 +289,7 @@ export default function InputSalesPage() {
                   </p>
                   {product.track_inventory && (
                     <p className="text-xs text-blue-600">
-                      📦 Stok tersedia: {product.stock_quantity || 0} {product.unit || 'pcs'}
+                      📦 Stok tersedia: {(product as any).stock_quantity || 0} {(product as any).unit || 'pcs'}
                     </p>
                   )}
                 </div>
