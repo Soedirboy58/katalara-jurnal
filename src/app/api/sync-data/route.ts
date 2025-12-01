@@ -143,7 +143,7 @@ export async function POST(request: Request) {
     const { data: existingProducts } = await supabase
       .from('products')
       .select('name')
-      .eq('owner_id', user.id)
+      .eq('user_id', user.id)
 
     const existingProductNames = new Set(existingProducts?.map(p => p.name).filter(Boolean))
 
@@ -159,17 +159,17 @@ export async function POST(request: Request) {
         continue
       }
 
+      // ⚠️ Field names MUST match database schema (see types/product-schema.ts)
       const { error: insertError } = await supabase
         .from('products')
         .insert({
-          owner_id: user.id,
+          user_id: user.id,
           name: product.name,
-          sell_price: product.price,
-          buy_price: 0, // Will need to be filled manually
+          selling_price: product.price,
+          cost_price: 0, // Will need to be filled manually
           unit: product.unit,
-          stock: 0, // Will need to be filled manually
-          min_stock: 0,
-          product_type: 'physical',
+          min_stock_alert: 0,
+          track_inventory: true,
           is_active: true
         })
 

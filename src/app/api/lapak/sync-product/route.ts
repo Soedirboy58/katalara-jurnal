@@ -74,7 +74,8 @@ export async function POST(request: NextRequest) {
           category: product.category || 'Lainnya',
           price: product.price,
           compare_at_price: null,
-          stock_quantity: product.stock_quantity || 0,
+          // ⚠️ stock_quantity removed - doesn't exist in products table
+          // Stock will be managed separately in stock_movements
           track_inventory: product.track_inventory !== false,
           is_visible: true,
           is_featured: false,
@@ -109,7 +110,8 @@ export async function POST(request: NextRequest) {
           category: product.category || 'Lainnya',
           price: product.price,
           compare_at_price: null,
-          stock_quantity: product.stock_quantity || 0,
+          // ⚠️ stock_quantity removed - doesn't exist in products table
+          // Stock will be managed separately in stock_movements
           track_inventory: product.track_inventory !== false,
           is_visible: true,
           is_featured: false,

@@ -11,6 +11,7 @@ import { useProducts } from '@/hooks/useProducts'
 import SupplierModal from '@/components/modals/SupplierModal'
 import POPreviewModal from '@/components/expenses/POPreviewModal'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
+import { ProductModal } from '@/components/products/ProductModal'
 
 interface Product {
   id: string
@@ -110,7 +111,7 @@ export default function InputExpensesPageRedesigned() {
     onConfirm: () => {},
     variant: 'danger' as 'danger' | 'warning' | 'info'
   })
-  const [paymentMethod, setPaymentMethod] = useState('Tunai')
+  const [paymentMethod, setPaymentMethod] = useState('cash')
   const [downPayment, setDownPayment] = useState(0)
   const [remainingPayment, setRemainingPayment] = useState(0)
   const [dueDate, setDueDate] = useState('')
@@ -142,14 +143,9 @@ export default function InputExpensesPageRedesigned() {
   })
   const [showNotes, setShowNotes] = useState(false)
   
-  // Quick Add Product Modal
-  const [showQuickAddProduct, setShowQuickAddProduct] = useState(false)
-  const [quickProductName, setQuickProductName] = useState('')
-  const [quickProductPrice, setQuickProductPrice] = useState('') // Harga Beli
-  const [quickProductSellPrice, setQuickProductSellPrice] = useState('') // Harga Jual (NEW!)
-  const [quickProductUnit, setQuickProductUnit] = useState('pcs')
-  const [quickProductStock, setQuickProductStock] = useState('0')
-  const [savingQuickProduct, setSavingQuickProduct] = useState(false)
+  // Product Modal (Shared Component)
+  const [showProductModal, setShowProductModal] = useState(false)
+  const [newlyCreatedProduct, setNewlyCreatedProduct] = useState<any>(null)
   
   // Preview Modal (Old - for backward compatibility)
   const [showPreviewModal, setShowPreviewModal] = useState(false)
@@ -273,7 +269,33 @@ export default function InputExpensesPageRedesigned() {
   }, [])
   
   // ============================================
-  // 📡 FUNCTIONS: DATA LOADING
+  // � HELPER FUNCTIONS
+  // ============================================
+  
+  // Map payment_status database values to Indonesian display
+  const getPaymentStatusLabel = (status: string | null | undefined): string => {
+    if (!status) return 'Lunas'
+    switch (status.toLowerCase()) {
+      case 'paid': return 'Lunas'
+      case 'unpaid': return 'Tempo'
+      case 'partial': return 'Cicilan'
+      default: return status
+    }
+  }
+  
+  // Map payment_method database values to Indonesian display
+  const getPaymentMethodLabel = (method: string | null | undefined): string => {
+    if (!method) return 'Tunai'
+    switch (method.toLowerCase()) {
+      case 'cash': return '💵 Tunai (Cash)'
+      case 'transfer': return '🏦 Transfer Bank'
+      case 'tempo': return '⏰ Tempo (Hutang)'
+      default: return method
+    }
+  }
+  
+  // ============================================
+  // �📡 FUNCTIONS: DATA LOADING
   // ============================================
   
   const loadKpiStats = async () => {
@@ -289,35 +311,35 @@ export default function InputExpensesPageRedesigned() {
       // Today
       const { data: todayData } = await supabase
         .from('expenses')
-        .select('amount')
-        .eq('owner_id', user.id)
+        .select('grand_total')
+        .eq('user_id', user.id)
         .eq('expense_date', today)
       
       // Week
       const { data: weekData } = await supabase
         .from('expenses')
-        .select('amount')
-        .eq('owner_id', user.id)
+        .select('grand_total')
+        .eq('user_id', user.id)
         .gte('expense_date', weekAgo)
       
       // Month
       const { data: monthData } = await supabase
         .from('expenses')
-        .select('amount')
-        .eq('owner_id', user.id)
+        .select('grand_total')
+        .eq('user_id', user.id)
         .gte('expense_date', monthStart)
       
       setKpiStats({
         today: {
-          amount: todayData?.reduce((sum, e) => sum + (e.amount || 0), 0) || 0,
+          amount: todayData?.reduce((sum, e) => sum + ((e as any).grand_total || 0), 0) || 0,
           count: todayData?.length || 0
         },
         week: {
-          amount: weekData?.reduce((sum, e) => sum + (e.amount || 0), 0) || 0,
+          amount: weekData?.reduce((sum, e) => sum + ((e as any).grand_total || 0), 0) || 0,
           count: weekData?.length || 0
         },
         month: {
-          amount: monthData?.reduce((sum, e) => sum + (e.amount || 0), 0) || 0,
+          amount: monthData?.reduce((sum, e) => sum + ((e as any).grand_total || 0), 0) || 0,
           count: monthData?.length || 0
         }
       })
@@ -418,12 +440,15 @@ export default function InputExpensesPageRedesigned() {
   const handleProductSelect = (productId: string) => {
     const product = products.find(p => p.id === productId)
     if (product) {
+      // ✅ Auto-fill dari master product (gunakan cost_price untuk pembelian)
+      const costPrice = (product as any).cost_price ?? 0
+      
       setCurrentItem({
         ...currentItem,
         product_id: product.id,
         product_name: product.name,
-        price_per_unit: product.price.toString(),
-        unit: product.unit || 'pcs'
+        price_per_unit: costPrice.toString(),  // ✅ Harga beli dari products.cost_price
+        unit: (product as any).unit || 'pcs'
       })
     }
   }
@@ -454,15 +479,30 @@ export default function InputExpensesPageRedesigned() {
     setSubmitting(true)
     
     try {
+      // ✅ Use expense_items table for proper multi-item support
+      // Map payment_status to database values: 'paid', 'unpaid', 'partial'
+      let dbPaymentStatus: string
+      let dbPaymentMethod: string
+      
+      if (paymentStatus === 'Lunas') {
+        dbPaymentStatus = 'paid'
+        dbPaymentMethod = paymentMethod  // Use selected method: 'cash' or 'transfer'
+      } else if (paymentStatus === 'Tempo') {
+        dbPaymentStatus = 'unpaid'
+        dbPaymentMethod = 'tempo'  // Auto-set to 'tempo' for credit transactions
+      } else {
+        dbPaymentStatus = 'partial'  // For future cicilan feature
+        dbPaymentMethod = 'tempo'
+      }
+      
       const expenseData = {
         expense_date: transactionDate,
-        category,
+        category: description ? `${category} - ${description}` : category,
         expense_type: expenseType,
-        description: description || `Pembelian ${lineItems.length} item`,
+        description: description || `Pembelian ${lineItems.length} item`,  // Will be ignored by API
         notes,
-        payment_method: paymentMethod,
-        payment_type: paymentStatus === 'Lunas' ? 'cash' : 'tempo',
-        payment_status: paymentStatus,
+        payment_method: dbPaymentMethod,  // 'cash', 'transfer', or 'tempo'
+        payment_status: dbPaymentStatus,  // 'paid', 'unpaid', or 'partial'
         due_date: paymentStatus === 'Tempo' ? dueDate : null,
         
         // Multi-items data
@@ -512,7 +552,7 @@ export default function InputExpensesPageRedesigned() {
       const json = await res.json()
       
       if (json.success) {
-        showToast('success', `✓ Pengeluaran berhasil disimpan! ${json.data?.purchase_order_number || ''}`)
+        showToast('success', `✓ Pengeluaran berhasil disimpan!`)
         
         // Reset form
         setTimeout(() => {
@@ -544,6 +584,7 @@ export default function InputExpensesPageRedesigned() {
     setSelectedSupplier(null)
     setDescription('')
     setNotes('')
+    setPaymentMethod('cash')
     setDiscountPercent(0)
     setDiscountAmount(0)
     setDiscountMode('percent')
@@ -578,80 +619,36 @@ export default function InputExpensesPageRedesigned() {
   // 🆕 FUNCTIONS: QUICK ADD PRODUCT
   // ============================================
   
-  const handleQuickAddProduct = async () => {
-    if (!quickProductName.trim()) {
-      showToast('error', 'Nama produk wajib diisi')
-      return
-    }
+  // Handler when product is successfully created from modal
+  const handleProductCreated = async () => {
+    // Refresh products list
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
     
-    const price = parseFloat(quickProductPrice)
-    if (isNaN(price) || price < 0) {
-      showToast('error', 'Harga beli tidak valid')
-      return
-    }
+    const { data: products } = await supabase
+      .from('products')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
     
-    const sellPrice = parseFloat(quickProductSellPrice)
-    if (isNaN(sellPrice) || sellPrice < 0) {
-      showToast('error', 'Harga jual tidak valid')
-      return
-    }
-    
-    setSavingQuickProduct(true)
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('User not authenticated')
-      
-      const { data: newProduct, error } = await supabase
-        .from('products')
-        .insert({
-          owner_id: user.id,
-          name: quickProductName,
-          price: price, // Harga Beli (HPP)
-          sell_price: sellPrice, // Harga Jual (IMPORTANT!)
-          stock_quantity: parseFloat(quickProductStock) || 0,
-          unit: quickProductUnit,
-          product_type: 'physical'
-        })
-        .select()
-        .single()
-      
-      if (error) throw error
-      
-      showToast('success', `✓ Produk "${quickProductName}" berhasil ditambahkan dan siap digunakan`)
+    if (products && products.length > 0) {
+      const newProduct = products[0]
+      setNewlyCreatedProduct(newProduct)
       
       // Auto-fill form with new product
+      // ⚠️ Use correct database field names: cost_price, unit
+      const costPrice = (newProduct as any).cost_price ?? 0
+      
       setCurrentItem({
         ...currentItem,
         product_id: newProduct.id,
         product_name: newProduct.name,
-        price_per_unit: newProduct.price.toString(),
-        unit: newProduct.unit || 'pcs'
+        price_per_unit: costPrice.toString(),
+        unit: (newProduct as any).unit || 'pcs'
       })
       
-      // Close modal and reset
-      setShowQuickAddProduct(false)
-      setQuickProductName('')
-      setQuickProductPrice('')
-      setQuickProductSellPrice('') // Reset sell price
-      setQuickProductUnit('pcs')
-      setQuickProductStock('0')
-      
-      // Refresh products list without reload (prevent modal restart)
-      const { data: updatedProducts } = await supabase
-        .from('products')
-        .select('*')
-        .eq('owner_id', user.id)
-        .order('created_at', { ascending: false })
-      
-      if (updatedProducts) {
-        // Update products state if available (Note: products comes from useProducts hook)
-        // The new product is already filled in currentItem, so user can continue
-      }
-    } catch (error: any) {
-      console.error('Error adding product:', error)
-      showToast('error', error.message || 'Gagal menambahkan produk')
-    } finally {
-      setSavingQuickProduct(false)
+      showToast('success', `✓ Produk "${newProduct.name}" berhasil ditambahkan dan siap digunakan`)
     }
   }
   
@@ -964,7 +961,7 @@ export default function InputExpensesPageRedesigned() {
                           <option value="">-- Pilih produk yang diproduksi --</option>
                           {products.filter(p => p.name && p.name.trim() !== '').map(p => (
                             <option key={p.id} value={p.id}>
-                              {p.name} (Stok: {p.stock_quantity || 0} {p.unit || 'pcs'})
+                              {p.name} ({p.unit || 'pcs'})
                             </option>
                           ))}
                         </select>
@@ -1011,7 +1008,7 @@ export default function InputExpensesPageRedesigned() {
                           ✓ Output Produksi: {productionOutputQuantity} {productionOutputUnit} {products.find(p => p.id === productionOutputProduct)?.name}
                         </p>
                         <p className="text-xs text-green-700 mt-1">
-                          Stok akan bertambah dari {products.find(p => p.id === productionOutputProduct)?.stock_quantity || 0} → {(parseFloat(products.find(p => p.id === productionOutputProduct)?.stock_quantity?.toString() || '0') + parseFloat(productionOutputQuantity || '0')).toFixed(2)} {productionOutputUnit}
+                          Stok akan bertambah +{productionOutputQuantity} {productionOutputUnit}
                         </p>
                       </div>
                     )}
@@ -1042,7 +1039,7 @@ export default function InputExpensesPageRedesigned() {
                         value={currentItem.product_id}
                         onChange={(e) => {
                           if (e.target.value === '__quick_add__') {
-                            setShowQuickAddProduct(true)
+                            setShowProductModal(true)
                           } else {
                             handleProductSelect(e.target.value)
                           }
@@ -1052,7 +1049,7 @@ export default function InputExpensesPageRedesigned() {
                         <option value="">Pilih dari inventory...</option>
                         {products.map(p => (
                           <option key={p.id} value={p.id}>
-                            {p.name} (Stok: {p.stock_quantity || 0})
+                            {p.name}
                           </option>
                         ))}
                         <option disabled>──────────</option>
@@ -1270,21 +1267,32 @@ export default function InputExpensesPageRedesigned() {
                 </button>
               </div>
               
-              {/* Payment Method */}
+              {/* Payment Method - Only show if LUNAS */}
+              {paymentStatus === 'Lunas' && (
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Metode Pembayaran</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Metode Pembayaran
+                  <span className="text-xs text-gray-500 ml-2">(Untuk transaksi LUNAS)</span>
+                </label>
                 <select
                   value={paymentMethod}
                   onChange={(e) => setPaymentMethod(e.target.value)}
                   className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-lg focus:border-red-500 focus:outline-none"
                 >
-                  <option value="Tunai">Tunai</option>
-                  <option value="Transfer Bank">Transfer Bank</option>
-                  <option value="E-Wallet">E-Wallet (GoPay, OVO, Dana)</option>
-                  <option value="Kartu Kredit">Kartu Kredit</option>
-                  <option value="Kartu Debit">Kartu Debit</option>
+                  <option value="cash">💵 Tunai (Cash)</option>
+                  <option value="transfer">🏦 Transfer Bank</option>
                 </select>
               </div>
+              )}
+              
+              {/* Auto-set payment_method to 'tempo' if TEMPO selected */}
+              {paymentStatus === 'Tempo' && (
+              <div className="mb-4 p-4 bg-orange-50 border border-orange-200 rounded-lg">
+                <p className="text-sm text-orange-800">
+                  ⏰ <strong>Metode Pembayaran:</strong> Tempo (Hutang) - Otomatis tersimpan sebagai transaksi kredit
+                </p>
+              </div>
+              )}
               
               {/* Tempo Details (Expand when selected) */}
               {paymentStatus === 'Tempo' && (
@@ -1982,15 +1990,15 @@ export default function InputExpensesPageRedesigned() {
                           className="w-5 h-5 rounded border-gray-300 text-red-600 focus:ring-red-500 flex-shrink-0"
                         />
                         <div className="flex-1 min-w-0">
-                          <h3 className="font-bold text-gray-900 text-base truncate">{exp.category}</h3>
+                          <h3 className="font-bold text-gray-900 text-base truncate">{exp.expense_category || exp.category}</h3>
                         </div>
                       </div>
                       <span className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap flex-shrink-0 ${
-                        exp.payment_status === 'Lunas'
+                        exp.payment_status === 'paid'
                           ? 'bg-green-100 text-green-800'
                           : 'bg-orange-100 text-orange-800'
                       }`}>
-                        {exp.payment_status || 'Lunas'}
+                        {getPaymentStatusLabel(exp.payment_status)}
                       </span>
                     </div>
                     
@@ -2008,7 +2016,7 @@ export default function InputExpensesPageRedesigned() {
                     </div>
                     
                     {/* Due Date for Tempo */}
-                    {exp.payment_status === 'Tempo' && exp.due_date && (
+                    {exp.payment_status === 'unpaid' && exp.due_date && (
                       <div className="flex items-center gap-2 text-sm mb-3 ml-8">
                         <svg className="w-4 h-4 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -2023,6 +2031,8 @@ export default function InputExpensesPageRedesigned() {
                     <div className="flex items-center gap-2 ml-8">
                       <button
                         onClick={() => {
+                          console.log('🔍 Preview expense:', exp)
+                          console.log('  Items count:', exp.items?.length || 0)
                           setPreviewExpense(exp)
                           setShowPOPreview(true)
                         }}
@@ -2101,8 +2111,8 @@ export default function InputExpensesPageRedesigned() {
                       <p className="text-xs text-gray-500">
                         {new Date(exp.expense_date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
                       </p>
-                      <h3 className="font-semibold text-gray-900 text-sm mt-0.5">{exp.category}</h3>
-                      {exp.payment_status === 'Tempo' && exp.due_date && (
+                      <h3 className="font-semibold text-gray-900 text-sm mt-0.5">{exp.expense_category || exp.category}</h3>
+                      {exp.payment_status === 'unpaid' && exp.due_date && (
                         <p className="text-xs text-orange-600 font-medium mt-1 flex items-center gap-1">
                           <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -2129,11 +2139,11 @@ export default function InputExpensesPageRedesigned() {
                     {/* Status */}
                     <div className="col-span-2 flex justify-center">
                       <span className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap ${
-                        exp.payment_status === 'Lunas'
+                        exp.payment_status === 'paid'
                           ? 'bg-green-100 text-green-800'
                           : 'bg-orange-100 text-orange-800'
                       }`}>
-                        {exp.payment_status || 'Lunas'}
+                        {getPaymentStatusLabel(exp.payment_status)}
                       </span>
                     </div>
                     
@@ -2270,137 +2280,13 @@ export default function InputExpensesPageRedesigned() {
         selectedSupplier={selectedSupplier}
       />
       
-      {/* Quick Add Product Modal */}
-      {showQuickAddProduct && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full">
-            <div className="bg-gradient-to-r from-green-600 to-green-500 text-white p-4">
-              <h2 className="text-xl font-bold">+ Tambah Produk Baru</h2>
-              <p className="text-sm text-green-100 mt-1">Data otomatis sinkron dengan harga dan satuan</p>
-            </div>
-            <div className="p-6 space-y-4">
-              {/* Product Name */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Nama Produk <span className="text-red-600">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={quickProductName}
-                  onChange={(e) => setQuickProductName(e.target.value)}
-                  placeholder="Contoh: Kaos Polos Putih"
-                  className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-lg focus:border-green-500 focus:outline-none"
-                  autoFocus
-                />
-              </div>
-              
-              {/* Price - Buy & Sell */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Harga Beli/Unit <span className="text-red-600">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    step="0.01"
-                    value={quickProductPrice}
-                    onChange={(e) => setQuickProductPrice(e.target.value)}
-                    placeholder="15000"
-                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-lg focus:border-green-500 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Harga Jual <span className="text-red-600">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    step="0.01"
-                    value={quickProductSellPrice}
-                    onChange={(e) => setQuickProductSellPrice(e.target.value)}
-                    placeholder="20000"
-                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-lg focus:border-green-500 focus:outline-none"
-                  />
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                {/* Unit */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Satuan</label>
-                  <select
-                    value={quickProductUnit}
-                    onChange={(e) => setQuickProductUnit(e.target.value)}
-                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-lg focus:border-green-500 focus:outline-none"
-                  >
-                    <option value="pcs">Pcs</option>
-                    <option value="kg">Kg</option>
-                    <option value="gram">Gram</option>
-                    <option value="liter">Liter</option>
-                    <option value="ml">Ml</option>
-                    <option value="box">Box</option>
-                    <option value="pack">Pack</option>
-                    <option value="lusin">Lusin</option>
-                  </select>
-                </div>
-                
-                {/* Initial Stock */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Stok Awal</label>
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    step="0.01"
-                    value={quickProductStock}
-                    onChange={(e) => setQuickProductStock(e.target.value)}
-                    placeholder="0"
-                    className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-lg focus:border-green-500 focus:outline-none"
-                  />
-                </div>
-              </div>
-              
-              <div className="bg-blue-50 border-l-4 border-blue-500 p-3 text-sm text-gray-700">
-                <strong>Info:</strong> Produk akan otomatis tersimpan di inventory dan langsung terisi di form pengeluaran ini.
-              </div>
-              
-              {/* Buttons */}
-              <div className="flex gap-3">
-                <button
-                  onClick={() => {
-                    setShowQuickAddProduct(false)
-                    setQuickProductName('')
-                    setQuickProductPrice('')
-                    setQuickProductSellPrice('') // Reset sell price on cancel
-                    setQuickProductUnit('pcs')
-                    setQuickProductStock('0')
-                  }}
-                  className="flex-1 px-4 py-2.5 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition-colors"
-                >
-                  Batal
-                </button>
-                <button
-                  onClick={handleQuickAddProduct}
-                  disabled={savingQuickProduct || !quickProductName.trim() || !quickProductPrice || !quickProductSellPrice}
-                  className="flex-1 px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {savingQuickProduct ? (
-                    <>
-                      <svg className="animate-spin w-5 h-5 inline-block mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                      </svg>
-                      Menyimpan...
-                    </>
-                  ) : (
-                    'Simpan & Gunakan'
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Product Modal (Shared Component) */}
+      <ProductModal
+        isOpen={showProductModal}
+        onClose={() => setShowProductModal(false)}
+        product={null}
+        onSuccess={handleProductCreated}
+      />
       
       {/* Educational Modal */}
       {showEducationalModal && (
@@ -2593,7 +2479,7 @@ export default function InputExpensesPageRedesigned() {
                 </div>
                 <div>
                   <div className="text-sm text-gray-500 mb-1">Kategori</div>
-                  <div className="font-medium">{previewExpense.category}</div>
+                  <div className="font-medium">{previewExpense.expense_category || previewExpense.category}</div>
                 </div>
               </div>
               
@@ -2607,7 +2493,7 @@ export default function InputExpensesPageRedesigned() {
                         <div className="flex-1">
                           <div className="font-medium text-gray-800">{item.product_name}</div>
                           <div className="text-sm text-gray-600">
-                            {item.quantity} {item.unit} × Rp {formatCurrency(item.price_per_unit)}
+                            {item.qty || item.quantity} {item.unit} × Rp {formatCurrency(item.price_per_unit)}
                           </div>
                         </div>
                         <div className="font-bold text-red-600">
@@ -2616,7 +2502,50 @@ export default function InputExpensesPageRedesigned() {
                       </div>
                     ))
                   ) : (
-                    <div className="text-center text-gray-400 py-4">Tidak ada item</div>
+                    // Fallback: Parse items from expense_category text
+                    // Format: "Category - Item1 (qty), Item2 (qty)" or "Category - Description"
+                    (() => {
+                      const categoryText = previewExpense.expense_category || previewExpense.category || ''
+                      const parts = categoryText.split(' - ')
+                      const itemsText = parts.length > 1 ? parts.slice(1).join(' - ') : categoryText
+                      
+                      // Try to parse items: "Item1 (qty), Item2 (qty)"
+                      const itemMatches = itemsText.match(/([^,]+\([^)]+\))/g)
+                      
+                      if (itemMatches && itemMatches.length > 0) {
+                        // Show as list of items
+                        return itemMatches.map((itemStr: string, idx: number) => (
+                          <div key={idx} className="bg-gray-50 rounded-lg p-3 flex items-center justify-between">
+                            <div className="flex-1">
+                              <div className="font-medium text-gray-800">{itemStr.trim()}</div>
+                            </div>
+                            {idx === 0 && (
+                              <div className="font-bold text-red-600">
+                                Rp {formatCurrency(previewExpense.grand_total || previewExpense.amount || 0)}
+                              </div>
+                            )}
+                          </div>
+                        ))
+                      } else {
+                        // Simple description without items
+                        return (
+                          <div className="bg-gray-50 rounded-lg p-3 flex items-center justify-between">
+                            <div className="flex-1">
+                              <div className="font-medium text-gray-800">{itemsText || 'Pengeluaran'}</div>
+                              {previewExpense.expense_type && (
+                                <div className="text-xs text-gray-500 mt-1">
+                                  {previewExpense.expense_type === 'operating' ? 'Operasional' : 
+                                   previewExpense.expense_type === 'investing' ? 'Investasi' : 'Pembiayaan'}
+                                </div>
+                              )}
+                            </div>
+                            <div className="font-bold text-red-600">
+                              Rp {formatCurrency(previewExpense.grand_total || previewExpense.amount || 0)}
+                            </div>
+                          </div>
+                        )
+                      }
+                    })()
                   )}
                 </div>
               </div>
@@ -2654,21 +2583,26 @@ export default function InputExpensesPageRedesigned() {
               {/* Payment Status */}
               <div>
                 <h3 className="font-bold text-gray-800 mb-3">Status Pembayaran</h3>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 mb-2">
                   <span className={`px-3 py-1.5 rounded-full text-sm font-medium ${
-                    previewExpense.payment_status === 'Lunas'
+                    previewExpense.payment_status === 'paid'
                       ? 'bg-green-100 text-green-700'
                       : 'bg-orange-100 text-orange-700'
                   }`}>
-                    {previewExpense.payment_status || 'Lunas'}
+                    {getPaymentStatusLabel(previewExpense.payment_status)}
                   </span>
-                  {previewExpense.payment_status === 'Tempo' && previewExpense.due_date && (
+                  {previewExpense.payment_status === 'unpaid' && previewExpense.due_date && (
                     <span className="text-sm text-gray-600">
                       Jatuh Tempo: {new Date(previewExpense.due_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
                     </span>
                   )}
                 </div>
-                {previewExpense.payment_status === 'Tempo' && (
+                {/* Payment Method Display */}
+                <div className="text-sm text-gray-600">
+                  <span className="font-medium">Metode: </span>
+                  <span>{getPaymentMethodLabel(previewExpense.payment_method)}</span>
+                </div>
+                {previewExpense.payment_status === 'unpaid' && (
                   <div className="mt-3 bg-orange-50 border border-orange-200 rounded-lg p-3 text-sm">
                     <div className="flex justify-between mb-1">
                       <span className="text-gray-600">Dibayar (DP):</span>
@@ -2710,7 +2644,7 @@ export default function InputExpensesPageRedesigned() {
         </div>
       )}
       
-      {/* PO Preview Modal (New Professional Version) */}
+      {/* PO Preview Modal - New Professional Version */}
       <POPreviewModal
         isOpen={showPOPreview}
         onClose={() => {

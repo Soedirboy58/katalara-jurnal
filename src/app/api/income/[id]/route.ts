@@ -46,32 +46,11 @@ export async function DELETE(
       )
     }
 
-    // If this is a product sales transaction, restore the stock
+    // ⚠️ STOCK TRACKING DISABLED - stock_quantity column doesn't exist in products table
+    // TODO: Implement stock restoration with stock_movements table when deleting income
     if (transaction.category === 'product_sales' && transaction.product_id) {
-      console.log(`🔄 Restoring stock for deleted transaction...`)
-      
-      // Get product details
-      const { data: product, error: productError } = await supabase
-        .from('products')
-        .select('stock_quantity, track_inventory, name')
-        .eq('id', transaction.product_id)
-        .single()
-
-      if (!productError && product && product.track_inventory) {
-        const restoredStock = (product.stock_quantity || 0) + parseFloat(transaction.quantity || 0)
-        console.log(`  ➕ Restoring stock from ${product.stock_quantity} to ${restoredStock} for ${product.name}`)
-        
-        const { error: updateError } = await supabase
-          .from('products')
-          .update({ stock_quantity: restoredStock })
-          .eq('id', transaction.product_id)
-        
-        if (updateError) {
-          console.error('  ❌ Error restoring stock:', updateError)
-        } else {
-          console.log('  ✅ Stock restored successfully')
-        }
-      }
+      console.log(`📦 Stock restoration pending for product ${transaction.product_id}`)
+      // Stock movements will be tracked separately
     }
 
     // Delete the income transaction (only if it belongs to the user)

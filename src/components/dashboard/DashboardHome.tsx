@@ -178,7 +178,12 @@ export function DashboardHome() {
         .limit(100) // Get last 100 transactions
       
       if (expenses) {
-        setRecentTransactions(expenses)
+        // ✅ Map grand_total ke amount untuk backward compatibility dengan UI
+        const mappedExpenses = expenses.map(e => ({
+          ...e,
+          amount: (e as any).grand_total || e.amount || 0
+        }))
+        setRecentTransactions(mappedExpenses)
       }
     } catch (error) {
       console.error('Error fetching recent transactions:', error)

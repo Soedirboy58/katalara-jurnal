@@ -172,77 +172,20 @@ export async function POST(request: NextRequest) {
       // Handle multi-items (line_items)
       if (lineItemsArray && Array.isArray(lineItemsArray) && lineItemsArray.length > 0) {
         console.log('📋 Processing multi-items...', lineItemsArray.length, 'items')
+        // ⚠️ STOCK TRACKING DISABLED - stock_quantity column doesn't exist in products table
+        // TODO: Implement proper stock reduction when stock_movements table is ready
         for (const item of lineItemsArray) {
           if (item.product_id && item.quantity) {
-            console.log(`  🔸 Item: ${item.product_id}, Qty: ${item.quantity}`)
-            
-            const { data: product, error: productError } = await supabase
-              .from('products')
-              .select('stock_quantity, track_inventory, name')
-              .eq('id', item.product_id)
-              .single()
-
-            if (productError) {
-              console.error(`  ❌ Error fetching product:`, productError)
-              continue
-            }
-
-            console.log(`  📦 Current stock: ${product.stock_quantity}, Track: ${product.track_inventory}`)
-
-            if (product && product.track_inventory) {
-              const newStock = (product.stock_quantity || 0) - parseFloat(item.quantity)
-              console.log(`  ➡️ Reducing stock from ${product.stock_quantity} to ${newStock}`)
-              
-              const { error: updateError } = await supabase
-                .from('products')
-                .update({ stock_quantity: newStock })
-                .eq('id', item.product_id)
-              
-              if (updateError) {
-                console.error(`  ❌ Error updating stock:`, updateError)
-              } else {
-                console.log(`  ✅ Stock updated successfully for ${product.name}`)
-              }
-            } else {
-              console.log(`  ⏭️ Skipping ${product?.name || 'product'} - track_inventory is false`)
-            }
+            console.log(`  📦 Stock reduction pending for product ${item.product_id}: -${item.quantity}`)
+            // Stock will be tracked in stock_movements table
           }
         }
       }
       // Handle single item (legacy)
       else if (body.product_id && body.quantity) {
-        console.log('📦 Processing single item (legacy)...')
-        console.log(`  🔸 Product ID: ${body.product_id}, Qty: ${body.quantity}`)
-        
-        const { data: product, error: productError } = await supabase
-          .from('products')
-          .select('stock_quantity, track_inventory, name')
-          .eq('id', body.product_id)
-          .single()
-
-        if (productError) {
-          console.error(`  ❌ Error fetching product:`, productError)
-        } else {
-          console.log(`  📦 Current stock: ${product.stock_quantity}, Track: ${product.track_inventory}`)
-          
-          if (product && product.track_inventory) {
-            const newStock = product.stock_quantity - body.quantity
-            console.log(`  ➡️ Reducing stock from ${product.stock_quantity} to ${newStock}`)
-            
-            const { error: updateError } = await supabase
-              .from('products')
-              .update({ stock_quantity: newStock })
-              .eq('id', body.product_id)
-            
-            if (updateError) {
-              console.error(`  ❌ Error updating stock:`, updateError)
-            } else {
-              console.log(`  ✅ Stock updated successfully for ${product.name}`)
-            }
-          } else {
-            console.log(`  ⏭️ Skipping - track_inventory is false`)
-          }
-        }
+        // ⚠️ STOCK TRACKING DISABLED - stock_quantity column doesn't exist
+        // TODO: Implement with stock_movements table
+        console.log(`📦 Stock reduction pending for product ${body.product_id}: -${body.quantity}`)
       } else {
         console.log('⚠️ No product_id or line_items found in request')
       }
@@ -383,36 +326,11 @@ export async function DELETE(request: NextRequest) {
       .in('id', ids)
       .eq('user_id', user.id)
 
+    // ⚠️ STOCK TRACKING DISABLED - stock_quantity column doesn't exist
+    // TODO: Implement stock restoration with stock_movements table
     if (!fetchError && incomes && incomes.length > 0) {
-      console.log(`🔄 Bulk delete income: Restoring stock for ${incomes.length} transactions...`)
-      
-      // Restore stock for each income that is product_sales
-      for (const income of incomes) {
-        if (income.category === 'product_sales' && income.product_id && income.quantity) {
-          // Get product details
-          const { data: product, error: productError } = await supabase
-            .from('products')
-            .select('stock_quantity, track_inventory, name')
-            .eq('id', income.product_id)
-            .single()
-
-          if (!productError && product && product.track_inventory) {
-            // ADD stock back (income delete = restore sold stock)
-            const restoredStock = (product.stock_quantity || 0) + parseFloat(income.quantity)
-            console.log(`  ➕ ${product.name}: ${product.stock_quantity} → ${restoredStock}`)
-            
-            const { error: updateError } = await supabase
-              .from('products')
-              .update({ stock_quantity: restoredStock })
-              .eq('id', income.product_id)
-            
-            if (updateError) {
-              console.error(`  ❌ Error restoring stock for ${product.name}:`, updateError)
-            }
-          }
-        }
-      }
-      console.log('  ✅ Stock restoration complete')
+      console.log(`📦 Stock restoration pending for ${incomes.length} deleted transactions`)
+      // Stock movements will be tracked in stock_movements table
     }
 
     // Delete incomes (only user's own incomes)

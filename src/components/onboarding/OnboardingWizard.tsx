@@ -17,6 +17,7 @@ import {
   type BusinessTypeMapping,
   type ClassificationResult
 } from '@/lib/business-classifier'
+import { mapBusinessCategoryToConstraint } from '@/lib/business-category-mapper'
 import type { OnboardingWizardData, OnboardingStep } from '@/types/business-config'
 
 interface OnboardingWizardProps {
@@ -106,13 +107,16 @@ export function OnboardingWizard({ onComplete, userId }: OnboardingWizardProps) 
     loadMappings()
   }, [])
 
+  const [descriptionError, setDescriptionError] = useState('')
+
   const handleAnalyzeDescription = () => {
     const validation = validateDescription(formData.businessDescription || '')
     if (!validation.valid) {
-      alert(validation.message)
+      setDescriptionError(validation.message)
       return
     }
 
+    setDescriptionError('')
     setIsAnalyzing(true)
     setTimeout(() => {
       const result = classifyBusinessByKeywords(formData.businessDescription || '', mappings)
@@ -159,36 +163,75 @@ export function OnboardingWizard({ onComplete, userId }: OnboardingWizardProps) 
     setCurrentStep((prev) => Math.max(prev - 1, 0) as OnboardingStep)
   }
 
+  const [saveError, setSaveError] = useState('')
+
   const handleComplete = async () => {
     setIsSaving(true)
+    setSaveError('')
     try {
-      const { error } = await supabase
+      // Validate numeric values before sending
+      const monthlyRevenue = Number(formData.monthlyRevenueTarget) || 0
+      const profitMargin = Number(formData.profitMarginTarget) || 0
+      const breakEven = Number(formData.breakEvenMonths) || 1 // Must be > 0
+      const initialCap = Number(formData.initialCapital) || 0
+      const monthlyCost = Number(formData.monthlyOperationalCost) || 0
+      const minCash = Number(formData.minimumCashAlert) || 0
+
+      // Validate constraints
+      if (profitMargin < 0 || profitMargin > 100) {
+        throw new Error('Target profit margin harus antara 0-100%')
+      }
+      if (breakEven <= 0) {
+        throw new Error('Target balik modal harus lebih dari 0 bulan')
+      }
+
+      // Map business category to constraint-compatible value
+      const mappedCategory = mapBusinessCategoryToConstraint(formData.businessCategory || '')
+
+      // STEP 1: Upsert configuration data WITHOUT setting completion flags
+      // This allows DB defaults to apply: onboarding_completed = false, onboarding_completed_at = NULL
+      const { data: configData, error: upsertError } = await supabase
         .from('business_configurations')
         .upsert({
           user_id: userId,
-          business_category: formData.businessCategory,
+          business_category: mappedCategory,
           business_description: formData.businessDescription,
           classification_method: formData.classificationMethod,
           classification_confidence: formData.classificationConfidence,
-          monthly_revenue_target: formData.monthlyRevenueTarget,
-          profit_margin_target: formData.profitMarginTarget,
-          break_even_months: formData.breakEvenMonths,
-          initial_capital: formData.initialCapital,
-          monthly_operational_cost: formData.monthlyOperationalCost,
-          minimum_cash_alert: formData.minimumCashAlert,
+          monthly_revenue_target: monthlyRevenue,
+          profit_margin_target: profitMargin,
+          break_even_months: breakEven,
+          initial_capital: initialCap,
+          monthly_operational_cost: monthlyCost,
+          minimum_cash_alert: minCash,
           enable_email_alerts: formData.enableEmailAlerts,
           enable_stock_alerts: formData.enableStockAlerts,
           enable_weekly_summary: formData.enableWeeklySummary,
-          onboarding_completed: true,
-          onboarding_completed_at: new Date().toISOString(),
           onboarding_step: 5
-        })
+          // DO NOT set onboarding_completed or onboarding_completed_at here
+        }, { onConflict: 'user_id' })
+        .select()
+        .single()
 
-      if (error) throw error
+      if (upsertError) throw upsertError
+
+      // STEP 2: Update to mark as completed
+      // Now set onboarding_completed = true AND onboarding_completed_at = NOW()
+      // This satisfies constraint: if completed=true, then completed_at must NOT be NULL
+      const { error: updateError } = await supabase
+        .from('business_configurations')
+        .update({
+          onboarding_completed: true,
+          onboarding_completed_at: new Date().toISOString()
+        })
+        .eq('user_id', userId)
+
+      if (updateError) throw updateError
+      
       onComplete()
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving configuration:', error)
-      alert('Gagal menyimpan konfigurasi. Silakan coba lagi.')
+      setSaveError(error.message || 'Gagal menyimpan konfigurasi. Periksa kembali isian target dan coba lagi.')
     } finally {
       setIsSaving(false)
     }
@@ -343,11 +386,20 @@ export function OnboardingWizard({ onComplete, userId }: OnboardingWizardProps) 
                 
                 <textarea
                   value={formData.businessDescription || ''}
-                  onChange={(e) => setFormData(prev => ({ ...prev, businessDescription: e.target.value }))}
+                  onChange={(e) => {
+                    setFormData(prev => ({ ...prev, businessDescription: e.target.value }))
+                    setDescriptionError('') // Clear error on input
+                  }}
                   placeholder="Contoh: Saya jual beras, minyak goreng, dan sembako lainnya di warung kecil..."
-                  className="w-full px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder:text-gray-400"
                   rows={3}
                 />
+                
+                {descriptionError && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                    <p className="text-sm text-red-800">⚠️ {descriptionError}</p>
+                  </div>
+                )}
                 
                 <button
                   onClick={handleAnalyzeDescription}
@@ -474,7 +526,7 @@ export function OnboardingWizard({ onComplete, userId }: OnboardingWizardProps) 
                       type="text"
                       value={formatNumber(formData.monthlyRevenueTarget || 0)}
                       onChange={(e) => setFormData(prev => ({ ...prev, monthlyRevenueTarget: parseNumber(e.target.value) }))}
-                      className="w-full pl-10 sm:pl-12 pr-3 sm:pr-4 py-2 sm:py-3 text-sm sm:text-lg border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full pl-10 sm:pl-12 pr-3 sm:pr-4 py-2 sm:py-3 text-sm sm:text-lg border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder:text-gray-400"
                       placeholder="10.000.000"
                     />
                   </div>
@@ -491,9 +543,9 @@ export function OnboardingWizard({ onComplete, userId }: OnboardingWizardProps) 
                       type="number"
                       value={formData.profitMarginTarget || ''}
                       onChange={(e) => setFormData(prev => ({ ...prev, profitMarginTarget: Number(e.target.value) }))}
-                      className="w-full px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-lg border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-lg border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder:text-gray-400"
                       placeholder="25"
-                      min="1"
+                      min="0"
                       max="100"
                     />
                     <span className="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 text-sm sm:text-base text-gray-500 font-medium">%</span>
@@ -517,7 +569,7 @@ export function OnboardingWizard({ onComplete, userId }: OnboardingWizardProps) 
                     type="number"
                     value={formData.breakEvenMonths || ''}
                     onChange={(e) => setFormData(prev => ({ ...prev, breakEvenMonths: Number(e.target.value) }))}
-                    className="w-full px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-lg border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-lg border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder:text-gray-400"
                     placeholder="12"
                     min="1"
                     max="60"
@@ -599,7 +651,7 @@ export function OnboardingWizard({ onComplete, userId }: OnboardingWizardProps) 
                       type="text"
                       value={formatNumber(formData.initialCapital || 0)}
                       onChange={(e) => setFormData(prev => ({ ...prev, initialCapital: parseNumber(e.target.value) }))}
-                      className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
+                      className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg text-gray-900 placeholder:text-gray-400"
                       placeholder="50.000.000"
                     />
                   </div>
@@ -617,7 +669,7 @@ export function OnboardingWizard({ onComplete, userId }: OnboardingWizardProps) 
                       type="text"
                       value={formatNumber(formData.monthlyOperationalCost || 0)}
                       onChange={(e) => setFormData(prev => ({ ...prev, monthlyOperationalCost: parseNumber(e.target.value) }))}
-                      className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
+                      className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg text-gray-900 placeholder:text-gray-400"
                       placeholder="8.000.000"
                     />
                   </div>
@@ -635,7 +687,7 @@ export function OnboardingWizard({ onComplete, userId }: OnboardingWizardProps) 
                       type="text"
                       value={formatNumber(formData.minimumCashAlert || calculateMinimumCash())}
                       onChange={(e) => setFormData(prev => ({ ...prev, minimumCashAlert: parseNumber(e.target.value) }))}
-                      className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
+                      className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg text-gray-900 placeholder:text-gray-400"
                       placeholder={formatNumber(calculateMinimumCash())}
                     />
                   </div>
@@ -804,6 +856,22 @@ export function OnboardingWizard({ onComplete, userId }: OnboardingWizardProps) 
                   💡 Tenang, semua bisa diubah kapan saja di menu Pengaturan
                 </p>
               </div>
+
+              {saveError && (
+                <div className="bg-red-50 border-2 border-red-300 rounded-lg p-4 animate-fadeIn">
+                  <div className="flex items-start">
+                    <div className="flex-shrink-0">
+                      <svg className="h-5 w-5 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div className="ml-3">
+                      <h3 className="text-sm font-semibold text-red-800">Gagal Menyimpan Konfigurasi</h3>
+                      <p className="text-sm text-red-700 mt-1">{saveError}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className="flex justify-between">
                 <button

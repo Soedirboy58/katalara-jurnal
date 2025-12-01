@@ -217,7 +217,7 @@ export default function InputSalesPage() {
                 if (productId) {
                   const product = products.find(p => p.id === productId)
                   if (product) {
-                    setPricePerUnit(formatNumber(product.sell_price.toString()))
+                    setPricePerUnit(formatNumber(product.selling_price.toString()))
                   }
                 } else {
                   setPricePerUnit('')
@@ -231,8 +231,7 @@ export default function InputSalesPage() {
               </option>
               {products.map((product) => (
                 <option key={product.id} value={product.id}>
-                  {product.name} - Rp {formatNumber(product.sell_price.toString())}
-                  {product.track_inventory && ` (Stok: ${product.stock_quantity} ${product.stock_unit})`}
+                  {product.name} - Rp {formatNumber(product.selling_price.toString())}
                 </option>
               ))}
             </select>

@@ -83,10 +83,12 @@ export function useProducts(filters?: ProductFilters & { productType?: 'physical
 
   function getStockStatus(product: Product): StockStatus {
     if (!product.track_inventory) return 'HEALTHY'
-    if (product.stock_quantity === 0) return 'OUT_OF_STOCK'
-    if (product.stock_quantity <= product.min_stock_alert * 0.5) return 'CRITICAL'
-    if (product.stock_quantity <= product.min_stock_alert) return 'LOW'
-    if (product.stock_quantity > product.min_stock_alert * 3) return 'OVERSTOCKED'
+    const minStock = (product as any).min_stock_alert || (product as any).min_stock || 0
+    const stockQty = (product as any).stock_quantity || 0
+    if (stockQty === 0) return 'OUT_OF_STOCK'
+    if (stockQty <= minStock * 0.5) return 'CRITICAL'
+    if (stockQty <= minStock) return 'LOW'
+    if (stockQty > minStock * 3) return 'OVERSTOCKED'
     return 'HEALTHY'
   }
 

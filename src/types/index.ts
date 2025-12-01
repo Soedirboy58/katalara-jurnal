@@ -87,15 +87,16 @@ export interface ExpenseFilters {
 }
 
 // Form types
+// ⚠️ DEPRECATED: Use ProductFormData from types/product-schema.ts instead
+// This is kept for backward compatibility only
 export interface ProductFormData {
   name: string
   sku?: string
   category?: string
-  buy_price: number
-  sell_price: number
-  stock_quantity: number
-  stock_unit: string
-  min_stock_alert: number
+  cost_price: number        // Harga beli/modal (DB field name)
+  selling_price: number     // Harga jual (DB field name)
+  unit: string              // Satuan (DB field name)
+  min_stock_alert: number   // Min. stock alert (DB field name)
   track_inventory: boolean
 }
 

@@ -10,7 +10,7 @@ interface PrintModalProps {
   businessName: string
 }
 
-export function PrintModal({ isOpen, onClose, incomeData, businessName }: PrintModalProps) {
+export function IncomePrintModal({ isOpen, onClose, incomeData, businessName }: PrintModalProps) {
   const [printMode, setPrintMode] = useState<'receipt' | 'invoice'>('receipt')
   const [showPreview, setShowPreview] = useState(false)
   

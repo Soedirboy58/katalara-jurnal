@@ -5,11 +5,11 @@ import { useProducts } from '@/hooks/useProducts'
 import { Button } from '@/components/ui/Button'
 import { ProductKPICards } from './ProductKPICards'
 import { ProductCategoryTabs } from './ProductCategoryTabs'
-import { ProductTableAdvanced } from './ProductTableAdvanced'
+// import { ProductTableAdvanced } from './ProductTableAdvanced' // ⚠️ Disabled - uses old schema fields
 import { ProductCardView } from './ProductCardView'
 import { BulkActionsBar } from './BulkActionsBar'
 import { ProductModal } from './ProductModal'
-import { StockAdjustModal } from './StockAdjustModal'
+// import { StockAdjustModal } from './StockAdjustModal' // ⚠️ Disabled - uses stock_quantity field
 import { 
   MagnifyingGlassIcon,
   Squares2X2Icon,
@@ -43,14 +43,12 @@ export function ProductsView() {
     getStockStatus
   } = useProducts(filters)
 
-  // Computed values for KPIs
+  // Computed values for KPIs  
   const kpiData = useMemo(() => {
     const totalProducts = products.length
-    const totalStockValue = products.reduce((sum, p) => sum + (p.stock_quantity * p.sell_price), 0)
-    const lowStockCount = products.filter(p => {
-      if (!p.track_inventory) return false
-      return p.stock_quantity <= p.min_stock_alert
-    }).length
+    // ⚠️ Stock tracking disabled - fields not in schema
+    const totalStockValue = 0
+    const lowStockCount = 0
 
     // Best seller (placeholder - would need sales data)
     const bestSeller = products[0]?.name || 'N/A'
@@ -74,13 +72,11 @@ export function ProductsView() {
     // Apply category filter
     switch (categoryFilter) {
       case 'low-stock':
-        filtered = filtered.filter(p => {
-          if (!p.track_inventory) return false
-          return p.stock_quantity <= p.min_stock_alert
-        })
+        // ⚠️ Stock tracking disabled
+        filtered = []
         break
       case 'high-value':
-        filtered = filtered.filter(p => p.sell_price >= 50000)
+        filtered = filtered.filter(p => (p as any).selling_price >= 50000)
         break
       case 'best-seller':
         // Would filter based on sales data
@@ -139,7 +135,7 @@ export function ProductsView() {
       id: 'high-value' as CategoryFilter,
       label: 'High Value',
       icon: '💰',
-      count: products.filter(p => p.sell_price >= 50000).length,
+      count: products.filter(p => (p as any).selling_price >= 50000).length,
       color: 'bg-purple-600'
     },
     {
@@ -203,9 +199,9 @@ export function ProductsView() {
   const handleBulkExport = () => {
     const selectedData = products.filter(p => selectedProducts.includes(p.id))
     const csv = [
-      ['Nama', 'SKU', 'Kategori', 'Stok', 'Harga Beli', 'Harga Jual'].join(','),
+      ['Nama', 'SKU', 'Kategori', 'Harga Beli', 'Harga Jual'].join(','),
       ...selectedData.map(p => 
-        [p.name, p.sku, p.category, p.stock_quantity, p.buy_price, p.sell_price].join(',')
+        [p.name, p.sku, p.category, p.cost_price, (p as any).selling_price].join(',')
       )
     ].join('\n')
 
@@ -320,24 +316,10 @@ export function ProductsView() {
 
       {/* Product Display */}
       {viewMode === 'table' ? (
-        <ProductTableAdvanced
-          products={paginatedProducts}
-          loading={loading}
-          selectedProducts={selectedProducts}
-          onSelectProduct={handleSelectProduct}
-          onSelectAll={handleSelectAll}
-          onEdit={handleEdit}
-          onAdjustStock={handleAdjustStock}
-          onDelete={handleDelete}
-          currentPage={currentPage}
-          totalPages={totalPages}
-          itemsPerPage={itemsPerPage}
-          onPageChange={setCurrentPage}
-          onItemsPerPageChange={(count) => {
-            setItemsPerPage(count)
-            setCurrentPage(1)
-          }}
-        />
+        <div className="bg-white p-8 rounded-lg shadow text-center">
+          <p className="text-gray-600">⚠️ Table view temporarily disabled (schema update)</p>
+          <Button onClick={() => setViewMode('card')} className="mt-4">Switch to Card View</Button>
+        </div>
       ) : (
         <ProductCardView
           products={paginatedProducts}
@@ -371,15 +353,7 @@ export function ProductsView() {
         onSuccess={refresh}
       />
 
-      <StockAdjustModal
-        isOpen={isStockModalOpen}
-        onClose={() => {
-          setIsStockModalOpen(false)
-          setSelectedProduct(null)
-        }}
-        product={selectedProduct}
-        onSuccess={refresh}
-      />
+      {/* ⚠️ StockAdjustModal disabled - stock tracking not in schema */}
     </div>
   )
 }

@@ -142,31 +142,10 @@ export async function DELETE(
 
     // 🔄 RESTORE STOCK: If this is a product purchase, restore the stock
     if (expense.product_id && expense.quantity) {
-      console.log(`🔄 Restoring stock for deleted expense...`)
-      
-      // Get product details
-      const { data: product, error: productError } = await supabase
-        .from('products')
-        .select('stock_quantity, track_inventory, name')
-        .eq('id', expense.product_id)
-        .single()
-
-      if (!productError && product && product.track_inventory) {
-        // SUBTRACT stock (expense delete = remove stock that was added)
-        const restoredStock = (product.stock_quantity || 0) - parseFloat(expense.quantity)
-        console.log(`  ➖ Restoring stock from ${product.stock_quantity} to ${restoredStock} for ${product.name}`)
-        
-        const { error: updateError } = await supabase
-          .from('products')
-          .update({ stock_quantity: restoredStock })
-          .eq('id', expense.product_id)
-        
-        if (updateError) {
-          console.error('  ❌ Error restoring stock:', updateError)
-        } else {
-          console.log('  ✅ Stock restored successfully')
-        }
-      }
+      // ⚠️ STOCK MANAGEMENT: stock_quantity does NOT exist in products table
+      // Stock is managed separately (future implementation with stock_movements table)
+      console.log(`📦 Stock restoration pending for expense ${id} (product: ${expense.product_id})`)
+      // TODO: Implement proper inventory tracking with stock_movements
     }
 
     // Delete the expense transaction

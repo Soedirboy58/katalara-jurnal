@@ -247,7 +247,7 @@ export type SupplierType = 'raw_materials' | 'finished_goods' | 'both' | 'servic
 
 export interface Supplier {
   id: string
-  owner_id: string
+  user_id: string
   
   // Basic Info
   name: string

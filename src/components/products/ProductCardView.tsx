@@ -112,20 +112,15 @@ export function ProductCardView({
   const formatCurrency = (value: number) => `Rp ${value.toLocaleString('id-ID')}`
 
   const getStockStatus = (product: Product) => {
-    if (!product.track_inventory) return { label: 'Tidak dilacak', icon: '➖', color: 'bg-gray-100 text-gray-700' }
-    const stock = product.stock_quantity || 0
-    const minStock = product.min_stock_alert || 0
-    if (stock === 0) return { label: 'Habis', icon: '❌', color: 'bg-red-100 text-red-700' }
-    if (stock <= minStock * 0.5) 
-      return { label: 'Kritis', icon: '🔴', color: 'bg-orange-100 text-orange-700' }
-    if (stock <= minStock) 
-      return { label: 'Rendah', icon: '⚠️', color: 'bg-yellow-100 text-yellow-700' }
-    return { label: 'Sehat', icon: '✅', color: 'bg-green-100 text-green-700' }
+    // ⚠️ Stock tracking fields not in simplified schema
+    return { label: 'N/A', icon: '➖', color: 'bg-gray-100 text-gray-700' }
   }
 
   const getMargin = (product: Product) => {
-    if (product.buy_price === 0) return 0
-    return ((product.sell_price - product.buy_price) / product.buy_price) * 100
+    const costPrice = (product as any).cost_price ?? (product as any).buy_price ?? 0
+    const sellingPrice = (product as any).selling_price ?? (product as any).sell_price ?? 0
+    if (costPrice === 0) return 0
+    return ((sellingPrice - costPrice) / costPrice) * 100
   }
 
   if (loading) {
@@ -245,27 +240,24 @@ export function ProductCardView({
             {/* Card Body */}
             <div className="p-2.5 sm:p-4 space-y-2 sm:space-y-3">
               {/* Stock Info */}
+              {/* ⚠️ Stock display disabled - fields not in schema
               <div className="flex items-center justify-between">
                 <span className="text-[10px] sm:text-xs text-gray-600">Stok</span>
                 <div className="text-right">
-                  <span className="text-xs sm:text-sm font-bold text-gray-900">
-                    {(product.stock_quantity || 0).toLocaleString()} {product.unit || 'pcs'}
-                  </span>
-                  {(product.min_stock_alert || 0) > 0 && (
-                    <p className="text-[9px] sm:text-xs text-gray-500">Min: {product.min_stock_alert}</p>
-                  )}
+                  <span className="text-xs sm:text-sm font-bold text-gray-900">N/A</span>
                 </div>
               </div>
+              */}
 
               {/* Pricing */}
               <div className="space-y-1 sm:space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] sm:text-xs text-gray-600">Harga Beli</span>
-                  <span className="text-xs sm:text-sm text-gray-700">{formatCurrency(product.buy_price)}</span>
+                  <span className="text-xs sm:text-sm text-gray-700">{formatCurrency((product as any).cost_price ?? (product as any).buy_price ?? 0)}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] sm:text-xs text-gray-600">Harga Jual</span>
-                  <span className="text-xs sm:text-sm font-bold text-gray-900">{formatCurrency(product.sell_price)}</span>
+                  <span className="text-xs sm:text-sm font-bold text-gray-900">{formatCurrency((product as any).selling_price ?? (product as any).sell_price ?? 0)}</span>
                 </div>
                 <div className="flex items-center justify-between pt-1 sm:pt-2 border-t border-gray-100">
                   <span className="text-[10px] sm:text-xs text-gray-600">Margin</span>
@@ -279,7 +271,7 @@ export function ProductCardView({
               <div className="bg-blue-50 rounded-lg p-1.5 sm:p-2 flex items-center justify-between">
                 <span className="text-[10px] sm:text-xs text-blue-700 font-medium">Nilai Stok</span>
                 <span className="text-xs sm:text-sm font-bold text-blue-700">
-                  {formatCurrency((product.stock_quantity || 0) * product.sell_price)}
+                  {formatCurrency(0)}
                 </span>
               </div>
             </div>

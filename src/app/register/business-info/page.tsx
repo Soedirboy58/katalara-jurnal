@@ -27,7 +27,7 @@ export default function BusinessInfoPage() {
     kabupaten: '',
     provinsi: '',
     business_name: '',
-    business_category_id: '',
+    business_category_uuid: '',
     business_start_year: '',
     business_type: '',
     number_of_employees: ''
@@ -85,17 +85,29 @@ export default function BusinessInfoPage() {
   const loadCategories = async () => {
     try {
       const { data, error } = await supabase
-        .from('business_categories')
-        .select('*')
-        .order('name')
+        .from('business_type_mappings')
+        .select('id, label_ui, category_key, target_audience')
+        .not('category_key', 'is', null)
+        .order('sort_order')
 
       if (error) {
         console.error('Error loading categories:', error)
         throw error
       }
       
-      console.log('Loaded categories:', data) // Debug log
-      setCategories(data || [])
+      // Transform data to match BusinessCategory interface
+      const transformedData = (data || []).map(item => ({
+        id: item.id,
+        name: item.label_ui || item.category_key,
+        description: item.target_audience || null,
+        icon: null,
+        is_active: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }))
+      
+      console.log('Loaded UX-friendly categories:', transformedData) // Debug log
+      setCategories(transformedData)
     } catch (err) {
       console.error('Error loading categories:', err)
       setError('Gagal memuat kategori bisnis')
@@ -155,11 +167,11 @@ export default function BusinessInfoPage() {
             kabupaten: formData.kabupaten,
             provinsi: formData.provinsi,
             business_name: formData.business_name,
-            business_category_id: formData.business_category_id,
+            business_category_uuid: formData.business_category_uuid,
             business_start_year: formData.business_start_year ? parseInt(formData.business_start_year) : null,
             business_type: formData.business_type,
-            number_of_employees: formData.number_of_employees,
-            is_approved: true
+            number_of_employees: formData.number_of_employees
+            // Don't update: is_approved, approved_by (only admin can change)
           })
           .eq('user_id', userId)
 
@@ -182,14 +194,13 @@ export default function BusinessInfoPage() {
             kabupaten: formData.kabupaten,
             provinsi: formData.provinsi,
             business_name: formData.business_name,
-            business_category_id: formData.business_category_id,
+            business_category_uuid: formData.business_category_uuid,
             business_start_year: formData.business_start_year ? parseInt(formData.business_start_year) : null,
             business_type: formData.business_type,
-            number_of_employees: formData.number_of_employees,
-            role: 'user',
-            is_verified: true,
-            is_approved: true,
-            is_active: true
+            number_of_employees: formData.number_of_employees
+            // Don't send: is_approved (default: false), approved_by (default: NULL)
+            // Don't send: role (default: 'user'), is_active (default: true)
+            // These will be set by database defaults
           })
 
         if (profileError) {
@@ -349,7 +360,7 @@ ADD COLUMN IF NOT EXISTS number_of_employees TEXT;
                 onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                 required
                 rows={2}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-gray-900 placeholder:text-gray-400"
                 placeholder="Jl. nama jalan, RT/RW, Desa/Kelurahan"
               />
             </div>
@@ -368,7 +379,7 @@ ADD COLUMN IF NOT EXISTS number_of_employees TEXT;
                     setFormData({ ...formData, provinsi: selectedProv?.nama || '' })
                   }}
                   required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-gray-900"
                 >
                   <option value="">Pilih Provinsi</option>
                   {provinsiList.map((prov) => (
@@ -393,7 +404,7 @@ ADD COLUMN IF NOT EXISTS number_of_employees TEXT;
                   }}
                   required
                   disabled={!selectedProvinsi}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-gray-900 disabled:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-500"
                 >
                   <option value="">
                     {selectedProvinsi ? 'Pilih Kabupaten/Kota' : 'Pilih provinsi dulu'}
@@ -420,7 +431,7 @@ ADD COLUMN IF NOT EXISTS number_of_employees TEXT;
                   }}
                   required
                   disabled={!selectedKabupaten}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-gray-900 disabled:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-500"
                 >
                   <option value="">
                     {selectedKabupaten ? 'Pilih Kecamatan' : 'Pilih kabupaten dulu'}
@@ -439,11 +450,11 @@ ADD COLUMN IF NOT EXISTS number_of_employees TEXT;
                 Kategori Bisnis <span className="text-red-500">*</span>
               </label>
               <select
-                value={formData.business_category_id}
-                onChange={(e) => setFormData({ ...formData, business_category_id: e.target.value })}
+                value={formData.business_category_uuid}
+                onChange={(e) => setFormData({ ...formData, business_category_uuid: e.target.value })}
                 required
                 disabled={loadingCategories}
-                className="w-full h-10 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full h-10 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white disabled:bg-gray-100 disabled:text-gray-500"
               >
                 <option value="">-- Pilih Kategori --</option>
                 {categories.map((cat) => (
@@ -469,7 +480,7 @@ ADD COLUMN IF NOT EXISTS number_of_employees TEXT;
                 <select
                   value={formData.business_type}
                   onChange={(e) => setFormData({ ...formData, business_type: e.target.value })}
-                  className="w-full h-10 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full h-10 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
                 >
                   <option value="">-- Pilih --</option>
                   <option value="perorangan">Perorangan</option>
@@ -498,7 +509,7 @@ ADD COLUMN IF NOT EXISTS number_of_employees TEXT;
               <select
                 value={formData.number_of_employees}
                 onChange={(e) => setFormData({ ...formData, number_of_employees: e.target.value })}
-                className="w-full h-10 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full h-10 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
               >
                 <option value="">-- Pilih --</option>
                 <option value="1-5">1-5 orang</option>

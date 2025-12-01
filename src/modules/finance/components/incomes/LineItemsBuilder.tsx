@@ -57,7 +57,7 @@ export function LineItemsBuilder({
     if (selectedProductId) {
       const product = products.find(p => p.id === selectedProductId)
       if (product) {
-        setPrice(product.selling_price?.toString() || '0')
+        setPrice((product as any).selling_price?.toString() || (product as any).sell_price?.toString() || '0')
       }
     }
   }, [selectedProductId, products])
@@ -151,7 +151,7 @@ export function LineItemsBuilder({
                 <option value="">Pilih {category === 'service_income' ? 'Layanan' : 'Produk'}...</option>
                 {products.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.name} - Rp {new Intl.NumberFormat('id-ID').format(p.selling_price || 0)}
+                    {p.name} - Rp {new Intl.NumberFormat('id-ID').format((p as any).selling_price || (p as any).sell_price || 0)}
                   </option>
                 ))}
               </select>

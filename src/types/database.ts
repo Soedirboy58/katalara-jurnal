@@ -12,62 +12,58 @@ export type Json =
 export interface Database {
   public: {
     Tables: {
+      // ⚠️ CRITICAL: Field names MUST match database schema
+      // See: sql/domain/inventory/products.schema.sql
+      // See: types/product-schema.ts for detailed documentation
       products: {
         Row: {
           id: string
-          owner_id: string
+          user_id: string                // FK to auth.users
           name: string
           sku: string | null
           category: string | null
-          unit: string
-          price: number
-          stock_quantity: number
-          stock_unit: string
-          buy_price: number
-          sell_price: number
-          min_stock_alert: number
+          unit: string                   // Satuan: pcs, kg, liter, dll
+          description: string | null
+          cost_price: number             // Harga beli/modal
+          selling_price: number          // Harga jual
+          image_url: string | null       // URL gambar utama
           track_inventory: boolean
-          last_restock_date: string | null
+          min_stock_alert: number
           is_active: boolean
           created_at: string
           updated_at: string
         }
         Insert: {
           id?: string
-          owner_id: string
+          user_id: string
           name: string
           sku?: string | null
           category?: string | null
           unit?: string
-          price?: number
-          stock_quantity?: number
-          stock_unit?: string
-          buy_price?: number
-          sell_price?: number
-          min_stock_alert?: number
+          description?: string | null
+          cost_price?: number
+          selling_price?: number
+          image_url?: string | null
           track_inventory?: boolean
-          last_restock_date?: string | null
+          min_stock_alert?: number
           is_active?: boolean
           created_at?: string
           updated_at?: string
         }
         Update: {
           id?: string
-          owner_id?: string
+          user_id?: string
           name?: string
           sku?: string | null
           category?: string | null
           unit?: string
-          price?: number
-          stock_quantity?: number
-          stock_unit?: string
-          buy_price?: number
-          sell_price?: number
-          min_stock_alert?: number
+          description?: string | null
+          cost_price?: number
+          selling_price?: number
+          image_url?: string | null
           track_inventory?: boolean
-          last_restock_date?: string | null
+          min_stock_alert?: number
           is_active?: boolean
-          created_at?: string
           updated_at?: string
         }
       }
@@ -195,63 +191,98 @@ export interface Database {
       expenses: {
         Row: {
           id: string
-          owner_id: string
+          user_id: string          // ✅ ACTUAL: uses user_id not owner_id
           expense_date: string
           category: string
-          description: string
-          amount: number
+          description: string | null
+          grand_total: number      // ✅ ACTUAL: uses grand_total not amount
           payment_method: string | null
           payment_status: string
-          payment_type: string | null
-          due_date: string | null
           receipt_url: string | null
           receipt_filename: string | null
           notes: string | null
-          product_id: string | null
-          quantity_added: number
-          is_restock: boolean
           created_at: string
           updated_at: string
         }
         Insert: {
           id?: string
-          owner_id: string
+          user_id: string
           expense_date: string
           category: string
-          description: string
-          amount: number
+          description?: string | null
+          grand_total: number
           payment_method?: string | null
           payment_status?: string
-          payment_type?: string | null
-          due_date?: string | null
           receipt_url?: string | null
           receipt_filename?: string | null
           notes?: string | null
-          product_id?: string | null
-          quantity_added?: number
-          is_restock?: boolean
           created_at?: string
           updated_at?: string
         }
         Update: {
           id?: string
-          owner_id?: string
+          user_id?: string
           expense_date?: string
           category?: string
-          description?: string
-          amount?: number
+          description?: string | null
+          grand_total?: number
           payment_method?: string | null
           payment_status?: string
-          payment_type?: string | null
-          due_date?: string | null
           receipt_url?: string | null
           receipt_filename?: string | null
           notes?: string | null
-          product_id?: string | null
-          quantity_added?: number
-          is_restock?: boolean
           created_at?: string
           updated_at?: string
+        }
+      }
+      expense_items: {
+        Row: {
+          id: string
+          expense_id: string
+          owner_id: string
+          product_id: string | null
+          product_name: string
+          description: string | null
+          qty: number
+          unit: string
+          price_per_unit: number
+          subtotal: number
+          is_restock: boolean
+          quantity_added: number
+          stock_deducted: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          expense_id: string
+          owner_id: string
+          product_id?: string | null
+          product_name: string
+          description?: string | null
+          qty: number
+          unit?: string
+          price_per_unit: number
+          subtotal: number
+          is_restock?: boolean
+          quantity_added?: number
+          stock_deducted?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          expense_id?: string
+          owner_id?: string
+          product_id?: string | null
+          product_name?: string
+          description?: string | null
+          qty?: number
+          unit?: string
+          price_per_unit?: number
+          subtotal?: number
+          is_restock?: boolean
+          quantity_added?: number
+          stock_deducted?: boolean
+          created_at?: string
         }
       }
       customers: {

@@ -14,20 +14,16 @@ interface ProductTableProps {
 
 export function ProductTable({ products, loading, onEdit, onAdjustStock, onDelete }: ProductTableProps) {
   const getStockStatus = (product: Product) => {
-    if (!product.track_inventory) return { label: '-', color: 'gray' }
-    if (product.stock_quantity === 0) return { label: '❌ Habis', color: 'red' }
-    if (product.stock_quantity <= product.min_stock_alert * 0.5) 
-      return { label: '🔴 Kritis', color: 'orange' }
-    if (product.stock_quantity <= product.min_stock_alert) 
-      return { label: '⚠️ Rendah', color: 'yellow' }
-    if (product.stock_quantity > product.min_stock_alert * 3) 
-      return { label: '📦 Banyak', color: 'purple' }
-    return { label: '✅ Sehat', color: 'green' }
+    // ⚠️ Stock tracking disabled - fields not in schema
+    return { label: 'N/A', color: 'gray' }
   }
 
   const getMargin = (product: Product) => {
-    if (product.buy_price === 0) return 0
-    return ((product.sell_price - product.buy_price) / product.buy_price) * 100
+    // ⚠️ buy_price/sell_price not in schema
+    const cost = (product as any).cost_price || 0
+    const selling = (product as any).selling_price || 0
+    if (cost === 0) return 0
+    return ((selling - cost) / cost) * 100
   }
 
   if (loading) {
@@ -100,18 +96,15 @@ export function ProductTable({ products, loading, onEdit, onAdjustStock, onDelet
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right">
                     <div className="text-sm font-semibold text-gray-900">
-                      {formatNumber(product.stock_quantity)} {product.stock_unit}
+                      N/A
                     </div>
-                    {product.min_stock_alert > 0 && (
-                      <div className="text-xs text-gray-500">Min: {product.min_stock_alert}</div>
-                    )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-600">
-                    {formatCurrency(product.buy_price)}
+                    {formatCurrency((product as any).cost_price || 0)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right">
                     <div className="text-sm font-semibold text-gray-900">
-                      {formatCurrency(product.sell_price)}
+                      {formatCurrency((product as any).selling_price || 0)}
                     </div>
                     <div className={`text-xs ${margin > 0 ? 'text-green-600' : 'text-red-600'}`}>
                       Margin: {margin.toFixed(1)}%

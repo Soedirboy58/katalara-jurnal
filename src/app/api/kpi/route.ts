@@ -68,15 +68,15 @@ export async function GET(request: Request) {
       try {
         const { data, error } = await supabase
           .from('expenses')
-          .select('amount')
-          .or(`owner_id.eq.${user.id},user_id.eq.${user.id}`)
+          .select('grand_total')
+          .eq('user_id', user.id)
           .eq('expense_date', todayStr)
         
         if (error) {
           console.error('[KPI API] Error fetching expenses today:', error)
           return 0
         }
-        const total = data?.reduce((sum, e) => sum + parseFloat(e.amount.toString()), 0) || 0
+        const total = data?.reduce((sum, e) => sum + parseFloat((e as any).grand_total?.toString() || '0'), 0) || 0
         console.log('[KPI API] Expenses today:', total)
         return total
       } catch (err) {
@@ -89,15 +89,15 @@ export async function GET(request: Request) {
       try {
         const { data, error } = await supabase
           .from('expenses')
-          .select('amount')
-          .or(`owner_id.eq.${user.id},user_id.eq.${user.id}`)
+          .select('grand_total')
+          .eq('user_id', user.id)
           .gte('expense_date', monthStr)
         
         if (error) {
-          console.error('[KPI API] Error fetching expenses month:', error)
+          console.error('[KPI API] Error fetching expenses this month:', error)
           return 0
         }
-        const total = data?.reduce((sum, e) => sum + parseFloat(e.amount.toString()), 0) || 0
+        const total = data?.reduce((sum, e) => sum + parseFloat((e as any).grand_total?.toString() || '0'), 0) || 0
         console.log('[KPI API] Expenses month:', total)
         return total
       } catch (err) {
@@ -110,16 +110,16 @@ export async function GET(request: Request) {
       try {
         const { data, error } = await supabase
           .from('expenses')
-          .select('amount')
-          .or(`owner_id.eq.${user.id},user_id.eq.${user.id}`)
+          .select('grand_total')
+          .eq('user_id', user.id)
           .gte('expense_date', prevMonthStartStr)
           .lte('expense_date', prevMonthEndStr)
         
         if (error) {
-          console.error('[KPI API] Error fetching expenses previous month:', error)
+          console.error('[KPI API] Error fetching expenses last month:', error)
           return 0
         }
-        const total = data?.reduce((sum, e) => sum + parseFloat(e.amount.toString()), 0) || 0
+        const total = data?.reduce((sum, e) => sum + parseFloat((e as any).grand_total?.toString() || '0'), 0) || 0
         console.log('[KPI API] Expenses previous month:', total)
         return total
       } catch (err) {
@@ -133,7 +133,7 @@ export async function GET(request: Request) {
         const { count, error } = await supabase
           .from('products')
           .select('id', { count: 'exact', head: true })
-          .or(`owner_id.eq.${user.id},user_id.eq.${user.id}`)
+          .eq('user_id', user.id)
         
         if (error) {
           console.error('[KPI API] Error fetching products:', error)
@@ -148,23 +148,10 @@ export async function GET(request: Request) {
     }
 
     const fetchLowStockProducts = async () => {
-      try {
-        const { count, error } = await supabase
-          .from('products')
-          .select('id', { count: 'exact', head: true })
-          .or(`owner_id.eq.${user.id},user_id.eq.${user.id}`)
-          .lte('stock', 10)
-        
-        if (error) {
-          console.error('[KPI API] Error fetching low stock:', error)
-          return 0
-        }
-        console.log('[KPI API] Low stock products:', count)
-        return count || 0
-      } catch (err) {
-        console.error('[KPI API] Exception in low stock:', err)
-        return 0
-      }
+      // ⚠️ STOCK TRACKING DISABLED - 'stock' column doesn't exist in products table
+      // TODO: Implement with stock_movements table
+      console.log('[KPI API] Low stock monitoring pending - stock_movements table needed')
+      return 0 // Will be implemented with proper inventory tracking
     }
 
     // === NEW UMKM-RELEVANT KPIs ===
@@ -199,18 +186,16 @@ export async function GET(request: Request) {
       try {
         const { data, error } = await supabase
           .from('expenses')
-          .select('amount, notes, due_date')
-          .or(`owner_id.eq.${user.id},user_id.eq.${user.id}`)
+          .select('grand_total, notes')
+          .eq('user_id', user.id)
           .eq('payment_status', 'Pending')
-          .not('due_date', 'is', null)
-          .lt('due_date', todayStr)
         
         if (error) {
           console.error('[KPI API] Error fetching overdue payables:', error)
           return { count: 0, amount: 0 }
         }
         
-        const total = data?.reduce((sum, e) => sum + parseFloat(e.amount.toString()), 0) || 0
+        const total = data?.reduce((sum, e) => sum + parseFloat((e as any).grand_total?.toString() || '0'), 0) || 0
         console.log('[KPI API] Overdue payables:', data?.length, 'items, Rp', total)
         return { count: data?.length || 0, amount: total }
       } catch (err) {
@@ -334,30 +319,11 @@ export async function GET(request: Request) {
     }
 
     // 8. CRITICAL STOCK (stock <= min_stock_alert)
+    // ⚠️ STOCK TRACKING DISABLED - stock_quantity column doesn't exist in products table
+    // TODO: Implement critical stock alerts using stock_movements table
     const fetchCriticalStock = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('products')
-          .select('id, name, stock_quantity, min_stock_alert')
-          .or(`owner_id.eq.${user.id},user_id.eq.${user.id}`)
-          .eq('track_inventory', true)
-        
-        if (error) {
-          console.error('[KPI API] Error fetching critical stock:', error)
-          return 0
-        }
-        
-        // Count products where stock <= min_stock_alert
-        const critical = data?.filter(p => 
-          p.stock_quantity <= (p.min_stock_alert || 0)
-        ).length || 0
-        
-        console.log('[KPI API] Critical stock items:', critical)
-        return critical
-      } catch (err) {
-        console.error('[KPI API] Exception in critical stock:', err)
-        return 0
-      }
+      console.log('[KPI API] Critical stock monitoring pending - stock_movements table needed')
+      return 0 // Will be implemented with proper inventory tracking
     }
 
     // 9. REPEAT CUSTOMER RATE (customers with 2+ transactions)

@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS user_profiles (
   
   -- Status Flags
   is_verified BOOLEAN DEFAULT FALSE,
-  is_approved BOOLEAN DEFAULT FALSE,
+  is_approved BOOLEAN NOT NULL DEFAULT FALSE,
   is_active BOOLEAN DEFAULT TRUE,
   
   -- Role Management
@@ -33,6 +33,12 @@ CREATE TABLE IF NOT EXISTS user_profiles (
   approved_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
   approved_at TIMESTAMPTZ,
   notes TEXT, -- Admin notes for approval/rejection
+  
+  -- Approval Logic Constraint
+  CONSTRAINT chk_user_profiles_approval_logic CHECK (
+    (is_approved = false AND approved_by IS NULL) OR
+    (is_approved = true AND approved_by IS NOT NULL)
+  ),
   
   -- Metadata
   created_at TIMESTAMPTZ DEFAULT NOW(),

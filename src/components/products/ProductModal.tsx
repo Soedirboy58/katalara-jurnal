@@ -5,9 +5,13 @@ import { Modal } from '@/components/ui/Modal'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { useProducts } from '@/hooks/useProducts'
-import type { Product, ProductFormData } from '@/types'
+import type { Product } from '@/types'
+import type { ProductFormData, ProductInsert } from '@/types/product-schema'
+import { mapFormToInsert, getCostPrice, getSellingPrice } from '@/types/product-schema'
 import { generateSKU } from '@/utils/helpers'
 import { createClient } from '@/lib/supabase/client'
+import { formatRupiah, parseRupiahInput } from '@/lib/numberFormat'
+import { uploadProductImage, PRODUCT_IMAGE_BUCKET, getBucketInfo } from '@/lib/storage/productImages'
 
 interface ProductModalProps {
   isOpen: boolean
@@ -16,20 +20,24 @@ interface ProductModalProps {
   onSuccess: () => void
 }
 
+interface ImagePreview {
+  file: File
+  preview: string
+}
+
 export function ProductModal({ isOpen, onClose, product, onSuccess }: ProductModalProps) {
   const { createProduct, updateProduct } = useProducts()
   const [loading, setLoading] = useState(false)
-  const [imageFile, setImageFile] = useState<File | null>(null)
-  const [imagePreview, setImagePreview] = useState<string>('')
+  const [images, setImages] = useState<ImagePreview[]>([])
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [formData, setFormData] = useState<ProductFormData>({
     name: '',
     sku: '',
     category: '',
-    buy_price: 0,
-    sell_price: 0,
-    stock_quantity: 0,
-    stock_unit: 'pcs',
-    min_stock_alert: 10,
+    unit: 'pcs',
+    cost_price: 0,
+    selling_price: 0,
+    min_stock_alert: 0,
     track_inventory: true,
   })
 
@@ -39,137 +47,192 @@ export function ProductModal({ isOpen, onClose, product, onSuccess }: ProductMod
         name: product.name,
         sku: product.sku || '',
         category: product.category || '',
-        buy_price: product.buy_price,
-        sell_price: product.sell_price,
-        stock_quantity: product.stock_quantity,
-        stock_unit: product.stock_unit,
-        min_stock_alert: product.min_stock_alert,
-        track_inventory: product.track_inventory,
+        unit: (product as any).unit || 'pcs',
+        cost_price: getCostPrice(product),
+        selling_price: getSellingPrice(product),
+        min_stock_alert: (product as any).min_stock_alert || 0,
+        track_inventory: product.track_inventory ?? true,
       })
-      // Load existing image if available
-      if ((product as any).image_url) {
-        setImagePreview((product as any).image_url)
-      }
+      // TODO: Load existing images from product_images table when editing
+      setImages([])
     } else {
       setFormData({
         name: '',
         sku: '',
         category: '',
-        buy_price: 0,
-        sell_price: 0,
-        stock_quantity: 0,
-        stock_unit: 'pcs',
-        min_stock_alert: 10,
+        unit: 'pcs',
+        cost_price: 0,
+        selling_price: 0,
+        min_stock_alert: 0,
         track_inventory: true,
       })
-      setImagePreview('')
-      setImageFile(null)
+      setImages([])
     }
+    setErrorMessage(null)
   }, [product, isOpen])
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      setImageFile(file)
-      // Create preview URL
+    const files = Array.from(e.target.files || [])
+    
+    // Validation: Maximum 5 images
+    if (images.length + files.length > 5) {
+      setErrorMessage('Maksimal 5 gambar. Hapus gambar lain terlebih dahulu.')
+      return
+    }
+
+    // Validation: File size (max 5MB each)
+    const invalidFiles = files.filter(file => file.size > 5 * 1024 * 1024)
+    if (invalidFiles.length > 0) {
+      setErrorMessage('Beberapa file melebihi 5MB. Pilih file yang lebih kecil.')
+      return
+    }
+
+    // Create previews for new files
+    files.forEach(file => {
       const reader = new FileReader()
       reader.onloadend = () => {
-        setImagePreview(reader.result as string)
+        setImages(prev => [
+          ...prev,
+          {
+            file,
+            preview: reader.result as string,
+            isPrimary: prev.length === 0 // First image is primary by default
+          }
+        ])
       }
       reader.readAsDataURL(file)
-    }
+    })
+
+    setErrorMessage(null)
+    // Reset input to allow selecting same file again
+    e.target.value = ''
   }
+
+  const handleRemoveImage = () => {
+    setImages([]) // Clear single image
+  }
+
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setErrorMessage(null)
+
+    // Validation: Minimum 1 image required (can be skipped for quick add from expenses)
+    // Comment out strict validation to allow product creation without images
+    // if (images.length === 0) {
+    //   setErrorMessage('Minimal 1 gambar produk wajib diupload')
+    //   return
+    // }
+
     setLoading(true)
 
     try {
       const supabase = createClient()
-      let imageUrl: string | undefined = undefined
-
-      // Upload image to Supabase Storage if new file selected
-      if (imageFile) {
-        console.log('🖼️ Uploading new image...')
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) throw new Error('User not authenticated')
-
-        // Generate unique filename in products folder
-        const fileExt = imageFile.name.split('.').pop()
-        const fileName = `products/${user.id}/${Date.now()}.${fileExt}`
-        console.log('📁 File path:', fileName)
-
-        // Upload to lapak-images bucket
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from('lapak-images')
-          .upload(fileName, imageFile, {
-            cacheControl: '3600',
-            upsert: false
-          })
-
-        if (uploadError) {
-          console.error('❌ Upload error:', uploadError)
-          throw new Error('Gagal upload gambar: ' + uploadError.message)
-        }
-
-        console.log('✅ Upload success:', uploadData)
-
-        // Get public URL
-        const { data: urlData } = supabase.storage
-          .from('lapak-images')
-          .getPublicUrl(fileName)
-        
-        imageUrl = urlData.publicUrl
-        console.log('🔗 Public URL:', imageUrl)
-
-        // Delete old image if updating product
-        if (product && (product as any).image_url) {
-          const oldPath = (product as any).image_url.split('/lapak-images/').pop()
-          if (oldPath) {
-            console.log('🗑️ Deleting old image:', oldPath)
-            await supabase.storage.from('lapak-images').remove([oldPath])
-          }
-        }
-      } else if (product && (product as any).image_url) {
-        // Keep existing image URL when editing without changing image
-        imageUrl = (product as any).image_url
-        console.log('📌 Keeping existing image:', imageUrl)
-      }
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('User not authenticated')
 
       // Auto-generate SKU if empty
       const sku = formData.sku || generateSKU(formData.name, formData.category)
 
-      // Prepare data with image_url
-      const productData = {
-        ...formData,
-        sku,
-        ...(imageUrl && { image_url: imageUrl })
-      }
+      // STEP 1: Insert product data
+      // ⚠️ IMPORTANT: Field names MUST match database schema (see types/product-schema.ts)
+      const productData: ProductInsert = mapFormToInsert(
+        { ...formData, sku },
+        user.id
+      )
 
       console.log('💾 Saving product data:', productData)
 
+      let productId: string
+
       if (product) {
+        // Update existing product
         const { error } = await updateProduct(product.id, productData)
         if (error) throw new Error(error)
+        productId = product.id
         console.log('✅ Product updated successfully')
       } else {
-        const { error } = await createProduct({
-          ...productData,
-          owner_id: '', // Will be set by RLS
-          is_active: true,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        } as any)
-        if (error) throw new Error(error)
-        console.log('✅ Product created successfully')
+        // Create new product - need to get the ID back
+        const { data: insertedProduct, error: insertError } = await supabase
+          .from('products')
+          .insert({
+            ...productData,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .select('id')
+          .single()
+
+        if (insertError) throw new Error(insertError.message)
+        if (!insertedProduct) throw new Error('Failed to get product ID after insert')
+        
+        productId = insertedProduct.id
+        console.log('✅ Product created with ID:', productId)
       }
 
+      // STEP 2: Upload image to Supabase Storage (only first image, sesuai schema)
+      if (images.length > 0) {
+        console.log('🖼️ Uploading product image...', {
+          bucket: PRODUCT_IMAGE_BUCKET,
+          config: getBucketInfo()
+        })
+
+        const imageData = images[0] // Hanya ambil gambar pertama
+        
+        console.log('📁 Uploading image...')
+
+        // Use helper function for upload
+        const uploadResult = await uploadProductImage(
+          supabase,
+          user.id,
+          productId,
+          imageData.file,
+          0
+        )
+
+        if (!uploadResult.success || !uploadResult.publicUrl) {
+          console.error('❌ Upload error:', uploadResult.error)
+          // Produk sudah tersimpan, tapi gambar gagal - tidak perlu throw error
+          alert(
+            `⚠️ Produk berhasil disimpan, tetapi gambar gagal diupload.\n\n` +
+            `Error: ${uploadResult.error}\n\n` +
+            `Silakan edit produk dan upload ulang gambar.`
+          )
+        } else {
+          console.log('✅ Image uploaded:', uploadResult.publicUrl)
+
+          // STEP 3: Update products.image_url
+          const { error: updateError } = await supabase
+            .from('products')
+            .update({ image_url: uploadResult.publicUrl })
+            .eq('id', productId)
+
+          if (updateError) {
+            console.error('❌ Failed to update image_url:', updateError)
+            alert(
+              `⚠️ Produk berhasil disimpan, tetapi gagal menyimpan URL gambar.\n\n` +
+              `Silakan edit produk dan upload ulang gambar.`
+            )
+          } else {
+            console.log('✅ Product image_url updated successfully')
+          }
+        }
+      } else {
+        console.log('ℹ️ No image to upload, product created without image')
+      }
+
+      // Success!
       onSuccess()
       onClose()
-      alert(product ? 'Produk berhasil diupdate!' : 'Produk berhasil ditambahkan!')
+      
+      // Show success toast (assuming toast utility exists in project)
+      // If not, we'll just log it
+      console.log('🎉 Success:', product ? 'Produk berhasil diupdate!' : 'Produk berhasil ditambahkan!')
+      
     } catch (error: any) {
       console.error('❌ Submit error:', error)
-      alert('Error: ' + error.message)
+      setErrorMessage(error.message || 'Gagal menyimpan produk. Silakan coba lagi.')
     } finally {
       setLoading(false)
     }
@@ -191,58 +254,77 @@ export function ProductModal({ isOpen, onClose, product, onSuccess }: ProductMod
           placeholder="Contoh: Kaos Polos Hitam"
         />
 
-        {/* Image Upload */}
+        {/* Single Image Upload (sesuai schema products.image_url) */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Gambar Produk
+            Gambar Produk (Opsional)
           </label>
-          <div className="flex items-start gap-4">
-            {/* Preview */}
-            {imagePreview && (
-              <div className="relative w-24 h-24 rounded-lg overflow-hidden border-2 border-gray-300">
-                <img 
-                  src={imagePreview} 
-                  alt="Preview" 
-                  className="w-full h-full object-cover"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    setImagePreview('')
-                    setImageFile(null)
-                  }}
-                  className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1 hover:bg-red-700"
-                >
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
+          
+          {/* Image Preview (single image only) */}
+          {images.length > 0 && (
+            <div className="mb-3 max-w-xs">
+              <div className="relative group rounded-lg overflow-hidden border-2 border-gray-300">
+                {/* Image Preview */}
+                <div className="aspect-square">
+                  <img 
+                    src={images[0].preview} 
+                    alt="Preview" 
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                
+                {/* Remove Button (show on hover) */}
+                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <button
+                    type="button"
+                    onClick={handleRemoveImage}
+                    className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition-colors flex items-center gap-2"
+                    title="Hapus gambar"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                    <span className="text-sm font-medium">Hapus</span>
+                  </button>
+                </div>
               </div>
-            )}
-            
-            {/* Upload Button */}
-            <div className="flex-1">
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleImageChange}
-                className="hidden"
-                id="product-image"
-              />
-              <label
-                htmlFor="product-image"
-                className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
-              >
-                <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-                <span className="text-sm text-gray-700">Pilih Gambar</span>
-              </label>
-              <p className="text-xs text-gray-500 mt-1">
-                Format: JPG, PNG, max 5MB
-              </p>
             </div>
+          )}
+          
+          {/* Upload Button */}
+          <div>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleImageChange}
+              className="hidden"
+              id="product-image"
+            />
+            <label
+              htmlFor="product-image"
+              className="inline-flex items-center gap-2 px-4 py-2 border-2 border-dashed rounded-lg transition-colors border-blue-300 bg-blue-50 text-blue-700 cursor-pointer hover:bg-blue-100"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              <span className="text-sm font-medium">
+                {images.length === 0 ? 'Upload Gambar' : 'Ganti Gambar'}
+              </span>
+            </label>
+            <p className="text-xs text-gray-500 mt-1">
+              JPG/PNG • Max 5MB • Opsional (1 gambar)
+            </p>
           </div>
+
+          {/* Error Message */}
+          {errorMessage && (
+            <div className="mt-2 bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-2">
+              <svg className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
+              <p className="text-sm text-red-700 font-medium">{errorMessage}</p>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-4">
@@ -263,41 +345,38 @@ export function ProductModal({ isOpen, onClose, product, onSuccess }: ProductMod
         <div className="grid grid-cols-2 gap-4">
           <Input
             label="Harga Beli"
-            type="number"
-            value={formData.buy_price}
-            onChange={(e) => setFormData({ ...formData, buy_price: parseFloat(e.target.value) })}
+            type="text"
+            inputMode="numeric"
+            value={formatRupiah(formData.cost_price)}
+            onChange={(e) => {
+              const parsed = parseRupiahInput(e.target.value)
+              setFormData({ ...formData, cost_price: parsed ?? 0 })
+            }}
             required
-            min="0"
-            step="1"
+            placeholder="0"
           />
           <Input
             label="Harga Jual"
-            type="number"
-            value={formData.sell_price}
-            onChange={(e) => setFormData({ ...formData, sell_price: parseFloat(e.target.value) })}
+            type="text"
+            inputMode="numeric"
+            value={formatRupiah(formData.selling_price)}
+            onChange={(e) => {
+              const parsed = parseRupiahInput(e.target.value)
+              setFormData({ ...formData, selling_price: parsed ?? 0 })
+            }}
             required
-            min="0"
-            step="1"
+            placeholder="0"
           />
         </div>
 
-        <div className="grid grid-cols-3 gap-4">
-          <Input
-            label="Stok Awal"
-            type="number"
-            value={formData.stock_quantity}
-            onChange={(e) => setFormData({ ...formData, stock_quantity: parseFloat(e.target.value) })}
-            required
-            min="0"
-            step="1"
-          />
+        <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Satuan
             </label>
             <select
-              value={formData.stock_unit}
-              onChange={(e) => setFormData({ ...formData, stock_unit: e.target.value })}
+              value={formData.unit}
+              onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
               className="w-full h-10 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="pcs">pcs</option>
@@ -314,8 +393,11 @@ export function ProductModal({ isOpen, onClose, product, onSuccess }: ProductMod
           <Input
             label="Min. Alert"
             type="number"
-            value={formData.min_stock_alert}
-            onChange={(e) => setFormData({ ...formData, min_stock_alert: parseFloat(e.target.value) })}
+            value={formData.min_stock_alert || ''}
+            onChange={(e) => {
+              const val = e.target.value === '' ? 0 : parseFloat(e.target.value)
+              setFormData({ ...formData, min_stock_alert: isNaN(val) ? 0 : val })
+            }}
             min="0"
             step="1"
           />
