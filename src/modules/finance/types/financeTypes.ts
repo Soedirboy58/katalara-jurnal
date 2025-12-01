@@ -19,19 +19,30 @@ export type IncomeCategory =
   // Financing
   | 'loan_receipt' | 'investor_funding' | 'capital_injection'
 
-export type PaymentMethod = 'cash' | 'transfer' | 'tempo'
-export type PaymentStatus = 'unpaid' | 'partial' | 'paid'
+export type PaymentMethod = 'cash' | 'transfer' | 'tempo' | string
+export type PaymentStatus =
+  | 'unpaid'
+  | 'partial'
+  | 'paid'
+  | 'Pending'
+  | 'Lunas'
+  | 'Tempo'
+  | string
 
 export interface Income {
   id: string
-  user_id: string
-  income_type: IncomeType
-  income_category: IncomeCategory
+  user_id?: string
+  owner_id?: string
+  income_type?: IncomeType | string
+  income_category?: IncomeCategory | string
+  category?: string
   income_description?: string
+  description?: string
   
   // Customer Reference
   customer_id?: string
   customer_name?: string
+  customer_phone?: string
   
   // Transaction Details
   income_date: string // DATE
@@ -39,28 +50,31 @@ export interface Income {
   reference_number?: string
   
   // Financial Data
-  subtotal: number
-  discount_mode: 'nominal' | 'percent'
-  discount_value: number
-  discount_amount: number
+  subtotal?: number | string
+  discount_mode?: 'nominal' | 'percent' | string
+  discount_value?: number | string
+  discount_amount?: number | string
   
   // Tax & Fees
-  ppn_enabled: boolean
-  ppn_rate: number
-  ppn_amount: number
-  pph_enabled: boolean
+  ppn_enabled?: boolean
+  ppn_rate?: number | string
+  ppn_amount?: number | string
+  pph_enabled?: boolean
   pph_type?: string
-  pph_rate: number
-  pph_amount: number
-  other_fees: number
+  pph_rate?: number | string
+  pph_amount?: number | string
+  other_fees?: number | string
   
-  grand_total: number
+  grand_total?: number | string
+  amount?: number | string
+  total_amount?: number | string
   
   // Payment Information
-  payment_method: PaymentMethod
-  payment_status: PaymentStatus
-  paid_amount: number
-  remaining_payment: number // Piutang
+  payment_method?: PaymentMethod
+  payment_status?: PaymentStatus
+  payment_type?: string
+  paid_amount?: number | string
+  remaining_payment?: number | string // Piutang
   payment_date?: string
   due_date?: string
   
@@ -68,8 +82,8 @@ export interface Income {
   notes?: string
   tags?: string[]
   
-  created_at: string
-  updated_at: string
+  created_at?: string
+  updated_at?: string
 }
 
 export interface IncomeItem {
