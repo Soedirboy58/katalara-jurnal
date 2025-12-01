@@ -1,0 +1,892 @@
+# 📘 Katalara Platform - Complete Technical & Business Guide
+
+**Version:** 2.0  
+**Last Updated:** December 2025  
+**Platform Type:** UMKM Financial Management & E-commerce Platform  
+**Target Users:** Usaha Mikro, Kecil, dan Menengah (UMKM) Indonesia
+
+---
+
+## 🎯 EXECUTIVE SUMMARY
+
+### Visi Platform
+Katalara adalah platform manajemen keuangan dan e-commerce terintegrasi yang dirancang khusus untuk UMKM Indonesia. Platform ini menyediakan solusi lengkap mulai dari pencatatan transaksi, manajemen inventory, hingga toko online (lapak digital).
+
+### Value Proposition
+- ✅ **Simplicity First** - Mudah digunakan untuk UMKM non-teknis
+- ✅ **Mobile-Friendly** - Optimasi untuk pengguna smartphone
+- ✅ **Free to Start** - Barrier to entry rendah
+- ✅ **Indonesian Context** - Bahasa Indonesia, currency IDR, workflow lokal
+- ✅ **Privacy-First** - Data UMKM adalah milik mereka sendiri
+
+### Status Saat Ini
+- **Development Stage:** Production-Ready (Core Features Complete)
+- **Deployment:** Vercel (Production) + Supabase (Backend)
+- **User Base:** Beta/Early Adopters
+- **Code Status:** Sedang dalam fase refactoring untuk scalability
+
+---
+
+## 🏗️ ARSITEKTUR TEKNIS
+
+### Tech Stack
+
+#### Frontend
+- **Framework:** Next.js 16 + React 19
+- **Styling:** TailwindCSS 4
+- **UI Components:** 
+  - Headless UI 2.2. 9
+  - Heroicons 2.2.0
+  - Lucide React 0.554.0
+- **Charts:** Recharts 3.4.1
+- **Type Safety:** TypeScript 5
+
+#### Backend
+- **Database:** PostgreSQL (via Supabase)
+- **Authentication:** Supabase Auth
+- **Storage:** Supabase Storage (bucket: `lapak-images`)
+- **Real-time:** Supabase Realtime (SSR)
+- **Security:** Row Level Security (RLS) enabled on all tables
+
+#### Libraries Khusus
+- **PDF Generation:** jsPDF 3.0.4
+- **QR Code:** qrcode.react 4.2.0, react-qr-code 2.0.18
+- **Image Processing:** react-image-crop 11.0.10, tesseract.js 6.0.1
+
+### Architecture Pattern
+
+#### Domain-Driven Design (DDD)
+Platform menggunakan 4-file modular pattern untuk setiap entity:
+
+```
+entity. schema.sql    → Table definitions (180-240 lines)
+entity.logic.sql     → Functions, triggers (220-320 lines)
+entity.policies.sql  → RLS security (120-140 lines)
+entity.index.sql     → Performance indexes (170-400 lines)
+```
+
+**Keuntungan:**
+- ✅ Modular (200-400 lines vs 3000+)
+- ✅ Clear separation of concerns
+- ✅ Easy to find & fix issues
+- ✅ Safe phased deployment
+
+---
+
+## 📊 DATABASE SCHEMA
+
+### Domain Structure
+
+Platform dibagi menjadi 5 domain utama:
+
+#### 1. **CORE Domain** (Foundation)
+**Tables:**
+- `user_profiles` - User accounts & settings
+- `business_configurations` - Business settings, onboarding progress
+- `business_type_mappings` - Business category master data
+
+**Key Features:**
+- Onboarding wizard (7 steps)
+- Business classification (auto/manual)
+- Multi-language support (ID/EN)
+- Multi-currency (IDR/USD/EUR/SGD)
+- Timezone & localization settings
+
+**Files:**
+```
+sql/domain/core/
+├── user_profiles.schema.sql
+├── user_profiles.logic.sql
+├── user_profiles.policies.sql
+├── business_config.schema.sql
+├── business_config.logic.sql
+├── business_types.logic.sql
+└── CORE. README.md
+```
+
+#### 2. **FINANCE Domain** (Transactions)
+**Tables:**
+- `expenses` + `expense_items` - Pengeluaran dengan line items
+- `incomes` + `income_items` - Pendapatan dengan line items
+- `suppliers` - Master data vendor/supplier
+- `customers` - Master data pelanggan
+- `loans` + `loan_installments` - Hutang & cicilan
+- `investments` + `profit_sharing_history` - Modal investor
+
+**Key Features:**
+- 3-tier transaction classification (Operating/Investing/Financing)
+- Multi-item transactions
+- Payment tracking (cash/tempo/transfer)
+- AR/AP aging reports
+- Credit limit management
+- Profit calculation per transaction
+- Auto-reminder untuk cicilan
+
+**Files:**
+```
+sql/domain/finance/
+├── expenses.schema.sql (+ logic, policies, index)
+├── suppliers.schema.sql (+ logic, policies, index)
+├── incomes.schema.sql (+ logic, policies, index)
+├── customers.schema.sql (+ logic, policies, index)
+├── loans.schema.sql (+ logic, policies, index)
+├── investments.schema.sql (+ logic, policies, index)
+├── README.md
+└── finance.debug.sql
+```
+
+**Statistics:**
+- Total Files: 31 files
+- Total Functions: 45+
+- Total Triggers: 27+
+- Total Indexes: 128+
+- Total RLS Policies: 36+
+
+#### 3. **INVENTORY Domain** (Products)
+**Tables:**
+- `products` - Master product catalog
+- `product_stock_movements` - Stock movement history
+
+**Key Features:**
+- Multi-image support (primary + gallery)
+- Unit management (pcs, kg, liter, dll)
+- Cost price vs Selling price
+- Stock tracking (optional)
+- Min stock alerts
+- SKU generation
+
+**Fields:**
+```sql
+products:
+- id, user_id
+- name, sku, category, unit
+- description
+- cost_price, selling_price
+- image_url (primary)
+- track_inventory, min_stock_alert
+- is_active
+- created_at, updated_at
+```
+
+#### 4. **STOREFRONT Domain** (Lapak Online)
+**Tables:**
+- `business_storefronts` - Konfigurasi toko online
+- `storefront_products` - Produk yang dijual di lapak
+- `cart_sessions` - Shopping cart (future)
+
+**Key Features:**
+- Custom slug (URL toko: `/lapak/toko-kue-ani`)
+- Branding (logo, cover, theme color)
+- WhatsApp integration
+- Instagram handle
+- QR Code generator
+- Public product catalog
+- View analytics
+
+**Files:**
+```
+sql/domain/storefront/
+├── storefronts.schema.sql
+├── storefronts.logic.sql
+├── storefronts.policies.sql
+└── storefronts.index.sql
+```
+
+#### 5. **SUPPORTING Domain**
+**Tables:**
+- `activity_logs` - Audit trail (append-only)
+- `notifications` - System notifications (future)
+- `bug_reports` - User feedback & bug tracking
+
+**Storage:**
+- Bucket: `lapak-images` (public, per-user RLS)
+
+---
+
+## 🔐 SECURITY ARCHITECTURE
+
+### Row Level Security (RLS)
+
+**Prinsip:** Setiap user hanya bisa akses data mereka sendiri
+
+```sql
+-- Standard RLS Pattern
+CREATE POLICY "users_own_data" ON table_name
+  FOR ALL USING (user_id = auth.uid());
+
+-- Business owner access
+CREATE POLICY "business_data_access" ON products
+  FOR ALL USING (
+    user_id IN (
+      SELECT user_id FROM business_configurations 
+      WHERE id = products.business_id
+    )
+  );
+```
+
+### Security Layers
+
+```
+┌─────────────────────────────────┐
+│     PUBLIC INTERNET             │
+└────────────┬────────────────────┘
+             │ HTTPS (SSL/TLS)
+             ▼
+┌─────────────────────────────────┐
+│   Supabase API Gateway          │
+│   - Rate limiting               │
+│   - DDoS protection             │
+└────────────┬────────────────────┘
+             │ API Key validation
+             ▼
+┌─────────────────────────────────┐
+│   Authentication Layer          │
+│   - JWT verification            │
+│   - Session management          │
+└────────────┬────────────────────┘
+             │ auth.uid()
+             ▼
+┌─────────────────────────────────┐
+│   Row Level Security (RLS)      │
+│   - Filter data per user        │
+└─────────────────────────────────┘
+```
+
+---
+
+## 🎨 FRONTEND STRUCTURE
+
+### Module-Based Organization
+
+```
+src/
+├── modules/
+│   ├── core/          # Auth, profile, onboarding
+│   ├── finance/       # Income, expense, transactions
+│   ├── inventory/     # Products, stock
+│   └── storefront/    # Lapak online features
+│
+├── components/
+│   ├── shared/        # Reusable UI components
+│   ├── forms/         # Form components
+│   └── charts/        # Chart components
+│
+├── hooks/
+│   ├── shared/        # Common hooks (useAuth, useSupabase)
+│   ├── finance/       # useIncomeForm, useExpenseForm
+│   └── inventory/     # useProducts, useStockMovement
+│
+├── lib/
+│   ├── utils/         # Helper functions
+│   ├── supabase/      # Supabase client
+│   └── constants/     # App constants
+│
+└── types/
+    ├── database.ts    # Database types
+    ├── coreTypes.ts   # Core domain types
+    └── financeTypes.ts # Finance domain types
+```
+
+### Design Principles
+1. **Additive Only** - Never delete old files until new ones work
+2. **Backward Compatible** - Keep all URLs/routes unchanged
+3. **Progressive** - One domain at a time, test frequently
+4. **Type Safety** - TypeScript for all new code
+5. **DRY** - Extract repeated logic to hooks/utils
+
+---
+
+## 💼 BUSINESS LOGIC & WORKFLOWS
+
+### 1. User Registration & Onboarding Flow
+
+```
+┌──────────────┐
+│ User Sign Up │
+└──────┬───────┘
+       │ 1. Create auth. users record
+       ▼
+┌─────────────────────┐
+│ Supabase Auth       │
+│ - Email validation  │
+│ - Password hash     │
+└──────┬──────────────┘
+       │ 2.  Trigger: Create profile
+       ▼
+┌─────────────────────┐
+│ user_profiles       │
+│ business_config     │
+│ (auto-created)      │
+└──────┬──────────────┘
+       │ 3. Redirect to onboarding
+       ▼
+┌─────────────────────┐
+│ Onboarding Wizard   │
+│ Step 1-7            │
+└──────┬──────────────┘
+       │ 4. Complete setup
+       ▼
+┌─────────────────────┐
+│ Dashboard           │
+└─────────────────────┘
+```
+
+**Onboarding Steps:**
+1. Business Identity (name, type)
+2. Business Category Selection
+3. Initial Capital & Targets
+4. Product Setup (optional)
+5. Financial Goals
+6. Preferences (language, currency)
+7.  Completion Summary
+
+### 2. Income Transaction Flow
+
+```
+┌──────────────┐
+│ Input Income │
+└──────┬───────┘
+       │
+       ├─> Select Category (Operating/Investing/Financing)
+       ├─> Select Customer (optional)
+       ├─> Add Line Items:
+       │   ├─> Select Product → Auto-fill price
+       │   ├─> Input Qty → Calculate subtotal
+       │   └─> Calculate profit (sell - cost)
+       │
+       ├─> Select Payment Method (cash/tempo/transfer)
+       ├─> If tempo → Create piutang (AR)
+       │
+       └─> SAVE
+           │
+           ├─> Insert into `incomes` table
+           ├─> Insert line items into `income_items`
+           ├─> Update `customers. outstanding_balance`
+           ├─> Update `customers.total_purchases`
+           └─> Trigger KPI recalculation
+```
+
+### 3. Expense Transaction Flow
+
+```
+┌──────────────┐
+│ Input Expense│
+└──────┬───────┘
+       │
+       ├─> Select Category (Operating/Investing/Financing)
+       ├─> Select Supplier (optional)
+       ├─> Add Line Items (products/services)
+       │
+       ├─> Select Payment Method
+       ├─> If tempo → Create hutang (AP)
+       │
+       └─> SAVE
+           │
+           ├─> Insert into `expenses` table
+           ├─> Insert line items into `expense_items`
+           ├─> Update `suppliers.outstanding_balance`
+           └─> Trigger KPI recalculation
+```
+
+### 4.  Lapak Online (Storefront) Flow
+
+```
+┌──────────────┐
+│ Create Lapak │
+└──────┬───────┘
+       │
+       ├─> Setup Store Info (name, slug)
+       ├─> Upload Branding (logo, cover)
+       ├─> Set Theme Color
+       ├─> Add WhatsApp & Social
+       │
+       └─> Activate Storefront
+           │
+           ├─> Generate public URL: /lapak/{slug}
+           ├─> Add Products to Catalog
+           ├─> Generate QR Code
+           └─> Share to customers
+```
+
+**Public Storefront Features:**
+- Product catalog with images
+- WhatsApp order button
+- Business info & location
+- View counter analytics
+- Mobile-optimized layout
+
+---
+
+## 📈 KEY PERFORMANCE INDICATORS (KPI)
+
+### Dashboard Metrics
+
+#### 1. **Revenue Metrics**
+- Total Revenue (current period)
+- Revenue by category (Operating/Investing/Financing)
+- Top selling products
+- Revenue trend (daily/weekly/monthly)
+
+#### 2. **Expense Metrics**
+- Total Expenses (current period)
+- Expense by category
+- Top suppliers
+- Expense trend
+
+#### 3. **Profitability**
+- Gross Profit (Revenue - Expenses)
+- Profit Margin %
+- Profit per transaction
+- Profit by product
+
+#### 4. **Cash Flow**
+- Cash inflow
+- Cash outflow
+- Outstanding AR (Piutang)
+- Outstanding AP (Hutang)
+
+#### 5. **Business Health Score**
+Algorithm combines:
+- Revenue trend (30%)
+- Profit margin (25%)
+- Cash flow (20%)
+- AR/AP ratio (15%)
+- Transaction frequency (10%)
+
+**Score Scale:** 0-100
+- 80-100: Excellent (Green)
+- 60-79: Good (Blue)
+- 40-59: Fair (Yellow)
+- 0-39: Needs Attention (Red)
+
+---
+
+## 🔄 DATA FLOW & INTEGRATIONS
+
+### Income/Expense ↔ Customers/Suppliers
+
+```
+┌──────────┐         ┌───────────┐
+│ INCOMES  │────────>│ CUSTOMERS │
+│          │ updates │           │
+│ - Amount │         │ - Balance │
+│ - Tempo  │         │ - Piutang │
+└─────┬────┘         └───────────┘
+      │
+      ▼
+┌─────────────┐       ┌──────────────────┐
+│INCOME_ITEMS │──────>│ PRODUCTS         │
+│ - product_id│ FK    │ (Inventory)      │
+│ - Qty/Price │       │ - Stock          │
+└─────────────┘       └──────────────────┘
+```
+
+### Loans/Investments ↔ Transactions
+
+```
+Loan Receipt → INCOMES (financing_income)
+Loan Payment → EXPENSES (financing_expense)
+
+Investment Receipt → INCOMES (financing_income)
+Profit Sharing → EXPENSES (financing_expense)
+```
+
+---
+
+## 🚀 CURRENT PRIORITIES & ROADMAP
+
+### ✅ COMPLETED (Production Ready)
+
+**Phase 1: Core Transaction Recording**
+- ✅ Input Pendapatan (Income) - Multi-item, profit tracking
+- ✅ Input Pengeluaran (Expenses) - Multi-category, supplier link
+- ✅ Dashboard Overview - KPI cards, charts, business health score
+- ✅ Product Management - CRUD with images
+- ✅ Customer Database - CLV tracking, credit limits
+- ✅ Supplier Database - Payment terms, outstanding balance
+- ✅ Lapak Online - Storefront with public catalog
+
+### ⏳ IN PROGRESS (Refactoring)
+
+**Current Focus:**
+- 🔄 Code Refactoring - Component-based architecture
+  - Problem: `input-income/page.tsx` = 3,140 lines
+  - Problem: `input-expenses/page.tsx` = 2,767 lines
+  - Solution: Module-based structure (200-400 lines per file)
+  
+**Refactoring Plan:**
+1. Extract custom hooks (useIncomeForm, useExpenseForm)
+2. Create reusable components (ProductSelector, CustomerModal)
+3. Separate business logic from UI
+4. Type safety with TypeScript
+5. Progressive migration (backward compatible)
+
+### 📅 NEXT PRIORITIES
+
+**Phase 2: Optimizations**
+- [ ] Chart synchronization fixes
+- [ ] Dashboard redesign (better UX)
+- [ ] Performance optimization (large datasets)
+- [ ] Mobile responsiveness improvements
+
+**Phase 3: Advanced Features**
+- [ ] Inventory tracking (stock in/out)
+- [ ] Reports & exports (PDF, Excel)
+- [ ] Multi-user/team access
+- [ ] Invoice generator
+- [ ] Payment gateway integration
+
+**Phase 4: Scale & Monetization**
+- [ ] Premium features (analytics, AI insights)
+- [ ] WhatsApp integration (auto-send invoices)
+- [ ] Marketplace integration (Tokopedia, Shopee sync)
+- [ ] Accounting standards (Jurnal Umum, Neraca)
+
+---
+
+## 🛠️ DEVELOPMENT GUIDELINES
+
+### Code Standards
+
+#### 1. **Naming Conventions**
+```typescript
+// Tables: snake_case
+user_profiles, business_configurations
+
+// Components: PascalCase
+ProductSelector. tsx, CustomerModal.tsx
+
+// Functions: camelCase
+calculateProfit(), updateCustomerBalance()
+
+// Constants: UPPER_SNAKE_CASE
+DEFAULT_CURRENCY, MAX_UPLOAD_SIZE
+```
+
+#### 2. **File Organization**
+```
+feature/
+├── components/     # UI components
+├── hooks/         # Custom hooks
+├── types/         # TypeScript types
+├── utils/         # Helper functions
+└── tests/         # Unit tests
+```
+
+#### 3. **Database Functions**
+```sql
+-- Naming: verb_noun_context
+get_revenue_summary()
+update_customer_balance()
+calculate_profit_margin()
+
+-- Comments: Purpose, usage, example
+COMMENT ON FUNCTION get_revenue_summary IS 
+'Calculate total revenue grouped by category for a user';
+```
+
+### Testing Strategy
+
+#### Database Testing
+```sql
+-- Run smoke tests
+\i sql/domain/finance/finance.debug.sql
+
+-- Verify RLS
+SELECT tablename, rowsecurity FROM pg_tables 
+WHERE schemaname = 'public';
+
+-- Check indexes
+SELECT tablename, indexname FROM pg_indexes 
+WHERE schemaname = 'public';
+```
+
+#### Frontend Testing
+```bash
+# Linting
+npm run lint
+
+# Build test
+npm run build
+
+# Local dev
+npm run dev
+```
+
+### Deployment Process
+
+**1. Pre-Deployment Checklist**
+- [ ] Run all SQL smoke tests
+- [ ] Verify no TypeScript errors
+- [ ] Test critical user flows
+- [ ] Check mobile responsiveness
+- [ ] Review RLS policies
+
+**2. Database Migration**
+```sql
+-- Naming: YYYY-MM-DD-description. sql
+2025-12-01-add-tax-field.sql
+
+-- Structure:
+-- 1. Check if migration already applied
+-- 2. Add/alter schema
+-- 3. Update indexes
+-- 4. Update RLS policies
+-- 5.  Success message
+```
+
+**3. Deployment Order**
+1. Database migrations (Supabase SQL Editor)
+2. Frontend code (git push → Vercel auto-deploy)
+3.  Verify deployment
+4. Monitor errors (Vercel logs)
+
+---
+
+## 📚 IMPORTANT FILES REFERENCE
+
+### Documentation
+```
+/docs/
+├── ARCHITECTURE.md              # System architecture
+├── REFACTORING_ARCHITECTURE_PLAN.md  # Code refactoring plan
+├── PROJECT_STATUS.md            # Current status
+└── DEVELOPMENT_PROGRESS.md      # Progress tracking
+
+/sql/
+├── README.md                    # SQL documentation
+├── domain/
+│   ├── core/CORE. README.md      # Core domain guide
+│   ├── finance/README.md        # Finance domain guide
+│   └── finance/QUICK_REFERENCE.md  # Quick ref card
+
+Root:
+├── STRATEGIC_PLAN.md            # Business roadmap
+├── frontend-STRUCTURE.md        # Frontend refactoring guide
+└── DEPLOYMENT_CHECKLIST.md      # Deploy guide
+```
+
+### Critical SQL Files
+```
+sql/domain/
+├── core/
+│   ├── business_config.schema.sql
+│   └── business_config.logic.sql
+│
+├── finance/
+│   ├── incomes.schema.sql (+ logic, policies, index)
+│   ├── expenses.schema.sql (+ logic, policies, index)
+│   ├── customers.schema.sql (+ logic, policies, index)
+│   └── suppliers.schema.sql (+ logic, policies, index)
+│
+├── inventory/
+│   └── products.schema.sql (+ logic, policies, index)
+│
+└── storefront/
+    └── storefronts.schema.sql (+ logic, policies, index)
+```
+
+---
+
+## 🎓 LEARNING RESOURCES FOR AI AGENTS
+
+### Understanding the Platform
+
+**1. Start Here:**
+- Read `STRATEGIC_PLAN.md` - Business vision & priorities
+- Read `docs/ARCHITECTURE.md` - System architecture
+- Read `sql/README.md` - Database structure
+
+**2. Domain Deep Dive:**
+- **Finance:** `sql/domain/finance/README.md`
+- **Core:** `sql/domain/core/CORE.README.md`
+- **Quick Ref:** `sql/domain/finance/QUICK_REFERENCE.md`
+
+**3. Code Patterns:**
+- Study `src/modules/core/types/coreTypes.ts` - Type definitions
+- Review `sql/domain/finance/incomes.logic.sql` - Function patterns
+- Analyze `frontend-STRUCTURE.md` - Frontend organization
+
+### Common Tasks Reference
+
+**Add New Feature:**
+1. Create migration file: `sql/02-migrations/YYYY-MM-DD-feature.sql`
+2. Add types: `src/types/featureTypes.ts`
+3.  Create hooks: `src/hooks/feature/useFeature.ts`
+4. Build components: `src/components/feature/`
+5. Test & deploy
+
+**Fix Bug:**
+1.  Identify affected domain
+2. Check relevant SQL file (schema/logic/policies)
+3. Review frontend code in module
+4. Test in local Supabase
+5. Deploy fix
+
+**Optimize Query:**
+1. Identify slow query
+2. Check `entity. index. sql`
+3. Add missing index
+4. Run smoke tests
+5. Deploy to production
+
+---
+
+## ⚠️ CRITICAL WARNINGS
+
+### DO NOT:
+1. ❌ **Disable RLS** - Security critical for multi-tenant
+2. ❌ **Delete old code** - Use additive-only approach
+3. ❌ **Run seed data in production** - Demo data only for dev
+4. ❌ **Modify core tables directly** - Use migrations
+5. ❌ **Skip testing** - Always test locally first
+
+### ALWAYS:
+1. ✅ **Backup before major changes** - Supabase dashboard
+2. ✅ **Test migrations locally** - Supabase local dev
+3. ✅ **Document changes** - Update README files
+4. ✅ **Follow naming conventions** - Consistency matters
+5. ✅ **Review RLS policies** - Prevent data leaks
+
+---
+
+## 📞 TROUBLESHOOTING GUIDE
+
+### Common Issues
+
+**1. "relation does not exist"**
+- **Cause:** Table not created or wrong schema
+- **Fix:** Run core schema files in order
+
+**2. "permission denied for table"**
+- **Cause:** RLS policy blocking access
+- **Fix:** Check `entity.policies.sql`, verify auth. uid()
+
+**3. "duplicate key value"**
+- **Cause:** Seed data conflict
+- **Fix:** Run cleanup scripts from `sql/04-maintenance/`
+
+**4. Frontend build fails**
+- **Cause:** TypeScript errors or missing dependencies
+- **Fix:** `npm run lint`, check types, update packages
+
+**5. Slow queries**
+- **Cause:** Missing indexes on large tables
+- **Fix:** Review `entity.index.sql`, add performance indexes
+
+---
+
+## 📊 PLATFORM STATISTICS
+
+### Current Scale
+- **Total SQL Files:** 31+ files (Finance domain alone)
+- **Total Functions:** 45+ (Finance domain)
+- **Total Triggers:** 27+ (Finance domain)
+- **Total Indexes:** 128+ (Finance domain)
+- **Total RLS Policies:** 36+ (Finance domain)
+- **Lines of SQL:** ~8,000+ lines (Finance domain)
+
+### Code Metrics
+- **Frontend Files:** 100+ components
+- **TypeScript Types:** Fully typed (database, domains)
+- **Custom Hooks:** 20+ reusable hooks
+- **Shared Components:** 30+ UI components
+
+### Database Tables (10 Core Tables)
+- **CORE:** 2 tables (user_profiles, business_configurations)
+- **FINANCE:** 6 tables (incomes, expenses, customers, suppliers, loans, investments)
+- **INVENTORY:** 2 tables (products, product_stock_movements)
+- **STOREFRONT:** 3 tables (business_storefronts, storefront_products, cart_sessions)
+- **SUPPORTING:** 3+ tables (activity_logs, notifications, bug_reports)
+
+---
+
+## 🎯 SUCCESS METRICS
+
+### Technical KPIs
+- **Database Query Speed:** <100ms for dashboard
+- **Page Load Time:** <2s (mobile 4G)
+- **Uptime:** 99.9% (Vercel + Supabase SLA)
+- **Security:** 0 data leaks (RLS enforcement)
+
+### Business KPIs
+- **User Onboarding:** <5 minutes to first transaction
+- **Feature Adoption:** >60% use core features (income/expense)
+- **Retention:** >40% monthly active users
+- **Satisfaction:** >4.5/5 user rating
+
+---
+
+## 🚀 QUICK START FOR AI AGENTS
+
+### To Build New Feature:
+1. Read relevant domain README
+2. Study existing entity structure (4-file pattern)
+3. Create migration file with schema changes
+4. Add TypeScript types
+5. Create custom hooks
+6. Build UI components
+7. Test thoroughly
+8. Deploy with checklist
+
+### To Fix Bugs:
+1. Identify affected domain/module
+2. Review relevant code (SQL + TypeScript)
+3. Check RLS policies & indexes
+4. Test fix locally
+5. Deploy to production
+6. Monitor logs
+
+### To Optimize Performance:
+1. Identify slow queries (Supabase dashboard)
+2.  Review indexes (`entity.index.sql`)
+3. Add missing indexes
+4. Test query performance
+5. Deploy optimization
+
+---
+
+## 📝 VERSION HISTORY
+
+**v2.0 (Current - Dec 2025)**
+- ✅ Complete Finance Domain (6 entities)
+- ✅ Lapak Online (Storefront)
+- ✅ Product Multi-Image Support
+- ✅ Business Health Score
+- ✅ AR/AP Aging Reports
+- 🔄 Frontend Refactoring (in progress)
+
+**v1.0 (Nov 2025)**
+- ✅ Core transaction recording (income/expense)
+- ✅ Basic product management
+- ✅ Dashboard with KPIs
+- ✅ User authentication & onboarding
+
+---
+
+## 🤝 CONTRIBUTING
+
+### For AI Agents:
+1. **Understand Context** - Read domain READMEs first
+2. **Follow Patterns** - Use existing code as templates
+3. **Maintain Standards** - Naming, structure, documentation
+4. **Test Thoroughly** - Never deploy untested code
+5. **Document Changes** - Update READMEs and comments
+
+### Best Practices:
+- **Additive Only** - Never delete working code
+- **Type Safety** - Always use TypeScript
+- **Security First** - Review RLS on all changes
+- **Performance** - Consider index implications
+- **UX** - Think mobile-first
+
+---
+
+**Maintained by:** Katalara Development Team  
+**Platform Status:** ✅ Production Ready (Core Features)  
+**Next Milestone:** Complete Frontend Refactoring  
+**Long-term Vision:** #1 UMKM Platform di Indonesia
+
+---
+
+**END OF GUIDE**
