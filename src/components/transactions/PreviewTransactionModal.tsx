@@ -326,35 +326,35 @@ export function PreviewTransactionModal({
               )}
 
               {/* Financial Breakdown */}
-              {(transaction.subtotal > 0 || transaction.discount_amount > 0 || transaction.ppn_amount > 0 || transaction.pph_amount > 0) && (
+              {((transaction.subtotal || 0) > 0 || (transaction.discount_amount || 0) > 0 || (transaction.ppn_amount || 0) > 0 || (transaction.pph_amount || 0) > 0) && (
                 <div className="border border-gray-200 rounded-lg p-4 bg-gray-50 space-y-2">
                   <h3 className="font-semibold text-gray-900 mb-3">Rincian Keuangan</h3>
                   
-                  {transaction.subtotal > 0 && (
+                  {(transaction.subtotal || 0) > 0 && (
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-600">Subtotal</span>
-                      <span className="font-medium text-gray-900">{formatCurrency(transaction.subtotal)}</span>
+                      <span className="font-medium text-gray-900">{formatCurrency(transaction.subtotal || 0)}</span>
                     </div>
                   )}
                   
-                  {transaction.discount_amount > 0 && (
+                  {(transaction.discount_amount || 0) > 0 && (
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-600">Diskon</span>
-                      <span className="font-medium text-red-600">- {formatCurrency(transaction.discount_amount)}</span>
+                      <span className="font-medium text-red-600">- {formatCurrency(transaction.discount_amount || 0)}</span>
                     </div>
                   )}
                   
-                  {transaction.ppn_amount > 0 && (
+                  {(transaction.ppn_amount || 0) > 0 && (
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">PPN</span>
-                      <span className="font-medium text-gray-900">{formatCurrency(transaction.ppn_amount)}</span>
+                      <span className="text-gray-600">PPN (11%)</span>
+                      <span className="font-medium text-gray-900">{formatCurrency(transaction.ppn_amount || 0)}</span>
                     </div>
                   )}
                   
-                  {transaction.pph_amount > 0 && (
+                  {(transaction.pph_amount || 0) > 0 && (
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">PPh</span>
-                      <span className="font-medium text-gray-900">{formatCurrency(transaction.pph_amount)}</span>
+                      <span className="text-gray-600">PPh 23</span>
+                      <span className="font-medium text-gray-900">{formatCurrency(transaction.pph_amount || 0)}</span>
                     </div>
                   )}
                   
