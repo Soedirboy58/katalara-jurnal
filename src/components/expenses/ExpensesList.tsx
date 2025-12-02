@@ -154,11 +154,11 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                         <span className="text-sm font-mono text-gray-500">
                           {expense.id.slice(0, 8)}
                         </span>
-                        {getStatusBadge(expense.payment_status)}
+                        {getStatusBadge(expense.payment_status === 'paid' ? 'Lunas' : 'Tempo')}
                         {getCategoryBadge(expense.expense_type)}
                       </div>
                       <h4 className="font-medium text-gray-800">
-                        {expense.description}
+                        {expense.notes || '-'}
                       </h4>
                       {expense.supplier_name && (
                         <p className="text-sm text-gray-500 mt-1">
@@ -177,31 +177,11 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                     </div>
                   </div>
                   
-                  {/* Tempo Info */}
-                  {expense.payment_status === 'Tempo' && expense.remaining_payment > 0 && (
-                    <div className="bg-orange-50 rounded px-3 py-2 mt-2 text-sm">
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-600">Sisa pembayaran:</span>
-                        <span className="font-semibold text-orange-600">
-                          {formatRupiah(expense.remaining_payment)}
-                        </span>
-                      </div>
-                      {expense.due_date && (
-                        <div className="flex justify-between items-center mt-1">
-                          <span className="text-gray-600">Jatuh tempo:</span>
-                          <span className="text-gray-800">
-                            {formatDate(expense.due_date)}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  
                   {/* Notes */}
-                  {expense.notes && (
-                    <p className="text-sm text-gray-600 mt-2 italic">
-                      "{expense.notes}"
-                    </p>
+                  {expense.notes && expense.notes.trim() !== '' && (
+                    <div className="bg-gray-50 rounded px-3 py-2 mt-2 text-sm text-gray-600">
+                      <p className="italic">"{expense.notes}"</p>
+                    </div>
                   )}
                 </div>
               ))}
