@@ -100,7 +100,7 @@ export function ProductTable({ products, loading, onEdit, onAdjustStock, onDelet
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-600">
-                    {formatCurrency((product as any).cost_price || 0)}
+                    {formatCurrency((product as any).price || 0)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right">
                     <div className="text-sm font-semibold text-gray-900">

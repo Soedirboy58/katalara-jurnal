@@ -80,11 +80,28 @@ export default function CustomersPage() {
   return (
     <div className="p-4 sm:p-6 lg:p-8">
       {/* Page Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Pelanggan</h1>
-        <p className="text-sm sm:text-base text-gray-600 mt-1">
-          Kelola data pelanggan dan tracking transaksi
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Pelanggan</h1>
+          <p className="text-sm sm:text-base text-gray-600 mt-1">
+            Kelola data pelanggan dan tracking transaksi
+          </p>
+        </div>
+        
+        {/* Panggil Ranger Button - Coming Soon */}
+        <button
+          disabled
+          className="relative px-4 py-2.5 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-lg font-medium opacity-60 cursor-not-allowed flex items-center justify-center gap-2"
+          title="Fitur segera hadir! Rangers bisa membantu input data pelanggan massal."
+        >
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+          </svg>
+          <span className="text-sm">📞 Panggil Ranger</span>
+          <span className="absolute -top-2 -right-2 px-2 py-0.5 bg-yellow-400 text-yellow-900 text-xs font-bold rounded-full shadow-lg animate-pulse">
+            SOON
+          </span>
+        </button>
       </div>
 
       {/* Sync Banner - Show when no customers */}

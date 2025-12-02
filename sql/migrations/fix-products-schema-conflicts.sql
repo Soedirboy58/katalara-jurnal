@@ -20,12 +20,16 @@ BEGIN;
 DO $$ 
 BEGIN
   RAISE NOTICE '🔒 Creating backup table...';
+  
+  -- Create backup if not exists
+  CREATE TABLE IF NOT EXISTS products_backup_pre_standardization AS 
+  SELECT * FROM products;
+  
+  RAISE NOTICE '✅ Backup created: products_backup_pre_standardization';
+EXCEPTION
+  WHEN duplicate_table THEN
+    RAISE NOTICE '⚠️ Backup table already exists, skipping...';
 END $$;
-
-CREATE TABLE IF NOT EXISTS products_backup_pre_standardization AS 
-SELECT * FROM products;
-
-RAISE NOTICE '✅ Backup created: products_backup_pre_standardization';
 
 -- =====================================================
 -- STEP 1: ADD MISSING COLUMNS
@@ -240,8 +244,11 @@ END $$;
 -- =====================================================
 -- STEP 5: REFRESH SCHEMA CACHE
 -- =====================================================
-NOTIFY pgrst, 'reload schema';
-RAISE NOTICE '✅ PostgREST schema cache refreshed';
+DO $$
+BEGIN
+  NOTIFY pgrst, 'reload schema';
+  RAISE NOTICE '✅ PostgREST schema cache refreshed';
+END $$;
 
 -- =====================================================
 -- STEP 6: VERIFY FINAL SCHEMA

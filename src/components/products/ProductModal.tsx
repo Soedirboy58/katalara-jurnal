@@ -6,8 +6,6 @@ import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { useProducts } from '@/hooks/useProducts'
 import type { Product } from '@/types'
-import type { ProductFormData, ProductInsert } from '@/types/product-schema'
-import { mapFormToInsert, getCostPrice, getSellingPrice } from '@/types/product-schema'
 import { generateSKU } from '@/utils/helpers'
 import { createClient } from '@/lib/supabase/client'
 import { formatRupiah, parseRupiahInput } from '@/lib/numberFormat'
@@ -30,7 +28,7 @@ export function ProductModal({ isOpen, onClose, product, onSuccess }: ProductMod
   const [loading, setLoading] = useState(false)
   const [images, setImages] = useState<ImagePreview[]>([])
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const [formData, setFormData] = useState<ProductFormData>({
+  const [formData, setFormData] = useState({
     name: '',
     sku: '',
     category: '',
@@ -48,12 +46,11 @@ export function ProductModal({ isOpen, onClose, product, onSuccess }: ProductMod
         sku: product.sku || '',
         category: product.category || '',
         unit: (product as any).unit || 'pcs',
-        cost_price: getCostPrice(product),
-        selling_price: getSellingPrice(product),
+        cost_price: (product as any).cost_price || 0,
+        selling_price: (product as any).selling_price || 0,
         min_stock_alert: (product as any).min_stock_alert || 0,
         track_inventory: product.track_inventory ?? true,
       })
-      // TODO: Load existing images from product_images table when editing
       setImages([])
     } else {
       setFormData({
@@ -136,11 +133,18 @@ export function ProductModal({ isOpen, onClose, product, onSuccess }: ProductMod
       const sku = formData.sku || generateSKU(formData.name, formData.category)
 
       // STEP 1: Insert product data
-      // ⚠️ IMPORTANT: Field names MUST match database schema (see types/product-schema.ts)
-      const productData: ProductInsert = mapFormToInsert(
-        { ...formData, sku },
-        user.id
-      )
+      const productData = {
+        user_id: user.id,
+        name: formData.name,
+        sku,
+        category: formData.category || null,
+        unit: formData.unit,
+        cost_price: formData.cost_price,
+        selling_price: formData.selling_price,
+        min_stock_alert: formData.min_stock_alert,
+        track_inventory: formData.track_inventory,
+        is_active: true
+      }
 
       console.log('💾 Saving product data:', productData)
 

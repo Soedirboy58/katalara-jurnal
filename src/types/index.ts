@@ -93,10 +93,10 @@ export interface ProductFormData {
   name: string
   sku?: string
   category?: string
-  cost_price: number        // Harga beli/modal (DB field name)
-  selling_price: number     // Harga jual (DB field name)
-  unit: string              // Satuan (DB field name)
-  min_stock_alert: number   // Min. stock alert (DB field name)
+  cost_price: number
+  selling_price: number
+  unit: string
+  min_stock_alert: number
   track_inventory: boolean
 }
 

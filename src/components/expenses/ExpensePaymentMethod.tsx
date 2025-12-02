@@ -174,7 +174,17 @@ export const ExpensePaymentMethod: React.FC<ExpensePaymentMethodProps> = ({
               </label>
               <select
                 value={tempoDays}
-                onChange={(e) => onTempoDaysChange(parseInt(e.target.value))}
+                onChange={(e) => {
+                  const days = parseInt(e.target.value)
+                  onTempoDaysChange(days)
+                  
+                  // Auto-calculate due date
+                  const today = new Date()
+                  const dueDate = new Date(today)
+                  dueDate.setDate(today.getDate() + days)
+                  const formattedDate = dueDate.toISOString().split('T')[0]
+                  onDueDateChange(formattedDate)
+                }}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
               >
                 <option value={7}>7 hari</option>

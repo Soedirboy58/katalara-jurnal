@@ -201,7 +201,7 @@ export function ProductsView() {
     const csv = [
       ['Nama', 'SKU', 'Kategori', 'Harga Beli', 'Harga Jual'].join(','),
       ...selectedData.map(p => 
-        [p.name, p.sku, p.category, p.cost_price, (p as any).selling_price].join(',')
+        [p.name, p.sku, p.category, (p as any).cost_price, (p as any).selling_price].join(',')
       )
     ].join('\n')
 
@@ -223,22 +223,79 @@ export function ProductsView() {
             Kelola katalog produk dan inventory bisnis Anda
           </p>
         </div>
-        <Button 
-          onClick={() => {
-            setSelectedProduct(null)
-            setIsProductModalOpen(true)
-          }}
-          className="w-full sm:w-auto py-2 sm:py-3"
-        >
-          <svg className="w-4 h-4 sm:w-5 sm:h-5 mr-1 sm:mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          <span className="text-sm sm:text-base">Tambah Produk</span>
-        </Button>
+        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full sm:w-auto">
+          {/* Panggil Ranger Button - Coming Soon */}
+          <button
+            disabled
+            className="relative w-full sm:w-auto px-4 py-2 sm:py-3 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-lg font-medium opacity-60 cursor-not-allowed flex items-center justify-center gap-2 group"
+            title="Fitur segera hadir!"
+          >
+            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+            </svg>
+            <span className="text-sm sm:text-base">📞 Panggil Ranger</span>
+            <span className="absolute -top-2 -right-2 px-2 py-0.5 bg-yellow-400 text-yellow-900 text-xs font-bold rounded-full shadow-lg animate-pulse">
+              SOON
+            </span>
+          </button>
+          
+          {/* Add Product Button */}
+          <Button 
+            onClick={() => {
+              setSelectedProduct(null)
+              setIsProductModalOpen(true)
+            }}
+            className="w-full sm:w-auto py-2 sm:py-3"
+          >
+            <svg className="w-4 h-4 sm:w-5 sm:h-5 mr-1 sm:mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            <span className="text-sm sm:text-base">Tambah Produk</span>
+          </Button>
+        </div>
       </div>
 
       {/* KPI Cards */}
       <ProductKPICards {...kpiData} />
+
+      {/* Rangers Feature Info Banner - Coming Soon */}
+      <div className="bg-gradient-to-r from-purple-50 to-blue-50 border-2 border-purple-200 rounded-xl p-4 sm:p-6">
+        <div className="flex items-start gap-3 sm:gap-4">
+          <div className="flex-shrink-0">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-purple-500 rounded-full flex items-center justify-center">
+              <span className="text-xl sm:text-2xl">🚀</span>
+            </div>
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-1">
+              <h3 className="text-base sm:text-lg font-bold text-gray-900">Fitur Baru: Katalara Rangers</h3>
+              <span className="px-2 py-0.5 bg-yellow-400 text-yellow-900 text-xs font-bold rounded-full">
+                COMING SOON
+              </span>
+            </div>
+            <p className="text-xs sm:text-sm text-gray-700 mb-3">
+              Punya banyak produk tapi malas input satu per satu? Panggil <strong>Katalara Ranger</strong> (mahasiswa/freelancer terdekat) untuk membantu:
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 mb-3">
+              <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-700">
+                <span className="text-base">📸</span>
+                <span><strong>Foto Produk</strong> profesional</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-700">
+                <span className="text-base">⌨️</span>
+                <span><strong>Input Data</strong> ke sistem</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-700">
+                <span className="text-base">🎓</span>
+                <span><strong>Edukasi</strong> cara pakai</span>
+              </div>
+            </div>
+            <p className="text-xs text-gray-600 italic">
+              💡 Ranger akan mendapat akses temporary ke akun Anda untuk input data. Setelah selesai, akses otomatis terputus.
+            </p>
+          </div>
+        </div>
+      </div>
 
       {/* Search and View Controls */}
       <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">

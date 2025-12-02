@@ -26,6 +26,19 @@ body {
   overflow-x: hidden;
 }
 
+/* FORCE TEXT COLOR - Emergency fix for gray text issue */
+* {
+  color: inherit !important;
+}
+
+input, textarea, select {
+  color: #171717 !important;
+}
+
+input::placeholder, textarea::placeholder {
+  color: #9ca3af !important;
+}
+
 /* Prevent background scroll/overscroll when modal is open */
 body.modal-open {
   overscroll-behavior: none;

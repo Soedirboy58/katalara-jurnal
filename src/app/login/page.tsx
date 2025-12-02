@@ -48,6 +48,10 @@ export default function LoginPage() {
       // Wait for session to be fully established
       await new Promise(resolve => setTimeout(resolve, 500))
 
+      // Get role from auth metadata first
+      const authRole = authData.user.user_metadata?.role || 'umkm'
+      console.log('Auth role from metadata:', authRole)
+
       // Try to get user profile
       let profile: any = null
       let retryCount = 0
@@ -88,26 +92,50 @@ export default function LoginPage() {
         }
       }
 
-      // If no profile OR profile incomplete (missing business info), redirect to business info
-      if (!profile || !profile.business_name || !profile.phone || !profile.address) {
-        console.log('Profile incomplete:', { 
-          hasProfile: !!profile, 
-          hasBusinessName: !!profile?.business_name,
-          hasPhone: !!profile?.phone,
-          hasAddress: !!profile?.address 
-        })
-        console.log('Redirecting to business-info to complete profile')
-        setShowSuccessModal(true)
-        setTimeout(() => {
-          router.push('/register/business-info')
-        }, 2000)
-        return
+      // Determine actual role (prefer auth metadata if profile not found)
+      const userRole = profile?.role || authRole
+      console.log('Final user role:', userRole)
+
+      // Check if profile exists and role
+      if (userRole === 'ranger') {
+        // Check if ranger profile exists
+        const { data: rangerProfile } = await supabase
+          .from('ranger_profiles')
+          .select('id')
+          .eq('user_id', authData.user.id)
+          .maybeSingle()
+        
+        if (!rangerProfile) {
+          // Ranger hasn't completed onboarding
+          console.log('Ranger profile not found, redirecting to onboarding')
+          setShowSuccessModal(true)
+          setTimeout(() => {
+            router.push('/register/ranger-info')
+          }, 2000)
+          return
+        }
+      } else {
+        // UMKM - check if business info complete
+        if (!profile || !profile.business_name || !profile.phone || !profile.address) {
+          console.log('Profile incomplete:', { 
+            hasProfile: !!profile, 
+            hasBusinessName: !!profile?.business_name,
+            hasPhone: !!profile?.phone,
+            hasAddress: !!profile?.address 
+          })
+          console.log('Redirecting to business-info to complete profile')
+          setShowSuccessModal(true)
+          setTimeout(() => {
+            router.push('/register/business-info')
+          }, 2000)
+          return
+        }
       }
 
       console.log('Profile complete, redirecting to dashboard')
 
-      // Check if user is active
-      if (profile.is_active === false) {
+      // Check if user is active (only if profile exists)
+      if (profile && profile.is_active === false) {
         setError('Akun Anda telah dinonaktifkan. Hubungi admin.')
         await supabase.auth.signOut()
         return
@@ -116,10 +144,14 @@ export default function LoginPage() {
       // Success login - show modal then redirect
       setShowSuccessModal(true)
       setTimeout(() => {
-        // Redirect based on role
-        if (profile.role === 'super_admin') {
+        // Redirect based on role (use final userRole)
+        if (userRole === 'super_admin') {
           router.push('/admin/dashboard')
+        } else if (userRole === 'ranger') {
+          // Redirect Rangers to Rangers dashboard
+          router.push('/dashboard/rangers')
         } else {
+          // Default: UMKM dashboard
           router.push('/dashboard')
         }
       }, 2000)
@@ -192,6 +224,21 @@ export default function LoginPage() {
             <p className="text-gray-600">
               Masuk ke akun Anda untuk melanjutkan
             </p>
+          </div>
+
+          {/* Role Info Banner (Optional - shows current login supports all roles) */}
+          <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="flex items-start gap-3">
+              <svg className="w-5 h-5 text-blue-600 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+              </svg>
+              <div className="flex-1">
+                <p className="text-sm text-blue-900">
+                  <strong>Login universal:</strong> Gunakan email yang sama untuk akses sebagai UMKM atau Ranger. 
+                  Sistem akan otomatis mengenali role Anda.
+                </p>
+              </div>
+            </div>
           </div>
 
           {/* Success Alert */}
@@ -284,7 +331,7 @@ export default function LoginPage() {
           {/* Register Link */}
           <div className="text-center">
             <a
-              href="/register"
+              href="/register-role"
               className="inline-flex items-center justify-center w-full px-4 py-3 border border-blue-600 text-blue-600 font-semibold rounded-lg hover:bg-blue-50 transition-colors"
             >
               Daftar Sekarang Gratis →

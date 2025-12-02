@@ -8,9 +8,14 @@
 'use client'
 
 import { useState } from 'react'
+import { usePathname } from 'next/navigation'
 
 export default function WhatsAppGroupButton() {
   const [isHovered, setIsHovered] = useState(false)
+  const pathname = usePathname()
+  
+  // DISABLED GLOBALLY - Replaced by floating tutorial buttons
+  return null
   
   // WhatsApp Group Link - GANTI dengan link group Katalara yang sebenarnya
   const WHATSAPP_GROUP_LINK = 'https://chat.whatsapp.com/YOUR_GROUP_CODE_HERE'

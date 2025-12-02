@@ -18,17 +18,18 @@ export interface Database {
       products: {
         Row: {
           id: string
-          user_id: string                // FK to auth.users
+          user_id: string
           name: string
           sku: string | null
           category: string | null
-          unit: string                   // Satuan: pcs, kg, liter, dll
+          unit: string
           description: string | null
-          cost_price: number             // Harga beli/modal
-          selling_price: number          // Harga jual
-          image_url: string | null       // URL gambar utama
-          track_inventory: boolean
+          cost_price: number
+          selling_price: number
+          stock: number | null
           min_stock_alert: number
+          track_inventory: boolean
+          image_url: string | null
           is_active: boolean
           created_at: string
           updated_at: string
@@ -43,9 +44,10 @@ export interface Database {
           description?: string | null
           cost_price?: number
           selling_price?: number
-          image_url?: string | null
-          track_inventory?: boolean
+          stock?: number | null
           min_stock_alert?: number
+          track_inventory?: boolean
+          image_url?: string | null
           is_active?: boolean
           created_at?: string
           updated_at?: string
@@ -60,9 +62,10 @@ export interface Database {
           description?: string | null
           cost_price?: number
           selling_price?: number
-          image_url?: string | null
-          track_inventory?: boolean
+          stock?: number | null
           min_stock_alert?: number
+          track_inventory?: boolean
+          image_url?: string | null
           is_active?: boolean
           updated_at?: string
         }

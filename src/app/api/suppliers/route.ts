@@ -23,7 +23,7 @@ export async function GET(request: Request) {
     let query = supabase
       .from('suppliers')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('owner_id', user.id)
       .order('name', { ascending: true })
 
     if (active) {
@@ -85,7 +85,7 @@ export async function POST(request: Request) {
     const { data: existing } = await supabase
       .from('suppliers')
       .select('id')
-      .eq('user_id', user.id)
+      .eq('owner_id', user.id)
       .ilike('name', body.name.trim())
       .single()
 
@@ -97,7 +97,7 @@ export async function POST(request: Request) {
     }
 
     const supplierData = {
-      user_id: user.id,
+      owner_id: user.id,
       name: body.name.trim(),
       supplier_type: body.supplier_type || 'finished_goods',
       phone: body.phone || null,
@@ -173,7 +173,7 @@ export async function PATCH(request: Request) {
       .from('suppliers')
       .update(updateData)
       .eq('id', body.id)
-      .eq('user_id', user.id)
+      .eq('owner_id', user.id)
       .select()
       .single()
 
@@ -227,7 +227,7 @@ export async function DELETE(request: Request) {
       .from('suppliers')
       .update({ is_active: false, updated_at: new Date().toISOString() })
       .eq('id', id)
-      .eq('user_id', user.id)
+      .eq('owner_id', user.id)
 
     if (error) {
       console.error('Error deleting supplier:', error)

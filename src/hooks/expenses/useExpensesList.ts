@@ -84,16 +84,9 @@ export const useExpensesList = (options: UseExpensesListOptions = {}) => {
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [debouncedFilters, setDebouncedFilters] = useState(filters)
   
-  // Debounce filters to prevent excessive API calls
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedFilters(filters)
-    }, debounceMs)
-    
-    return () => clearTimeout(timer)
-  }, [filters, debounceMs])
+  // Serialize filters to prevent infinite loops
+  const filtersKey = JSON.stringify(filters)
   
   // Fetch expenses
   const fetchExpenses = useCallback(async () => {
@@ -119,34 +112,31 @@ export const useExpensesList = (options: UseExpensesListOptions = {}) => {
         .eq('user_id', user.id)
       
       // Apply filters
-      if (debouncedFilters.searchQuery) {
-        query = query.or(`
-          description.ilike.%${debouncedFilters.searchQuery}%,
-          po_number.ilike.%${debouncedFilters.searchQuery}%,
-          notes.ilike.%${debouncedFilters.searchQuery}%
-        `)
+      if (filters.searchQuery) {
+        const searchTerm = filters.searchQuery.trim()
+        query = query.or(`description.ilike.%${searchTerm}%,po_number.ilike.%${searchTerm}%,notes.ilike.%${searchTerm}%`)
       }
       
-      if (debouncedFilters.dateRange) {
+      if (filters.dateRange) {
         query = query
-          .gte('expense_date', debouncedFilters.dateRange.start)
-          .lte('expense_date', debouncedFilters.dateRange.end)
+          .gte('expense_date', filters.dateRange.start)
+          .lte('expense_date', filters.dateRange.end)
       }
       
-      if (debouncedFilters.category) {
-        query = query.eq('category', debouncedFilters.category)
+      if (filters.category) {
+        query = query.eq('category', filters.category)
       }
       
-      if (debouncedFilters.expenseType) {
-        query = query.eq('expense_type', debouncedFilters.expenseType)
+      if (filters.expenseType) {
+        query = query.eq('expense_type', filters.expenseType)
       }
       
-      if (debouncedFilters.paymentStatus) {
-        query = query.eq('payment_status', debouncedFilters.paymentStatus)
+      if (filters.paymentStatus) {
+        query = query.eq('payment_status', filters.paymentStatus)
       }
       
-      if (debouncedFilters.supplierId) {
-        query = query.eq('supplier_id', debouncedFilters.supplierId)
+      if (filters.supplierId) {
+        query = query.eq('supplier_id', filters.supplierId)
       }
       
       // Apply ordering and limit
@@ -158,29 +148,60 @@ export const useExpensesList = (options: UseExpensesListOptions = {}) => {
       
       if (fetchError) throw fetchError
       
+      // Normalize expenses with fallback for legacy columns
+      const normalizedExpenses = (data || []).map((exp: any) => ({
+        id: exp.id,
+        expense_date: exp.expense_date || exp.created_at,
+        po_number: exp.po_number || exp.invoice_number || '',
+        description: exp.description || exp.notes || 'Pengeluaran',
+        supplier_id: exp.supplier_id || null,
+        supplier_name: exp.supplier_name || null,
+        category: exp.category || 'operational',
+        expense_type: exp.expense_type || 'operating',
+        payment_status: exp.payment_status || 'Lunas',
+        payment_method: exp.payment_method || 'cash',
+        subtotal: Number(exp.subtotal || exp.amount || exp.grand_total || 0),
+        discount_amount: Number(exp.discount_amount || 0),
+        tax_amount: Number(exp.tax_amount || 0),
+        pph_amount: Number(exp.pph_amount || 0),
+        other_fees: Number(exp.other_fees || 0),
+        grand_total: Number(exp.grand_total || exp.amount || exp.total_amount || exp.subtotal || 0),
+        down_payment: Number(exp.down_payment || exp.paid_amount || 0),
+        remaining_payment: Number(exp.remaining_payment || 0),
+        due_date: exp.due_date || null,
+        notes: exp.notes || exp.description || null,
+        created_at: exp.created_at,
+        updated_at: exp.updated_at || exp.created_at
+      }))
+      
       // If we have expenses with supplier_id, fetch supplier names separately
-      const expenses = data || []
-      if (expenses.length > 0) {
-        const supplierIds = expenses
+      if (normalizedExpenses.length > 0) {
+        const supplierIds = normalizedExpenses
           .map((e: any) => e.supplier_id)
           .filter((id: any) => id !== null)
         
         if (supplierIds.length > 0) {
-          const { data: suppliers } = await supabase
-            .from('suppliers')
-            .select('id, name')
-            .in('id', supplierIds)
-          
-          const supplierMap = new Map(suppliers?.map(s => [s.id, s.name]) || [])
-          
-          const enrichedExpenses = expenses.map((expense: any) => ({
-            ...expense,
-            supplier_name: expense.supplier_id ? supplierMap.get(expense.supplier_id) || 'Unknown' : null
-          }))
-          
-          setExpenses(enrichedExpenses)
+          try {
+            const { data: suppliers } = await supabase
+              .from('suppliers')
+              .select('id, name')
+              .in('id', supplierIds)
+            
+            const supplierMap = new Map(suppliers?.map(s => [s.id, s.name]) || [])
+            
+            const enrichedExpenses = normalizedExpenses.map((expense: any) => ({
+              ...expense,
+              supplier_name: expense.supplier_id ? supplierMap.get(expense.supplier_id) || 'Unknown' : null
+            }))
+            
+            setExpenses(enrichedExpenses)
+          } catch (supplierError) {
+            // If suppliers table doesn't exist, just use normalized expenses
+            console.warn('Could not fetch supplier names:', supplierError)
+            setExpenses(normalizedExpenses)
+          }
         } else {
-          setExpenses(expenses)
+          setExpenses(normalizedExpenses)
         }
       } else {
         setExpenses([])
@@ -188,15 +209,20 @@ export const useExpensesList = (options: UseExpensesListOptions = {}) => {
     } catch (err) {
       console.error('Error fetching expenses:', err)
       setError(err instanceof Error ? err.message : 'Failed to fetch expenses')
+      setExpenses([])
     } finally {
       setLoading(false)
     }
-  }, [debouncedFilters, limit, orderBy])
+  }, [filtersKey, limit, orderBy.column, orderBy.ascending])
   
-  // Fetch on mount and when filters change
+  // Fetch on mount and when filters change (debounced)
   useEffect(() => {
-    fetchExpenses()
-  }, [fetchExpenses])
+    const timer = setTimeout(() => {
+      fetchExpenses()
+    }, debounceMs)
+    
+    return () => clearTimeout(timer)
+  }, [fetchExpenses, debounceMs])
   
   // Refresh function
   const refresh = useCallback(() => {

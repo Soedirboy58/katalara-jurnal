@@ -43,8 +43,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       }
       fetchProfile()
 
-      // Check if onboarding is completed
+      // Check if onboarding is completed (skip for Rangers)
       const checkOnboarding = async () => {
+        // Check if user has ranger_profiles entry (direct check)
+        const { data: rangerData } = await supabase
+          .from('ranger_profiles')
+          .select('id')
+          .eq('user_id', user.id)
+          .maybeSingle()
+        
+        // If ranger profile exists, skip business onboarding
+        if (rangerData) {
+          setShowOnboarding(false)
+          setCheckingOnboarding(false)
+          return
+        }
+        
+        // For UMKM users, check business configuration
         const { data } = await supabase
           .from('business_configurations')
           .select('onboarding_completed')
@@ -84,12 +99,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       const today = new Date().toISOString().split('T')[0]
       const notifs: any[] = []
       
-      // Get today's expenses
+      // Get today's expenses (use date range for DATE column)
+      const startOfDay = `${today}T00:00:00.000Z`
+      const endOfDay = `${today}T23:59:59.999Z`
+      
       const { data: expenses } = await supabase
         .from('expenses')
         .select('*')
         .or(`owner_id.eq.${user.id},user_id.eq.${user.id}`)
-        .eq('expense_date', today)
+        .gte('expense_date', startOfDay)
+        .lte('expense_date', endOfDay)
         .order('created_at', { ascending: false })
         .limit(10)
       

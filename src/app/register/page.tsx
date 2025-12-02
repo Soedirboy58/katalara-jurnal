@@ -2,18 +2,30 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { createClient } from '@/lib/supabase/client'
+import { Building2, Users } from 'lucide-react'
 
 export default function RegisterPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [showSuccessModal, setShowSuccessModal] = useState(false)
+  
+  // Get role from URL parameter (umkm or ranger)
+  const [selectedRole, setSelectedRole] = useState<'umkm' | 'ranger'>('umkm')
+  
+  useEffect(() => {
+    const roleParam = searchParams?.get('role')
+    if (roleParam === 'ranger' || roleParam === 'umkm') {
+      setSelectedRole(roleParam)
+    }
+  }, [searchParams])
   
   const [formData, setFormData] = useState({
     email: '',
@@ -47,7 +59,8 @@ export default function RegisterPage() {
         options: {
           emailRedirectTo: `${window.location.origin}/auth/callback?next=/login`,
           data: {
-            email: formData.email
+            email: formData.email,
+            role: selectedRole // Store role in metadata
           }
         }
       })
@@ -122,6 +135,27 @@ export default function RegisterPage() {
 
       <div className="max-w-md w-full relative z-10">
         <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-xl p-8">
+          {/* Role Badge */}
+          <div className="flex justify-center mb-6">
+            <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold ${
+              selectedRole === 'umkm' 
+                ? 'bg-blue-100 text-blue-800' 
+                : 'bg-purple-100 text-purple-800'
+            }`}>
+              {selectedRole === 'umkm' ? (
+                <>
+                  <Building2 className="w-4 h-4" />
+                  <span>Daftar sebagai UMKM</span>
+                </>
+              ) : (
+                <>
+                  <Users className="w-4 h-4" />
+                  <span>Daftar sebagai Ranger</span>
+                </>
+              )}
+            </div>
+          </div>
+
           {/* Header */}
           <div className="text-center mb-8">
             <h2 className="text-3xl font-bold text-gray-900 mb-2">
@@ -130,6 +164,12 @@ export default function RegisterPage() {
             <p className="text-gray-600">
               Langkah 1 dari 2: Buat akun Anda
             </p>
+            <button
+              onClick={() => router.push('/register-role')}
+              className="text-sm text-blue-600 hover:text-blue-700 underline mt-2"
+            >
+              Ganti role
+            </button>
           </div>
 
           {/* Progress Bar */}
@@ -145,7 +185,9 @@ export default function RegisterPage() {
             </div>
             <div className="flex justify-between mt-2 px-1">
               <span className="text-sm font-medium text-blue-600">Email & Password</span>
-              <span className="text-sm text-gray-500">Data Bisnis</span>
+              <span className="text-sm text-gray-500">
+                {selectedRole === 'umkm' ? 'Data Bisnis' : 'Data Ranger'}
+              </span>
             </div>
           </div>
 
@@ -189,7 +231,9 @@ export default function RegisterPage() {
             />
 
             <Button type="submit" disabled={loading} className="w-full">
-              {loading ? 'Memproses...' : 'Lanjut ke Data Bisnis →'}
+              {loading ? 'Memproses...' : (
+                selectedRole === 'umkm' ? 'Lanjut ke Data Bisnis →' : 'Lanjut ke Data Ranger →'
+              )}
             </Button>
           </form>
 
