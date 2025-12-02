@@ -194,11 +194,11 @@ export interface Database {
       expenses: {
         Row: {
           id: string
-          user_id: string          // ✅ ACTUAL: uses user_id not owner_id
+          user_id: string
           expense_date: string
-          category: string
-          description: string | null
-          grand_total: number      // ✅ ACTUAL: uses grand_total not amount
+          expense_type: string     // ✅ operating | investing | financing
+          expense_category: string // ✅ operational_expense, etc
+          grand_total: number
           payment_method: string | null
           payment_status: string
           receipt_url: string | null
@@ -211,8 +211,8 @@ export interface Database {
           id?: string
           user_id: string
           expense_date: string
-          category: string
-          description?: string | null
+          expense_type: string
+          expense_category: string
           grand_total: number
           payment_method?: string | null
           payment_status?: string
@@ -226,8 +226,8 @@ export interface Database {
           id?: string
           user_id?: string
           expense_date?: string
-          category?: string
-          description?: string | null
+          expense_type?: string
+          expense_category?: string
           grand_total?: number
           payment_method?: string | null
           payment_status?: string
