@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Camera, FileText, Star, TrendingUp, MapPin, Award, Briefcase, Sparkles, User } from 'lucide-react'
+import { Camera, FileText, Star, TrendingUp, MapPin, Award, Briefcase, Sparkles, User, Clock } from 'lucide-react'
 
 interface RangerProfile {
   full_name: string

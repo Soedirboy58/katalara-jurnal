@@ -906,7 +906,7 @@ export default function RangerOnboardingPage() {
           {currentStep > 1 && (
             <Button
               onClick={handlePrevious}
-              variant="outline"
+              variant="secondary"
               disabled={loading}
               className="flex-1"
             >

@@ -74,11 +74,11 @@ export default function InputIncomePage() {
     id: income.id,
     date: income.income_date,
     category: income.income_category || 'other_income',
-    customer_or_supplier: income.customer_name,
-    amount: income.grand_total || income.total_amount || 0,
+    customer_or_supplier: income.customer_name || undefined,
+    amount: Number(income.grand_total || income.total_amount || 0),
     status: income.payment_status === 'paid' ? 'Lunas' : income.payment_status === 'unpaid' ? 'Pending' : 'Tempo',
-    payment_method: income.payment_method,
-    description: income.notes
+    payment_method: income.payment_method || undefined,
+    description: income.notes || undefined
   }))
 
   // Handle form submission

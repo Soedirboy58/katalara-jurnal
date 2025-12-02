@@ -24,27 +24,21 @@ import { createClient } from '@/lib/supabase/client'
 
 export interface Expense {
   id: string
+  user_id: string
   expense_date: string
-  po_number: string
-  description: string
-  supplier_id: string | null
-  supplier_name?: string
-  category: string
   expense_type: 'operating' | 'investing' | 'financing'
-  payment_status: 'Lunas' | 'Tempo'
-  payment_method: 'cash' | 'transfer' | 'tempo'
-  subtotal: number
-  discount_amount: number
-  tax_amount: number
-  pph_amount: number
-  other_fees: number
+  expense_category: string
   grand_total: number
-  down_payment: number
-  remaining_payment: number
-  due_date: string | null
+  payment_method: string | null
+  payment_status: string
+  receipt_url: string | null
+  receipt_filename: string | null
   notes: string | null
+  supplier_name?: string
   created_at: string
   updated_at: string
+  // Legacy fields for compatibility
+  total_amount?: number
 }
 
 export interface ExpensesFilters {

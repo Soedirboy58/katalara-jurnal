@@ -109,7 +109,7 @@ export default function InputExpensesPage() {
     amount: expense.grand_total || expense.total_amount || 0,
     status: expense.payment_status === 'paid' ? 'Lunas' : 
             expense.payment_status === 'unpaid' ? 'Pending' : 'Tempo',
-    payment_method: expense.payment_method,
+    payment_method: expense.payment_method || undefined,
     description: expense.notes || undefined
   }))
   

@@ -152,7 +152,7 @@ export const ExpensesList: React.FC<ExpensesListProps> = ({
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-sm font-mono text-gray-500">
-                          {expense.po_number}
+                          {expense.id.slice(0, 8)}
                         </span>
                         {getStatusBadge(expense.payment_status)}
                         {getCategoryBadge(expense.expense_type)}

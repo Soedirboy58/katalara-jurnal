@@ -235,18 +235,18 @@ export const ExpenseItemsTable: React.FC<ExpenseItemsTableProps> = ({
                                   {product.unit}
                                 </span>
                               )}
-                              {product.stock !== undefined && (
+                              {product.stock !== undefined && product.stock !== null && (
                                 <span className={product.stock > 0 ? 'text-green-600' : 'text-red-600'}>
                                   Stok: {product.stock}
                                 </span>
                               )}
                             </div>
                           </div>
-                          {product.price && product.price > 0 && (
+                          {product.cost_price && product.cost_price > 0 && (
                             <div className="ml-3 text-right flex-shrink-0">
                               <div className="text-xs text-gray-500">Harga beli</div>
                               <div className="font-semibold text-sm text-blue-600">
-                                {formatRupiah(product.price)}
+                                {formatRupiah(product.cost_price)}
                               </div>
                             </div>
                           )}
