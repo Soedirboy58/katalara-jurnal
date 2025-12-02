@@ -110,7 +110,7 @@ export default function InputExpensesPage() {
     status: expense.payment_status === 'paid' ? 'Lunas' : 
             expense.payment_status === 'unpaid' ? 'Pending' : 'Tempo',
     payment_method: expense.payment_method,
-    description: expense.notes
+    description: expense.notes || undefined
   }))
   
   // ============================================
