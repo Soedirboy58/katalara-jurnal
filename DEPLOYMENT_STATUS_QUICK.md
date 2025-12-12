@@ -1,6 +1,6 @@
 # 🚀 Status Deployment - Quick Reference
 
-**Tanggal:** 12 Desember 2025
+**Tanggal:** 12 Desember 2024
 
 ---
 
@@ -40,7 +40,7 @@ https://katalara-nextjs-kmt2bynkr-katalaras-projects.vercel.app
 
 **Waktu:** ~15 menit
 
-**Panduan:** Lihat `DEPLOYMENT_CHECKLIST.md` baris 26-84
+**Panduan:** Lihat `DEPLOYMENT_CHECKLIST.md` section "Step 1: Finance Domain Migration"
 
 ---
 
