@@ -1,7 +1,6 @@
 'use client'
 
 import type { Product } from '@/types'
-import { formatCurrency, formatNumber } from '@/utils/helpers'
 import { Button } from '@/components/ui/Button'
 
 interface ProductTableProps {
@@ -13,15 +12,26 @@ interface ProductTableProps {
 }
 
 export function ProductTable({ products, loading, onEdit, onAdjustStock, onDelete }: ProductTableProps) {
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('id-ID', {
+      style: 'currency',
+      currency: 'IDR',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(value)
+  }
+
   const getStockStatus = (product: Product) => {
-    // ⚠️ Stock tracking disabled - fields not in schema
-    return { label: 'N/A', color: 'gray' }
+    if (!product.track_inventory) {
+      return { label: 'Tidak Dilacak', color: 'gray', bgColor: 'bg-gray-100', textColor: 'text-gray-800' }
+    }
+    // Stock tracking will be implemented with inventory module
+    return { label: 'Aktif', color: 'green', bgColor: 'bg-green-100', textColor: 'text-green-800' }
   }
 
   const getMargin = (product: Product) => {
-    // ⚠️ buy_price/sell_price not in schema
-    const cost = (product as any).cost_price || 0
-    const selling = (product as any).selling_price || 0
+    const cost = product.cost_price || 0
+    const selling = product.selling_price || 0
     if (cost === 0) return 0
     return ((selling - cost) / cost) * 100
   }
@@ -52,28 +62,28 @@ export function ProductTable({ products, loading, onEdit, onAdjustStock, onDelet
         <table className="w-full">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                SKU
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Produk
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Nama Produk
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Kategori
               </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Stok
+              <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Satuan
               </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Harga Beli
               </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Harga Jual
               </th>
-              <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Margin
+              </th>
+              <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Status
               </th>
-              <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Aksi
               </th>
             </tr>
@@ -84,63 +94,76 @@ export function ProductTable({ products, loading, onEdit, onAdjustStock, onDelet
               const margin = getMargin(product)
 
               return (
-                <tr key={product.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {product.sku || '-'}
+                <tr key={product.id} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-gradient-to-br from-blue-100 to-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <span className="text-lg">📦</span>
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold text-gray-900 truncate">
+                          {product.name}
+                        </div>
+                        {product.sku && (
+                          <div className="text-xs text-gray-500 truncate">
+                            SKU: {product.sku}
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-gray-900">{product.name}</div>
+                  <td className="px-4 py-3">
+                    {product.category ? (
+                      <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-700">
+                        {product.category}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-gray-400">-</span>
+                    )}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                    {product.category || '-'}
+                  <td className="px-4 py-3 text-center">
+                    <span className="text-sm text-gray-600">{product.unit || 'pcs'}</span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right">
+                  <td className="px-4 py-3 text-right">
+                    <span className="text-sm text-gray-600">
+                      {formatCurrency(product.cost_price || 0)}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-right">
                     <div className="text-sm font-semibold text-gray-900">
-                      N/A
+                      {formatCurrency(product.selling_price || 0)}
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-600">
-                    {formatCurrency((product as any).cost_price || 0)}
+                  <td className="px-4 py-3 text-center">
+                    <span className={`text-sm font-medium ${margin > 0 ? 'text-green-600' : margin < 0 ? 'text-red-600' : 'text-gray-600'}`}>
+                      {margin.toFixed(1)}%
+                    </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right">
-                    <div className="text-sm font-semibold text-gray-900">
-                      {formatCurrency((product as any).selling_price || 0)}
-                    </div>
-                    <div className={`text-xs ${margin > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      Margin: {margin.toFixed(1)}%
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-center">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-${status.color}-100 text-${status.color}-800`}>
+                  <td className="px-4 py-3 text-center">
+                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${status.bgColor} ${status.textColor}`}>
                       {status.label}
                     </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
-                    <div className="flex items-center justify-center gap-2">
-                      <Button
-                        size="sm"
-                        variant="ghost"
+                  <td className="px-4 py-3">
+                    <div className="flex items-center justify-center gap-1">
+                      <button
                         onClick={() => onEdit(product)}
-                        title="Edit"
+                        className="p-1.5 hover:bg-gray-100 rounded transition-colors"
+                        title="Edit Produk"
                       >
-                        ✏️
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => onAdjustStock(product)}
-                        title="Sesuaikan Stok"
-                      >
-                        📊
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
+                        <svg className="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                      </button>
+                      <button
                         onClick={() => onDelete(product)}
-                        title="Hapus"
+                        className="p-1.5 hover:bg-gray-100 rounded transition-colors"
+                        title="Hapus Produk"
                       >
-                        🗑️
-                      </Button>
+                        <svg className="w-4 h-4 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
                     </div>
                   </td>
                 </tr>
