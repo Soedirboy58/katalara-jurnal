@@ -122,6 +122,7 @@ export default function InputIncomePage() {
   // Handle form submission
   const handleSubmit = async (data: IncomeFormData) => {
     try {
+<<<<<<< HEAD
       setSaving(true)
       const result = await createIncome(data)
       if (!result.success) {
@@ -129,6 +130,78 @@ export default function InputIncomePage() {
         return {
           success: false,
           error: result.error || 'Gagal menyimpan transaksi'
+=======
+      // 1. Insert income record
+      const { data: income, error: incomeError } = await supabase
+        .from('incomes')
+        .insert({
+          income_type: data.income_type,
+          income_category: data.income_category,
+          income_date: data.income_date,
+          customer_name: data.customer_name,
+          payment_method: data.payment_method,
+          payment_type: data.payment_type,
+          notes: data.notes,
+          total_amount: data.lineItems.reduce((sum, item) => 
+            sum + (item.qty * item.price_per_unit), 0
+          )
+        })
+        .select()
+        .single()
+
+      if (incomeError) throw incomeError
+
+      // 2. Insert income items
+      const itemsToInsert = data.lineItems.map(item => ({
+        income_id: income.id,
+        product_id: item.product_id,
+        product_name: item.product_name,
+        qty: item.qty,
+        unit: item.unit,
+        price_per_unit: item.price_per_unit,
+        buy_price: item.buy_price
+      }))
+
+      const { error: itemsError } = await supabase
+        .from('income_items')
+        .insert(itemsToInsert)
+
+      if (itemsError) throw itemsError
+
+      // 3. Update stock for physical products
+      for (const item of data.lineItems) {
+        if (item.product_id) {
+          // Get product to check if tracking inventory
+          const product = products.find(p => p.id === item.product_id)
+          if (product && product.track_inventory) {
+            // Reduce stock
+            const currentStock = product.stock || 0
+            const newStock = Math.max(0, currentStock - item.qty) // Prevent negative stock
+            
+            const { error: stockError } = await supabase
+              .from('products')
+              .update({ 
+                stock: newStock,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', item.product_id)
+
+            if (stockError) {
+              console.error('Stock update error:', stockError)
+            }
+
+            // Log stock movement
+            await supabase.from('stock_movements').insert({
+              product_id: item.product_id,
+              movement_type: 'out',
+              quantity: item.qty,
+              reference_type: 'income',
+              reference_id: income.id,
+              movement_date: data.income_date,
+              notes: `Penjualan kepada ${data.customer_name}`
+            })
+          }
+>>>>>>> 45f7267 (Fix stock synchronization to use stock field instead of stock_quantity)
         }
       }
 
@@ -203,7 +276,6 @@ export default function InputIncomePage() {
   // Handle preview
   const handlePreview = (incomeId: string) => {
     setSelectedTransactionId(incomeId)
-    setPreviewModalOpen(true)
   }
 
   // Handle refresh
@@ -212,78 +284,6 @@ export default function InputIncomePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-3 sm:p-6 pb-24">
-      <div className="max-w-7xl mx-auto space-y-4 sm:space-y-6">
-        {/* Page Header */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">
-                💰 Input Pendapatan
-              </h1>
-              <p className="text-sm text-gray-600 mt-1">
-                Catat transaksi pendapatan dari penjualan produk, jasa, atau sumber lainnya
-              </p>
-            </div>
-            <button
-              onClick={() => setShowTutorial(true)}
-              className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg transition-colors"
-            >
-              <HelpCircle className="w-5 h-5" />
-              <span className="text-sm font-medium">Tutorial</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Income Form */}
-        <IncomesForm
-          onSubmit={handleSubmit}
-          loading={saving}
-          products={products as any}
-          loadingProducts={loadingProducts}
-          onAddProduct={() => setShowProductModal(true)}
-          onAddCustomer={() => setShowCustomerModal(true)}
-          selectedCustomer={selectedCustomer}
-        />
-
-        {/* Transactions Table */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-          <div className="p-6 border-b border-gray-200">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-900">
-                📊 Riwayat Transaksi
-              </h2>
-              <button
-                onClick={handleRefresh}
-                disabled={loadingIncomes}
-                className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-50"
-              >
-                🔄 Refresh
-              </button>
-            </div>
-          </div>
-
-          <TransactionHistory
-            title="Riwayat Transaksi Pendapatan"
-            type="income"
-            transactions={historyItems}
-            loading={loadingIncomes}
-            currentPage={currentPage}
-            totalPages={Math.ceil(historyItems.length / 10)}
-            filters={filters}
-            onFilterChange={setFilters}
-            onPageChange={setCurrentPage}
-            onEdit={handleEdit}
-            onPreview={handlePreview}
-            onDelete={handleDelete}
-            onBulkDelete={handleBulkDelete}
-          />
-        </div>
-
-        {/* Error Display */}
-        {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-            <p className="text-sm text-red-800">
               ⚠️ Error: {error}
             </p>
           </div>

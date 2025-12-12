@@ -626,8 +626,8 @@ export default function InputExpensesPage() {
           if (item.product_id) {
             // Increase stock
             const product = products.find(p => p.id === item.product_id)
-            if (product) {
-              const currentStock = (product as any).stock_quantity ?? (product as any).stock ?? 0
+            if (product && product.track_inventory !== false) {
+              const currentStock = (product as any).stock ?? (product as any).stock_quantity ?? 0
               const newStock = currentStock + item.quantity
 
               await updateProductStockBestEffort(item.product_id, newStock)
