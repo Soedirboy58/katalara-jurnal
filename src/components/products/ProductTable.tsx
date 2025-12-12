@@ -14,14 +14,26 @@ interface ProductTableProps {
 
 export function ProductTable({ products, loading, onEdit, onAdjustStock, onDelete }: ProductTableProps) {
   const getStockStatus = (product: Product) => {
-    // ⚠️ Stock tracking disabled - fields not in schema
-    return { label: 'N/A', color: 'gray' }
+    if (!product.track_inventory) {
+      return { label: 'N/A', color: 'gray' }
+    }
+    const stock = product.stock || 0
+    const minStock = product.min_stock_alert || 0
+    
+    if (stock === 0) {
+      return { label: 'Out of Stock', color: 'red' }
+    } else if (stock <= minStock * 0.5) {
+      return { label: 'Critical', color: 'red' }
+    } else if (stock <= minStock) {
+      return { label: 'Low Stock', color: 'yellow' }
+    } else {
+      return { label: 'In Stock', color: 'green' }
+    }
   }
 
   const getMargin = (product: Product) => {
-    // ⚠️ buy_price/sell_price not in schema
-    const cost = (product as any).cost_price || 0
-    const selling = (product as any).selling_price || 0
+    const cost = product.cost_price || 0
+    const selling = product.selling_price || 0
     if (cost === 0) return 0
     return ((selling - cost) / cost) * 100
   }
@@ -96,22 +108,30 @@ export function ProductTable({ products, loading, onEdit, onAdjustStock, onDelet
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right">
                     <div className="text-sm font-semibold text-gray-900">
-                      N/A
+                      {product.track_inventory ? formatNumber(product.stock || 0) : 'N/A'}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {product.unit}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-600">
-                    {formatCurrency((product as any).cost_price || 0)}
+                    {formatCurrency(product.cost_price || 0)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right">
                     <div className="text-sm font-semibold text-gray-900">
-                      {formatCurrency((product as any).selling_price || 0)}
+                      {formatCurrency(product.selling_price || 0)}
                     </div>
                     <div className={`text-xs ${margin > 0 ? 'text-green-600' : 'text-red-600'}`}>
                       Margin: {margin.toFixed(1)}%
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-center">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-${status.color}-100 text-${status.color}-800`}>
+                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                      status.color === 'green' ? 'bg-green-100 text-green-800' :
+                      status.color === 'yellow' ? 'bg-yellow-100 text-yellow-800' :
+                      status.color === 'red' ? 'bg-red-100 text-red-800' :
+                      'bg-gray-100 text-gray-800'
+                    }`}>
                       {status.label}
                     </span>
                   </td>
