@@ -1,32 +1,31 @@
 'use client'
 
 import type { Product } from '@/types'
-import { Button } from '@/components/ui/Button'
+import { formatCurrency, classNames } from '@/utils/helpers'
 
 interface ProductTableProps {
   products: Product[]
   loading: boolean
   onEdit: (product: Product) => void
-  onAdjustStock: (product: Product) => void
   onDelete: (product: Product) => void
 }
 
-export function ProductTable({ products, loading, onEdit, onAdjustStock, onDelete }: ProductTableProps) {
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('id-ID', {
-      style: 'currency',
-      currency: 'IDR',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value)
-  }
+export function ProductTable({ products, loading, onEdit, onDelete }: ProductTableProps) {
 
   const getStockStatus = (product: Product) => {
     if (!product.track_inventory) {
-      return { label: 'Tidak Dilacak', color: 'gray', bgColor: 'bg-gray-100', textColor: 'text-gray-800' }
+      return { 
+        label: 'Tidak Dilacak', 
+        bgColor: 'bg-gray-100', 
+        textColor: 'text-gray-800' 
+      }
     }
     // Stock tracking will be implemented with inventory module
-    return { label: 'Aktif', color: 'green', bgColor: 'bg-green-100', textColor: 'text-green-800' }
+    return { 
+      label: 'Aktif', 
+      bgColor: 'bg-green-100', 
+      textColor: 'text-green-800' 
+    }
   }
 
   const getMargin = (product: Product) => {
@@ -50,8 +49,7 @@ export function ProductTable({ products, loading, onEdit, onAdjustStock, onDelet
       <div className="bg-white rounded-lg shadow p-12 text-center">
         <div className="text-6xl mb-4">📦</div>
         <h3 className="text-xl font-semibold text-gray-900 mb-2">Belum ada produk</h3>
-        <p className="text-gray-600 mb-6">Mulai dengan menambahkan produk pertama Anda</p>
-        <Button onClick={() => {}}>+ Tambah Produk</Button>
+        <p className="text-gray-600">Mulai dengan menambahkan produk pertama Anda</p>
       </div>
     )
   }
@@ -140,7 +138,11 @@ export function ProductTable({ products, loading, onEdit, onAdjustStock, onDelet
                     </span>
                   </td>
                   <td className="px-4 py-3 text-center">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${status.bgColor} ${status.textColor}`}>
+                    <span className={classNames(
+                      'inline-flex px-2 py-1 text-xs font-semibold rounded-full',
+                      status.bgColor,
+                      status.textColor
+                    )}>
                       {status.label}
                     </span>
                   </td>

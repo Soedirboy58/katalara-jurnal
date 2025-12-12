@@ -320,7 +320,6 @@ export function ProductsView() {
           products={paginatedProducts}
           loading={loading}
           onEdit={handleEdit}
-          onAdjustStock={handleAdjustStock}
           onDelete={handleDelete}
         />
       ) : (
