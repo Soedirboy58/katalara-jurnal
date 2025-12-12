@@ -5,7 +5,7 @@ import { useProducts } from '@/hooks/useProducts'
 import { Button } from '@/components/ui/Button'
 import { ProductKPICards } from './ProductKPICards'
 import { ProductCategoryTabs } from './ProductCategoryTabs'
-// import { ProductTableAdvanced } from './ProductTableAdvanced' // ⚠️ Disabled - uses old schema fields
+import { ProductTable } from './ProductTable'
 import { ProductCardView } from './ProductCardView'
 import { BulkActionsBar } from './BulkActionsBar'
 import { ProductModal } from './ProductModal'
@@ -316,10 +316,12 @@ export function ProductsView() {
 
       {/* Product Display */}
       {viewMode === 'table' ? (
-        <div className="bg-white p-8 rounded-lg shadow text-center">
-          <p className="text-gray-600">⚠️ Table view temporarily disabled (schema update)</p>
-          <Button onClick={() => setViewMode('card')} className="mt-4">Switch to Card View</Button>
-        </div>
+        <ProductTable
+          products={paginatedProducts}
+          loading={loading}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+        />
       ) : (
         <ProductCardView
           products={paginatedProducts}
