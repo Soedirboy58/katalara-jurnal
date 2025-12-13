@@ -53,7 +53,7 @@ export function ToastContainer() {
 
   React.useEffect(() => {
     // Global function to show toast
-    (window as any).showToast = (message: string, type: ToastType = 'info') => {
+    window.showToast = (message: string, type: ToastType = 'info') => {
       const id = Date.now()
       setToasts(prev => [...prev, { id, type, message }])
     }
@@ -80,7 +80,7 @@ export function ToastContainer() {
 
 // Helper function
 export function showToast(message: string, type: ToastType = 'info') {
-  if (typeof window !== 'undefined' && (window as any).showToast) {
-    (window as any).showToast(message, type)
+  if (typeof window !== 'undefined' && window.showToast) {
+    window.showToast(message, type)
   }
 }

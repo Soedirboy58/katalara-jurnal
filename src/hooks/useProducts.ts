@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Product, ProductFilters, StockStatus } from '@/types'
+import type { AdjustStockParams } from '@/types/supabase-rpc'
 
 export function useProducts(filters?: ProductFilters & { productType?: 'physical' | 'service' }) {
   const [products, setProducts] = useState<Product[]>([])
@@ -73,8 +74,9 @@ export function useProducts(filters?: ProductFilters & { productType?: 'physical
       }
 
       setProducts(filteredData)
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err: unknown) {
+      const error = err as Error
+      setError(error.message)
       console.error('Error loading products:', err)
     } finally {
       setLoading(false)
@@ -94,36 +96,38 @@ export function useProducts(filters?: ProductFilters & { productType?: 'physical
 
   async function createProduct(productData: Omit<Product, 'id' | 'created_at' | 'updated_at'>) {
     try {
-      const { data, error } = await (supabase
+      const { data, error } = await supabase
         .from('products')
-        .insert(productData as any)
+        .insert(productData)
         .select()
-        .single() as any)
+        .single()
 
       if (error) throw error
 
       await loadProducts()
       return { data, error: null }
-    } catch (err: any) {
-      return { data: null, error: err.message }
+    } catch (err: unknown) {
+      const error = err as Error
+      return { data: null, error: error.message }
     }
   }
 
   async function updateProduct(id: string, updates: Partial<Product>) {
     try {
-      const { data, error } = await (supabase
+      const { data, error } = await supabase
         .from('products')
-        .update(updates as any)
+        .update(updates)
         .eq('id', id)
         .select()
-        .single() as any)
+        .single()
 
       if (error) throw error
 
       await loadProducts()
       return { data, error: null }
-    } catch (err: any) {
-      return { data: null, error: err.message }
+    } catch (err: unknown) {
+      const error = err as Error
+      return { data: null, error: error.message }
     }
   }
 
@@ -138,25 +142,28 @@ export function useProducts(filters?: ProductFilters & { productType?: 'physical
 
       await loadProducts()
       return { error: null }
-    } catch (err: any) {
-      return { error: err.message }
+    } catch (err: unknown) {
+      const error = err as Error
+      return { error: error.message }
     }
   }
 
   async function adjustStock(productId: string, quantityChange: number, notes?: string) {
     try {
-      const { data, error } = await (supabase.rpc('adjust_stock', {
+      const params: AdjustStockParams = {
         p_product_id: productId,
         p_quantity_change: quantityChange,
         p_notes: notes
-      } as any) as any)
+      }
+      const { data, error } = await supabase.rpc('adjust_stock', params)
 
       if (error) throw error
 
       await loadProducts()
       return { data, error: null }
-    } catch (err: any) {
-      return { data: null, error: err.message }
+    } catch (err: unknown) {
+      const error = err as Error
+      return { data: null, error: error.message }
     }
   }
 

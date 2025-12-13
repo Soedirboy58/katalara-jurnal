@@ -337,7 +337,7 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Cari produk..."
                 className="w-full px-3 sm:px-4 py-2 sm:py-3 pl-9 sm:pl-11 text-sm sm:text-base bg-gray-50 border border-gray-300 rounded-lg sm:rounded-xl focus:outline-none focus:ring-2 focus:ring-current focus:border-transparent"
-                style={{ '--tw-ring-color': storefront.theme_color } as any}
+                style={{ '--tw-ring-color': storefront.theme_color } as React.CSSProperties}
               />
               <svg className="absolute left-2.5 sm:left-3 top-2.5 sm:top-3.5 w-4 h-4 sm:w-5 sm:h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
