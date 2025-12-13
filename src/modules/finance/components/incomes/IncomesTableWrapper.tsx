@@ -8,6 +8,10 @@
 import { TransactionsTable } from '@/components/income/TransactionsTable'
 import type { Income } from '@/modules/finance/types/financeTypes'
 
+interface IncomeWithTotalAmount extends Income {
+  total_amount?: number | string
+}
+
 interface IncomesTableProps {
   transactions: Income[]
   loading?: boolean
@@ -64,9 +68,10 @@ export function IncomesTable({
   }
 
   const normalizeAmount = (income: Income): number => {
+    const withTotalAmount = income as IncomeWithTotalAmount
     const candidates = [
       income.grand_total,
-      (income as any).total_amount,
+      withTotalAmount.total_amount,
       income.amount,
       income.subtotal,
       income.paid_amount

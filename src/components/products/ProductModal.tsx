@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { useProducts } from '@/hooks/useProducts'
 import type { Product } from '@/types'
+import type { ProductLegacy } from '@/types/legacy'
 import type { ProductFormData, ProductInsert } from '@/types/product-schema'
 import { mapFormToInsert, getCostPrice, getSellingPrice } from '@/types/product-schema'
 import { generateSKU } from '@/utils/helpers'
@@ -43,14 +44,15 @@ export function ProductModal({ isOpen, onClose, product, onSuccess }: ProductMod
 
   useEffect(() => {
     if (product) {
+      const legacy = product as ProductLegacy
       setFormData({
         name: product.name,
         sku: product.sku || '',
         category: product.category || '',
-        unit: (product as any).unit || 'pcs',
+        unit: legacy.unit || 'pcs',
         cost_price: getCostPrice(product),
         selling_price: getSellingPrice(product),
-        min_stock_alert: (product as any).min_stock_alert || 0,
+        min_stock_alert: legacy.min_stock_alert || 0,
         track_inventory: product.track_inventory ?? true,
       })
       // TODO: Load existing images from product_images table when editing
