@@ -167,9 +167,9 @@ export default function SupplierModal({ isOpen, onClose, onSelect, selectedSuppl
         address: ''
       })
     } catch (err: unknown) {
-      const error = err as Error
-      console.error('Error adding supplier:', error)
-      setErrorMessage(error.message || 'Gagal menyimpan supplier')
+      const errorMessage = err instanceof Error ? err.message : 'Gagal menyimpan supplier'
+      console.error('Error adding supplier:', err)
+      setErrorMessage(errorMessage)
     } finally {
       setIsSubmitting(false)
     }
