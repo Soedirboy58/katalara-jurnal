@@ -97,9 +97,8 @@ export default function SupplierModal({ isOpen, onClose, onSelect, selectedSuppl
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newSupplier)
       })
+      const json = await res.json().catch(() => ({}))
 
-      const json = await res.json()
-      
       if (json.success) {
         // Refresh list & select new supplier
         await fetchSuppliers()
@@ -116,7 +115,8 @@ export default function SupplierModal({ isOpen, onClose, onSelect, selectedSuppl
       } else {
         setErrorMessage(json.error || 'Gagal menambahkan supplier')
       }
-    } catch (error: any) {
+    } catch (err: unknown) {
+      const error = err as Error
       console.error('Error adding supplier:', error)
       setErrorMessage(error.message || 'Terjadi kesalahan saat menambahkan supplier')
     } finally {

@@ -102,7 +102,7 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
   };
 
   // Track analytics event
-  const trackEvent = async (eventType: string, productId?: string, metadata?: any) => {
+  const trackEvent = async (eventType: string, productId?: string, metadata?: Record<string, unknown>) => {
     if (!storefront) return;
     
     try {

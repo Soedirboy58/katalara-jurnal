@@ -471,7 +471,8 @@ export async function GET(request: Request) {
       }
     })
 
-  } catch (error: any) {
+  } catch (err: unknown) {
+    const error = err as Error
     console.error('GET /api/kpi error:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
