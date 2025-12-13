@@ -82,29 +82,36 @@ export default function InputIncomePage() {
       // 3. Update stock for physical products
       for (const item of data.lineItems) {
         if (item.product_id) {
-          // Reduce stock
-          const { error: stockError } = await supabase.rpc(
-            'update_product_stock',
-            {
-              product_id: item.product_id,
-              qty_change: -item.qty
+          // Get product to check if tracking inventory
+          const product = products.find(p => p.id === item.product_id)
+          if (product && product.track_inventory) {
+            // Reduce stock
+            const currentStock = product.stock || 0
+            const newStock = Math.max(0, currentStock - item.qty) // Prevent negative stock
+            
+            const { error: stockError } = await supabase
+              .from('products')
+              .update({ 
+                stock: newStock,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', item.product_id)
+
+            if (stockError) {
+              console.error('Stock update error:', stockError)
             }
-          )
 
-          if (stockError) {
-            console.error('Stock update error:', stockError)
+            // Log stock movement
+            await supabase.from('stock_movements').insert({
+              product_id: item.product_id,
+              movement_type: 'out',
+              quantity: item.qty,
+              reference_type: 'income',
+              reference_id: income.id,
+              movement_date: data.income_date,
+              notes: `Penjualan kepada ${data.customer_name}`
+            })
           }
-
-          // Log stock movement
-          await supabase.from('stock_movements').insert({
-            product_id: item.product_id,
-            movement_type: 'out',
-            quantity: item.qty,
-            reference_type: 'income',
-            reference_id: income.id,
-            movement_date: data.income_date,
-            notes: `Penjualan kepada ${data.customer_name}`
-          })
         }
       }
 

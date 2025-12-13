@@ -26,6 +26,7 @@ export interface Database {
           description: string | null
           cost_price: number             // Harga beli/modal
           selling_price: number          // Harga jual
+          stock: number                  // Current stock quantity
           image_url: string | null       // URL gambar utama
           track_inventory: boolean
           min_stock_alert: number
@@ -43,6 +44,7 @@ export interface Database {
           description?: string | null
           cost_price?: number
           selling_price?: number
+          stock?: number
           image_url?: string | null
           track_inventory?: boolean
           min_stock_alert?: number
@@ -60,6 +62,7 @@ export interface Database {
           description?: string | null
           cost_price?: number
           selling_price?: number
+          stock?: number
           image_url?: string | null
           track_inventory?: boolean
           min_stock_alert?: number

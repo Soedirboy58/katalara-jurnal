@@ -5,7 +5,7 @@ import { useProducts } from '@/hooks/useProducts'
 import { Button } from '@/components/ui/Button'
 import { ProductKPICards } from './ProductKPICards'
 import { ProductCategoryTabs } from './ProductCategoryTabs'
-// import { ProductTableAdvanced } from './ProductTableAdvanced' // ⚠️ Disabled - uses old schema fields
+import { ProductTable } from './ProductTable'
 import { ProductCardView } from './ProductCardView'
 import { BulkActionsBar } from './BulkActionsBar'
 import { ProductModal } from './ProductModal'
@@ -46,9 +46,22 @@ export function ProductsView() {
   // Computed values for KPIs  
   const kpiData = useMemo(() => {
     const totalProducts = products.length
-    // ⚠️ Stock tracking disabled - fields not in schema
-    const totalStockValue = 0
-    const lowStockCount = 0
+    
+    // Calculate total stock value
+    const totalStockValue = products.reduce((sum, p) => {
+      if (p.track_inventory && p.stock) {
+        return sum + (p.stock * p.cost_price)
+      }
+      return sum
+    }, 0)
+    
+    // Count low stock products
+    const lowStockCount = products.filter(p => {
+      if (!p.track_inventory) return false
+      const stock = p.stock || 0
+      const minStock = p.min_stock_alert || 0
+      return stock > 0 && stock <= minStock
+    }).length
 
     // Best seller (placeholder - would need sales data)
     const bestSeller = products[0]?.name || 'N/A'
@@ -72,11 +85,15 @@ export function ProductsView() {
     // Apply category filter
     switch (categoryFilter) {
       case 'low-stock':
-        // ⚠️ Stock tracking disabled
-        filtered = []
+        filtered = filtered.filter(p => {
+          if (!p.track_inventory) return false
+          const stock = p.stock || 0
+          const minStock = p.min_stock_alert || 0
+          return stock > 0 && stock <= minStock
+        })
         break
       case 'high-value':
-        filtered = filtered.filter(p => (p as any).selling_price >= 50000)
+        filtered = filtered.filter(p => p.selling_price >= 50000)
         break
       case 'best-seller':
         // Would filter based on sales data
@@ -135,7 +152,7 @@ export function ProductsView() {
       id: 'high-value' as CategoryFilter,
       label: 'High Value',
       icon: '💰',
-      count: products.filter(p => (p as any).selling_price >= 50000).length,
+      count: products.filter(p => p.selling_price >= 50000).length,
       color: 'bg-purple-600'
     },
     {
@@ -199,9 +216,9 @@ export function ProductsView() {
   const handleBulkExport = () => {
     const selectedData = products.filter(p => selectedProducts.includes(p.id))
     const csv = [
-      ['Nama', 'SKU', 'Kategori', 'Harga Beli', 'Harga Jual'].join(','),
+      ['Nama', 'SKU', 'Kategori', 'Harga Beli', 'Harga Jual', 'Stok'].join(','),
       ...selectedData.map(p => 
-        [p.name, p.sku, p.category, p.cost_price, (p as any).selling_price].join(',')
+        [p.name, p.sku, p.category, p.cost_price, p.selling_price, p.stock || 0].join(',')
       )
     ].join('\n')
 
@@ -316,10 +333,13 @@ export function ProductsView() {
 
       {/* Product Display */}
       {viewMode === 'table' ? (
-        <div className="bg-white p-8 rounded-lg shadow text-center">
-          <p className="text-gray-600">⚠️ Table view temporarily disabled (schema update)</p>
-          <Button onClick={() => setViewMode('card')} className="mt-4">Switch to Card View</Button>
-        </div>
+        <ProductTable
+          products={paginatedProducts}
+          loading={loading}
+          onEdit={handleEdit}
+          onAdjustStock={handleAdjustStock}
+          onDelete={handleDelete}
+        />
       ) : (
         <ProductCardView
           products={paginatedProducts}

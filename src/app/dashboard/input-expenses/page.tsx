@@ -254,13 +254,16 @@ export default function InputExpensesPage() {
           if (item.product_id) {
             // Increase stock
             const product = products.find(p => p.id === item.product_id)
-            if (product) {
-              const currentStock = (product as any).stock_quantity || 0
+            if (product && product.track_inventory) {
+              const currentStock = product.stock || 0
               const newStock = currentStock + item.quantity
               
               await supabase
                 .from('products')
-                .update({ stock_quantity: newStock })
+                .update({ 
+                  stock: newStock,
+                  updated_at: new Date().toISOString()
+                })
                 .eq('id', item.product_id)
             }
           }
