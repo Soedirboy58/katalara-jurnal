@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
+import type { ExpenseRecord } from '@/types/legacy'
 
 export const dynamic = 'force-dynamic'
 
@@ -76,7 +77,10 @@ export async function GET(request: Request) {
           console.error('[KPI API] Error fetching expenses today:', error)
           return 0
         }
-        const total = data?.reduce((sum, e) => sum + parseFloat((e as any).grand_total?.toString() || '0'), 0) || 0
+        const total = data?.reduce((sum, e) => {
+          const record = e as ExpenseRecord
+          return sum + parseFloat(record.grand_total?.toString() || '0')
+        }, 0) || 0
         console.log('[KPI API] Expenses today:', total)
         return total
       } catch (err) {
@@ -97,7 +101,10 @@ export async function GET(request: Request) {
           console.error('[KPI API] Error fetching expenses this month:', error)
           return 0
         }
-        const total = data?.reduce((sum, e) => sum + parseFloat((e as any).grand_total?.toString() || '0'), 0) || 0
+        const total = data?.reduce((sum, e) => {
+          const record = e as ExpenseRecord
+          return sum + parseFloat(record.grand_total?.toString() || '0')
+        }, 0) || 0
         console.log('[KPI API] Expenses month:', total)
         return total
       } catch (err) {
@@ -119,7 +126,10 @@ export async function GET(request: Request) {
           console.error('[KPI API] Error fetching expenses last month:', error)
           return 0
         }
-        const total = data?.reduce((sum, e) => sum + parseFloat((e as any).grand_total?.toString() || '0'), 0) || 0
+        const total = data?.reduce((sum, e) => {
+          const record = e as ExpenseRecord
+          return sum + parseFloat(record.grand_total?.toString() || '0')
+        }, 0) || 0
         console.log('[KPI API] Expenses previous month:', total)
         return total
       } catch (err) {
@@ -195,7 +205,10 @@ export async function GET(request: Request) {
           return { count: 0, amount: 0 }
         }
         
-        const total = data?.reduce((sum, e) => sum + parseFloat((e as any).grand_total?.toString() || '0'), 0) || 0
+        const total = data?.reduce((sum, e) => {
+          const record = e as ExpenseRecord
+          return sum + parseFloat(record.grand_total?.toString() || '0')
+        }, 0) || 0
         console.log('[KPI API] Overdue payables:', data?.length, 'items, Rp', total)
         return { count: data?.length || 0, amount: total }
       } catch (err) {
