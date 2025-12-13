@@ -5,6 +5,9 @@ import { Modal } from '@/components/ui/Modal'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import type { Product } from '@/types'
+import type { ProductLegacy } from '@/types/legacy'
+import type { ProductFormData, ProductInsert } from '@/types/product-schema'
+import { mapFormToInsert, getCostPrice, getSellingPrice } from '@/types/product-schema'
 import { generateSKU } from '@/utils/helpers'
 import { createClient } from '@/lib/supabase/client'
 import { formatRupiah, parseRupiahInput } from '@/lib/numberFormat'
@@ -47,16 +50,16 @@ export function ProductModal({ isOpen, onClose, product, onSuccess, onCreated }:
           : ((product as any).product_type as string | undefined) === 'physical'
             ? 'physical'
             : (product.track_inventory === false ? 'service' : 'physical')
-
+      const legacy = product as ProductLegacy
       setFormData({
         name: product.name,
         sku: product.sku || '',
         category: product.category || '',
-        product_type: inferredType,
-        unit: (product as any).unit || 'pcs',
-        cost_price: (product as any).cost_price || 0,
-        selling_price: (product as any).selling_price || 0,
-        min_stock_alert: (product as any).min_stock_alert || 0,
+    product_type: inferredType,
+    unit: legacy.unit || (product as any).unit || 'pcs',
+    cost_price: getCostPrice(product),
+    selling_price: getSellingPrice(product),
+    min_stock_alert: legacy.min_stock_alert || (product as any).min_stock_alert || 0,
         track_inventory: product.track_inventory ?? true,
       })
       setImages([])

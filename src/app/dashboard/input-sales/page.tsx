@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useProducts } from '@/hooks/useProducts'
+import type { ProductLegacy } from '@/types/legacy'
 import { InvoiceModal } from '@/components/sales/InvoiceModal'
 import { ProductModal } from '@/components/products/ProductModal'
 import { createClient } from '@/lib/supabase/client'
@@ -109,7 +110,8 @@ export default function InputSalesPage() {
 
       // Check stock availability
       if (product && product.track_inventory) {
-        const currentStock = (product as any).stock_quantity || 0
+        const legacy = product as ProductLegacy
+        const currentStock = legacy.stock_quantity || 0
         if (currentStock < qtyNum) {
           alert(`Stok tidak cukup! Stok tersedia: ${currentStock}`)
           setSaving(false)
@@ -143,7 +145,8 @@ export default function InputSalesPage() {
 
       // Update stock in database if product tracks inventory
       if (product && product.track_inventory) {
-        const newStock = Math.max(0, ((product as any).stock_quantity || 0) - qtyNum)
+        const legacy = product as ProductLegacy
+        const newStock = Math.max(0, (legacy.stock_quantity || 0) - qtyNum)
         const { error: stockError } = await supabase
           .from('products')
           .update({ 
@@ -263,11 +266,14 @@ export default function InputSalesPage() {
                 <option value="">
                   {loadingProducts ? 'Memuat produk...' : 'Pilih produk...'}
                 </option>
-                {products.map((product) => (
-                  <option key={product.id} value={product.id}>
-                    {product.name} - Rp {formatNumber(product.selling_price.toString())} {product.track_inventory ? `(Stok: ${(product as any).stock_quantity || 0})` : ''}
-                  </option>
-                ))}
+                {products.map((product) => {
+                  const legacy = product as ProductLegacy
+                  return (
+                    <option key={product.id} value={product.id}>
+                      {product.name} - Rp {formatNumber(product.selling_price.toString())} {product.track_inventory ? `(Stok: ${legacy.stock_quantity || 0})` : ''}
+                    </option>
+                  )
+                })}
               </select>
               <button
                 type="button"
@@ -287,11 +293,14 @@ export default function InputSalesPage() {
                   <p className="text-xs text-green-600">
                     ✓ Harga otomatis terisi dari database produk
                   </p>
-                  {product.track_inventory && (
-                    <p className="text-xs text-blue-600">
-                      📦 Stok tersedia: {(product as any).stock_quantity || 0} {(product as any).unit || 'pcs'}
-                    </p>
-                  )}
+                  {product.track_inventory && (() => {
+                    const legacy = product as ProductLegacy
+                    return (
+                      <p className="text-xs text-blue-600">
+                        📦 Stok tersedia: {legacy.stock_quantity || 0} {legacy.unit || 'pcs'}
+                      </p>
+                    )
+                  })()}
                 </div>
               ) : null
             })()}

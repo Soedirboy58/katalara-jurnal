@@ -18,6 +18,10 @@ export interface ProductLegacy extends Product {
   image_url?: string
   /** Legacy field for stock quantity */
   stock_quantity?: number
+  /** Service duration field for service products */
+  service_duration?: string | null
+  /** Business category field for product categorization */
+  business_category?: 'raw_materials' | 'finished_goods' | 'services' | string
 }
 
 /**

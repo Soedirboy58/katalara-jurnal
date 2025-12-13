@@ -16,6 +16,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, Package, Search } from 'lucide-react'
 import type { Product } from '@/modules/inventory/types/inventoryTypes'
 import { createClient } from '@/lib/supabase/client'
+import type { ProductLegacy } from '@/types/legacy'
+import { createClient } from '@/lib/supabase/client'
 
 export interface LineItem {
   id: string
@@ -318,10 +320,15 @@ export function LineItemsBuilder({
     if (selectedProductId) {
       const product = products.find(p => p.id === selectedProductId)
       if (product) {
+<<<<<<< HEAD
         const sellPrice = getSellingPrice(product as any) || 0
         setPrice(new Intl.NumberFormat('id-ID').format(sellPrice))
         setProductQuery(product.name || '')
         if ((product as any).unit) setUnit((product as any).unit)
+=======
+        const legacy = product as ProductLegacy
+        setPrice(legacy.selling_price?.toString() || legacy.sell_price?.toString() || '0')
+>>>>>>> 11f62bb (Fix additional TypeScript ESLint errors in dashboard and component files)
       }
     }
   }, [selectedProductId, products])
@@ -410,6 +417,7 @@ export function LineItemsBuilder({
     
     const subtotal = qty * priceNum
 
+    const legacy = product as ProductLegacy
     const newItem: LineItem = {
       id: `item-${Date.now()}`,
       product_id: selectedProductId,
@@ -418,8 +426,13 @@ export function LineItemsBuilder({
       unit: finalUnit,
       price: priceNum,
       subtotal: subtotal,
+<<<<<<< HEAD
       buy_price: buyPrice,
       service_duration: (product as any).service_duration
+=======
+      buy_price: product.cost_price || 0,
+      service_duration: legacy.service_duration
+>>>>>>> 11f62bb (Fix additional TypeScript ESLint errors in dashboard and component files)
     }
 
     onChange([...items, newItem])
@@ -471,6 +484,7 @@ export function LineItemsBuilder({
               Produk/Layanan
             </label>
             <div className="flex gap-2">
+<<<<<<< HEAD
               <div className="relative flex-1">
                 <input
                   type="text"
@@ -586,6 +600,24 @@ export function LineItemsBuilder({
                   </div>
                 )}
               </div>
+=======
+              <select
+                value={selectedProductId}
+                onChange={(e) => setSelectedProductId(e.target.value)}
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                disabled={loadingProducts}
+              >
+                <option value="">Pilih {category === 'service_income' ? 'Layanan' : 'Produk'}...</option>
+                {products.map((p) => {
+                  const legacy = p as ProductLegacy
+                  return (
+                    <option key={p.id} value={p.id}>
+                      {p.name} - Rp {new Intl.NumberFormat('id-ID').format(legacy.selling_price || legacy.sell_price || 0)}
+                    </option>
+                  )
+                })}
+              </select>
+>>>>>>> 11f62bb (Fix additional TypeScript ESLint errors in dashboard and component files)
               {onAddProduct && (
                 <button
                   type="button"

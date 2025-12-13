@@ -16,6 +16,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useProducts } from '@/hooks/useProducts'
+import type { ProductLegacy } from '@/types/legacy'
 import { 
   useExpenseForm, 
   useExpenseCalculations, 
@@ -827,7 +828,7 @@ export default function InputExpensesPage() {
               {/* Expense Type */}
               <select
                 value={formState.category.expenseType}
-                onChange={(e) => actions.setExpenseType(e.target.value as any)}
+                onChange={(e) => actions.setExpenseType(e.target.value as 'operating' | 'investing' | 'financing')}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 required
               >
@@ -892,11 +893,15 @@ export default function InputExpensesPage() {
           onRemoveItem={actions.removeItem}
           onCurrentItemChange={actions.updateCurrentItem}
           onShowProductModal={() => actions.toggleUI('showProductModal', true)}
+<<<<<<< HEAD
           mode={itemsMode}
           title={isInventoryPurchaseCategory ? 'Daftar Item Pembelian' : 'Daftar Item Pengeluaran'}
           nameLabel={isInventoryPurchaseCategory ? 'Produk' : 'Item / Deskripsi'}
           namePlaceholder={itemsNamePlaceholder}
           enableQuickCreateProduct={isInventoryPurchaseCategory}
+=======
+          categoryType={formState.category.category as 'raw_materials' | 'finished_goods' | 'services' | ''}
+>>>>>>> 11f62bb (Fix additional TypeScript ESLint errors in dashboard and component files)
         />
         
         {/* Production Output (for raw materials -> finished goods) */}
@@ -936,7 +941,7 @@ export default function InputExpensesPage() {
                   >
                     <option value="">Pilih produk jadi...</option>
                     {products
-                      .filter(p => (p as any).business_category === 'finished_goods')
+                      .filter(p => (p as ProductLegacy).business_category === 'finished_goods')
                       .map(p => (
                         <option key={p.id} value={p.id}>{p.name}</option>
                       ))}
