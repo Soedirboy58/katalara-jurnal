@@ -28,6 +28,8 @@ export interface ProductLegacy extends Product {
  * Helper type for expense records with grand_total field
  */
 export interface ExpenseRecord {
-  grand_total: number | string | null
-  [key: string]: unknown
+  grand_total?: number | string | null
+  amount?: number | string | null
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  [key: string]: any
 }

@@ -7,10 +7,9 @@
 
 import { TransactionsTable } from '@/components/income/TransactionsTable'
 import type { Income } from '@/modules/finance/types/financeTypes'
+import type { ExpenseRecord } from '@/types/legacy'
 
-interface IncomeWithTotalAmount extends Income {
-  total_amount?: number | string
-}
+type IncomeWithTotalAmount = Income & ExpenseRecord
 
 interface IncomesTableProps {
   transactions: Income[]

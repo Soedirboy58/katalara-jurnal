@@ -75,8 +75,8 @@ export function useProducts(filters?: ProductFilters & { productType?: 'physical
 
       setProducts(filteredData)
     } catch (err: unknown) {
-      const error = err as Error
-      setError(error.message)
+      const errorMessage = err instanceof Error ? err.message : 'An error occurred'
+      setError(errorMessage)
       console.error('Error loading products:', err)
     } finally {
       setLoading(false)
@@ -113,8 +113,8 @@ export function useProducts(filters?: ProductFilters & { productType?: 'physical
       await loadProducts()
       return { data, error: null }
     } catch (err: unknown) {
-      const error = err as Error
-      return { data: null, error: error.message }
+      const errorMessage = err instanceof Error ? err.message : 'An error occurred'
+      return { data: null, error: errorMessage }
     }
   }
 
@@ -132,8 +132,8 @@ export function useProducts(filters?: ProductFilters & { productType?: 'physical
       await loadProducts()
       return { data, error: null }
     } catch (err: unknown) {
-      const error = err as Error
-      return { data: null, error: error.message }
+      const errorMessage = err instanceof Error ? err.message : 'An error occurred'
+      return { data: null, error: errorMessage }
     }
   }
 
@@ -149,8 +149,8 @@ export function useProducts(filters?: ProductFilters & { productType?: 'physical
       await loadProducts()
       return { error: null }
     } catch (err: unknown) {
-      const error = err as Error
-      return { error: error.message }
+      const errorMessage = err instanceof Error ? err.message : 'An error occurred'
+      return { error: errorMessage }
     }
   }
 
@@ -168,8 +168,8 @@ export function useProducts(filters?: ProductFilters & { productType?: 'physical
       await loadProducts()
       return { data, error: null }
     } catch (err: unknown) {
-      const error = err as Error
-      return { data: null, error: error.message }
+      const errorMessage = err instanceof Error ? err.message : 'An error occurred'
+      return { data: null, error: errorMessage }
     }
   }
 
