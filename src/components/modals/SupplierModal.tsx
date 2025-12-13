@@ -166,7 +166,8 @@ export default function SupplierModal({ isOpen, onClose, onSelect, selectedSuppl
         email: '',
         address: ''
       })
-    } catch (error: any) {
+    } catch (err: unknown) {
+      const error = err as Error
       console.error('Error adding supplier:', error)
       setErrorMessage(error.message || 'Gagal menyimpan supplier')
     } finally {
