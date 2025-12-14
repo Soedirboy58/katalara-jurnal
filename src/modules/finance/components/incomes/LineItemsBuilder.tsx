@@ -14,6 +14,7 @@
 
 import { useState, useEffect } from 'react'
 import type { Product } from '@/modules/inventory/types/inventoryTypes'
+import type { ProductLegacy } from '@/types/legacy'
 
 export interface LineItem {
   id: string
@@ -57,7 +58,8 @@ export function LineItemsBuilder({
     if (selectedProductId) {
       const product = products.find(p => p.id === selectedProductId)
       if (product) {
-        setPrice((product as any).selling_price?.toString() || (product as any).sell_price?.toString() || '0')
+        const legacy = product as ProductLegacy
+        setPrice(legacy.selling_price?.toString() || legacy.sell_price?.toString() || '0')
       }
     }
   }, [selectedProductId, products])
@@ -90,6 +92,7 @@ export function LineItemsBuilder({
     const priceNum = parseNumber(price)
     const subtotal = qty * priceNum
 
+    const legacy = product as ProductLegacy
     const newItem: LineItem = {
       id: `item-${Date.now()}`,
       product_id: selectedProductId,
@@ -99,7 +102,7 @@ export function LineItemsBuilder({
       price: priceNum,
       subtotal: subtotal,
       buy_price: product.cost_price || 0,
-      service_duration: (product as any).service_duration
+      service_duration: legacy.service_duration
     }
 
     onChange([...items, newItem])
@@ -149,11 +152,14 @@ export function LineItemsBuilder({
                 disabled={loadingProducts}
               >
                 <option value="">Pilih {category === 'service_income' ? 'Layanan' : 'Produk'}...</option>
-                {products.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} - Rp {new Intl.NumberFormat('id-ID').format((p as any).selling_price || (p as any).sell_price || 0)}
-                  </option>
-                ))}
+                {products.map((p) => {
+                  const legacy = p as ProductLegacy
+                  return (
+                    <option key={p.id} value={p.id}>
+                      {p.name} - Rp {new Intl.NumberFormat('id-ID').format(legacy.selling_price || legacy.sell_price || 0)}
+                    </option>
+                  )
+                })}
               </select>
               {onAddProduct && (
                 <button

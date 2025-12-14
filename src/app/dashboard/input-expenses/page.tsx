@@ -16,6 +16,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useProducts } from '@/hooks/useProducts'
+import type { ProductLegacy } from '@/types/legacy'
 import { 
   useExpenseForm, 
   useExpenseCalculations, 
@@ -404,7 +405,7 @@ export default function InputExpensesPage() {
               {/* Expense Type */}
               <select
                 value={formState.category.expenseType}
-                onChange={(e) => actions.setExpenseType(e.target.value as any)}
+                onChange={(e) => actions.setExpenseType(e.target.value as 'operating' | 'investing' | 'financing')}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 required
               >
@@ -437,7 +438,7 @@ export default function InputExpensesPage() {
           onRemoveItem={actions.removeItem}
           onCurrentItemChange={actions.updateCurrentItem}
           onShowProductModal={() => actions.toggleUI('showProductModal', true)}
-          categoryType={formState.category.category as any}
+          categoryType={formState.category.category as 'raw_materials' | 'finished_goods' | 'services' | ''}
         />
         
         {/* Production Output (for raw materials -> finished goods) */}
@@ -477,7 +478,7 @@ export default function InputExpensesPage() {
                   >
                     <option value="">Pilih produk jadi...</option>
                     {products
-                      .filter(p => (p as any).business_category === 'finished_goods')
+                      .filter(p => (p as ProductLegacy).business_category === 'finished_goods')
                       .map(p => (
                         <option key={p.id} value={p.id}>{p.name}</option>
                       ))}

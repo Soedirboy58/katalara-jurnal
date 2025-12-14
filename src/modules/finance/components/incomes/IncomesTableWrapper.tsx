@@ -7,6 +7,9 @@
 
 import { TransactionsTable } from '@/components/income/TransactionsTable'
 import type { Income } from '@/modules/finance/types/financeTypes'
+import type { ExpenseRecord } from '@/types/legacy'
+
+type IncomeWithTotalAmount = Income & ExpenseRecord
 
 interface IncomesTableProps {
   transactions: Income[]
@@ -64,9 +67,10 @@ export function IncomesTable({
   }
 
   const normalizeAmount = (income: Income): number => {
+    const withTotalAmount = income as IncomeWithTotalAmount
     const candidates = [
       income.grand_total,
-      (income as any).total_amount,
+      withTotalAmount.total_amount,
       income.amount,
       income.subtotal,
       income.paid_amount

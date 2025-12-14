@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import type { Product } from '@/types'
+import type { ProductLegacy } from '@/types/legacy'
 import { 
   PencilSquareIcon,
   AdjustmentsHorizontalIcon,
@@ -117,8 +118,9 @@ export function ProductCardView({
   }
 
   const getMargin = (product: Product) => {
-    const costPrice = (product as any).cost_price ?? (product as any).buy_price ?? 0
-    const sellingPrice = (product as any).selling_price ?? (product as any).sell_price ?? 0
+    const legacy = product as ProductLegacy
+    const costPrice = legacy.cost_price ?? legacy.buy_price ?? 0
+    const sellingPrice = legacy.selling_price ?? legacy.sell_price ?? 0
     if (costPrice === 0) return 0
     return ((sellingPrice - costPrice) / costPrice) * 100
   }
@@ -185,24 +187,27 @@ export function ProductCardView({
 
                   {/* Product Image/Icon */}
                   <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-blue-100 to-purple-100 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden">
-                    {(product as any).image_url ? (
-                      <img 
-                        src={(product as any).image_url} 
-                        alt={product.name}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          console.error('🖼️ Image load error for:', product.name, (product as any).image_url)
-                          e.currentTarget.style.display = 'none'
-                          const parent = e.currentTarget.parentElement
-                          if (parent) {
-                            parent.innerHTML = '<span class="text-xl sm:text-2xl">📦</span>'
-                          }
-                        }}
-                        onLoad={() => console.log('✅ Image loaded:', product.name)}
-                      />
-                    ) : (
-                      <span className="text-xl sm:text-2xl">📦</span>
-                    )}
+                    {(() => {
+                      const legacy = product as ProductLegacy
+                      return legacy.image_url ? (
+                        <img 
+                          src={legacy.image_url} 
+                          alt={product.name}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            console.error('🖼️ Image load error for:', product.name, legacy.image_url)
+                            e.currentTarget.style.display = 'none'
+                            const parent = e.currentTarget.parentElement
+                            if (parent) {
+                              parent.innerHTML = '<span class="text-xl sm:text-2xl">📦</span>'
+                            }
+                          }}
+                          onLoad={() => console.log('✅ Image loaded:', product.name)}
+                        />
+                      ) : (
+                        <span className="text-xl sm:text-2xl">📦</span>
+                      )
+                    })()}
                   </div>
 
                   {/* Product Info */}
@@ -251,14 +256,23 @@ export function ProductCardView({
 
               {/* Pricing */}
               <div className="space-y-1 sm:space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] sm:text-xs text-gray-600">Harga Beli</span>
-                  <span className="text-xs sm:text-sm text-gray-700">{formatCurrency((product as any).cost_price ?? (product as any).buy_price ?? 0)}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] sm:text-xs text-gray-600">Harga Jual</span>
-                  <span className="text-xs sm:text-sm font-bold text-gray-900">{formatCurrency((product as any).selling_price ?? (product as any).sell_price ?? 0)}</span>
-                </div>
+                {(() => {
+                  const legacy = product as ProductLegacy
+                  const costPrice = legacy.cost_price ?? legacy.buy_price ?? 0
+                  const sellingPrice = legacy.selling_price ?? legacy.sell_price ?? 0
+                  return (
+                    <>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] sm:text-xs text-gray-600">Harga Beli</span>
+                        <span className="text-xs sm:text-sm text-gray-700">{formatCurrency(costPrice)}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] sm:text-xs text-gray-600">Harga Jual</span>
+                        <span className="text-xs sm:text-sm font-bold text-gray-900">{formatCurrency(sellingPrice)}</span>
+                      </div>
+                    </>
+                  )
+                })()}
                 <div className="flex items-center justify-between pt-1 sm:pt-2 border-t border-gray-100">
                   <span className="text-[10px] sm:text-xs text-gray-600">Margin</span>
                   <span className={`text-xs sm:text-sm font-bold ${margin > 0 ? 'text-green-600' : 'text-red-600'}`}>

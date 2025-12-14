@@ -449,7 +449,7 @@ const expenseFormReducer = (
     case 'SET_PAYMENT_METHOD':
       return {
         ...state,
-        payment: { ...state.payment, method: action.payload as any }
+        payment: { ...state.payment, method: action.payload as 'cash' | 'transfer' | 'tempo' }
       }
     
     case 'SET_DOWN_PAYMENT':

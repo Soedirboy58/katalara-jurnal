@@ -166,9 +166,10 @@ export default function SupplierModal({ isOpen, onClose, onSelect, selectedSuppl
         email: '',
         address: ''
       })
-    } catch (error: any) {
-      console.error('Error adding supplier:', error)
-      setErrorMessage(error.message || 'Gagal menyimpan supplier')
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Gagal menyimpan supplier'
+      console.error('Error adding supplier:', err)
+      setErrorMessage(errorMessage)
     } finally {
       setIsSubmitting(false)
     }
@@ -256,7 +257,7 @@ export default function SupplierModal({ isOpen, onClose, onSelect, selectedSuppl
 
             <select
               value={newSupplier.supplier_type}
-              onChange={(e) => setNewSupplier({ ...newSupplier, supplier_type: e.target.value as any })}
+              onChange={(e) => setNewSupplier({ ...newSupplier, supplier_type: e.target.value as 'raw_materials' | 'finished_goods' | 'both' | 'services' })}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
             >
               <option value="finished_goods">📦 Barang Jadi (Reseller)</option>

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import type { ExpenseRecord } from '@/types/legacy'
 import {
   CurrencyDollarIcon,
   ShoppingBagIcon,
@@ -179,10 +180,13 @@ export function DashboardHome() {
       
       if (expenses) {
         // ✅ Map grand_total ke amount untuk backward compatibility dengan UI
-        const mappedExpenses = expenses.map(e => ({
-          ...e,
-          amount: (e as any).grand_total || e.amount || 0
-        }))
+        const mappedExpenses = expenses.map(e => {
+          const record = e as ExpenseRecord
+          return {
+            ...e,
+            amount: record.grand_total || e.amount || 0
+          }
+        })
         setRecentTransactions(mappedExpenses)
       }
     } catch (error) {
