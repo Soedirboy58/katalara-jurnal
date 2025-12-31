@@ -52,12 +52,17 @@ export function LineItemsBuilder({
   const [showCustomUnit, setShowCustomUnit] = useState(false)
   const [customUnit, setCustomUnit] = useState('')
 
-  // Auto-fill price when product selected
+  // Auto-fill price and buy_price when product selected
   useEffect(() => {
     if (selectedProductId) {
       const product = products.find(p => p.id === selectedProductId)
       if (product) {
+        // Auto-fill selling price
         setPrice((product as any).selling_price?.toString() || '0')
+        // Auto-fill unit from product
+        if ((product as any).unit) {
+          setUnit((product as any).unit)
+        }
       }
     }
   }, [selectedProductId, products])

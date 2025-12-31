@@ -121,32 +121,29 @@ export default function InputIncomePage() {
 
       if (itemsError) throw itemsError
 
-      // 3. Update stock for physical products
+      // 3. Update stock for physical products and record stock movement
       for (const item of data.lineItems) {
         if (item.product_id) {
-          // Reduce stock
+          // Record stock movement (OUT)
           const { error: stockError } = await supabase.rpc(
-            'update_product_stock',
+            'record_stock_movement',
             {
-              product_id: item.product_id,
-              qty_change: -item.qty
+              p_product_id: item.product_id,
+              p_quantity: Math.floor(item.qty), // Convert to integer
+              p_movement_type: 'out',
+              p_reference_type: 'income',
+              p_reference_id: income.id,
+              p_note: `Penjualan kepada ${data.customer_name}`
             }
           )
 
           if (stockError) {
-            console.error('Stock update error:', stockError)
+            console.error('Stock movement error:', stockError)
+            // Check if it's an insufficient stock error
+            if (stockError.message?.includes('Insufficient stock')) {
+              throw new Error(`Stok tidak cukup untuk produk ${item.product_name}`)
+            }
           }
-
-          // Log stock movement
-          await supabase.from('stock_movements').insert({
-            product_id: item.product_id,
-            movement_type: 'out',
-            quantity: item.qty,
-            reference_type: 'income',
-            reference_id: income.id,
-            movement_date: data.income_date,
-            notes: `Penjualan kepada ${data.customer_name}`
-          })
         }
       }
 

@@ -122,6 +122,35 @@ export default function InputExpensesPage() {
     setTimeout(() => setToast({ show: false, type: 'success', message: '' }), 3000)
   }, [])
   
+  // Product creation callback
+  const [productCreatedTrigger, setProductCreatedTrigger] = useState(0)
+  
+  const handleProductCreated = useCallback(async (newProductId: string) => {
+    showToast('success', 'Produk berhasil ditambahkan!')
+    actions.toggleUI('showProductModal', false)
+    
+    // Refresh products
+    await refreshProducts()
+    
+    // Auto-select the newly created product
+    const { data: newProduct } = await supabase
+      .from('products')
+      .select('*')
+      .eq('id', newProductId)
+      .single()
+    
+    if (newProduct) {
+      actions.updateCurrentItem({
+        product_id: newProduct.id,
+        product_name: newProduct.name,
+        unit: newProduct.unit || 'pcs',
+        price_per_unit: newProduct.cost_price?.toString() || '0'
+      })
+    }
+    
+    setProductCreatedTrigger(prev => prev + 1)
+  }, [actions, showToast, refreshProducts, supabase])
+  
   // Add line item
   const handleAddItem = useCallback(() => {
     const current = formState.items.currentItem
@@ -274,20 +303,32 @@ export default function InputExpensesPage() {
       
       if (itemsError) throw itemsError
       
-      // Update stock for product purchases
+      // Update cost price and stock for product purchases
       if (formState.category.category === 'raw_materials' || formState.category.category === 'finished_goods') {
         for (const item of formState.items.lineItems) {
           if (item.product_id) {
-            // Increase stock
-            const product = products.find(p => p.id === item.product_id)
-            if (product) {
-              const currentStock = (product as any).stock_quantity || 0
-              const newStock = currentStock + item.quantity
-              
-              await supabase
-                .from('products')
-                .update({ stock_quantity: newStock })
-                .eq('id', item.product_id)
+            // Update product cost_price with latest purchase price
+            await supabase
+              .from('products')
+              .update({ 
+                cost_price: item.price_per_unit,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', item.product_id)
+            
+            // Record stock movement (IN)
+            const { error: stockError } = await supabase.rpc('record_stock_movement', {
+              p_product_id: item.product_id,
+              p_quantity: Math.floor(item.quantity), // Convert to integer
+              p_movement_type: 'in',
+              p_reference_type: 'expense',
+              p_reference_id: expense.id,
+              p_note: `Pembelian via ${formState.category.category}`
+            })
+            
+            if (stockError) {
+              console.error('Stock movement error:', stockError)
+              // Don't throw - expense is already saved
             }
           }
         }
@@ -506,6 +547,7 @@ export default function InputExpensesPage() {
           onRemoveItem={actions.removeItem}
           onCurrentItemChange={actions.updateCurrentItem}
           onShowProductModal={() => actions.toggleUI('showProductModal', true)}
+          onProductCreated={productCreatedTrigger > 0 ? () => {} : undefined}
           categoryType={formState.category.category as any}
         />
         
@@ -705,10 +747,14 @@ export default function InputExpensesPage() {
           isOpen={formState.ui.showProductModal}
           onClose={() => actions.toggleUI('showProductModal', false)}
           product={null}
-          onSuccess={() => {
-            showToast('success', 'Produk berhasil dibuat!')
-            actions.toggleUI('showProductModal', false)
-            refreshProducts()
+          onSuccess={(productId) => {
+            if (productId) {
+              handleProductCreated(productId)
+            } else {
+              showToast('success', 'Produk berhasil dibuat!')
+              actions.toggleUI('showProductModal', false)
+              refreshProducts()
+            }
           }}
         />
       )}
