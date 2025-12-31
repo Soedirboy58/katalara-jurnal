@@ -15,7 +15,7 @@ interface ProductModalProps {
   isOpen: boolean
   onClose: () => void
   product: Product | null
-  onSuccess: () => void
+  onSuccess: (productId?: string) => void
 }
 
 interface ImagePreview {
@@ -227,7 +227,7 @@ export function ProductModal({ isOpen, onClose, product, onSuccess }: ProductMod
       }
 
       // Success!
-      onSuccess()
+      onSuccess(productId)
       onClose()
       
       // Show success toast (assuming toast utility exists in project)

@@ -11,9 +11,9 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Trash2, Plus, Package, Search, ChevronDown } from 'lucide-react'
+import { Trash2, Plus, Package, Search, ChevronDown, AlertTriangle } from 'lucide-react'
 import type { LineItem } from '@/hooks/expenses/useExpenseForm'
-import { useProducts } from '@/hooks/useProducts'
+import { useProductsWithStock } from '@/hooks/useProductsWithStock'
 
 interface ExpenseItemsTableProps {
   lineItems: LineItem[]
@@ -29,6 +29,7 @@ interface ExpenseItemsTableProps {
   onRemoveItem: (id: string) => void
   onCurrentItemChange: (updates: any) => void
   onShowProductModal: () => void
+  onProductCreated?: () => void
   categoryType: 'raw_materials' | 'finished_goods' | 'services' | ''
 }
 
@@ -39,10 +40,18 @@ export const ExpenseItemsTable: React.FC<ExpenseItemsTableProps> = ({
   onRemoveItem,
   onCurrentItemChange,
   onShowProductModal,
+  onProductCreated,
   categoryType
 }) => {
-  // Use products hook
-  const { products, loading: loadingProducts } = useProducts()
+  // Use products with stock hook
+  const { products, loading: loadingProducts, refresh: refreshProducts } = useProductsWithStock()
+  
+  // Trigger refresh when product is created
+  useEffect(() => {
+    if (onProductCreated) {
+      refreshProducts()
+    }
+  }, [onProductCreated])
   
   // Product autocomplete state
   const [filteredProducts, setFilteredProducts] = useState<typeof products>([])
@@ -99,7 +108,7 @@ export const ExpenseItemsTable: React.FC<ExpenseItemsTableProps> = ({
       product_id: product.id,
       product_name: product.name,
       unit: product.unit || currentItem.unit || 'pcs',
-      price_per_unit: (product as any).cost_price?.toString() || '0'
+      price_per_unit: product.cost_price?.toString() || '0'
     })
     setShowDropdown(false)
   }
@@ -235,9 +244,16 @@ export const ExpenseItemsTable: React.FC<ExpenseItemsTableProps> = ({
                                   {product.unit}
                                 </span>
                               )}
-                              {product.stock !== undefined && product.stock !== null && (
-                                <span className={product.stock > 0 ? 'text-green-600' : 'text-red-600'}>
-                                  Stok: {product.stock}
+                              {product.track_inventory && (
+                                <span className={
+                                  product.stock_status === 'out_of_stock' ? 'text-red-600 font-medium' :
+                                  product.stock_status === 'low_stock' ? 'text-yellow-600 font-medium flex items-center gap-1' :
+                                  'text-green-600'
+                                }>
+                                  {product.stock_status === 'low_stock' && <AlertTriangle className="w-3 h-3" />}
+                                  Stok: {product.current_stock} {product.unit}
+                                  {product.stock_status === 'low_stock' && ' (Rendah)'}
+                                  {product.stock_status === 'out_of_stock' && ' (Habis)'}
                                 </span>
                               )}
                             </div>
