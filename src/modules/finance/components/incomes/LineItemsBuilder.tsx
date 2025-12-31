@@ -52,7 +52,7 @@ export function LineItemsBuilder({
   const [showCustomUnit, setShowCustomUnit] = useState(false)
   const [customUnit, setCustomUnit] = useState('')
 
-  // Auto-fill price and buy_price when product selected
+  // Auto-fill price and unit when product selected
   useEffect(() => {
     if (selectedProductId) {
       const product = products.find(p => p.id === selectedProductId)
@@ -63,6 +63,7 @@ export function LineItemsBuilder({
         if ((product as any).unit) {
           setUnit((product as any).unit)
         }
+        // Note: buy_price is set when creating the line item (see handleAddItem)
       }
     }
   }, [selectedProductId, products])
@@ -172,7 +173,15 @@ export function LineItemsBuilder({
     setPrice(formatNumber(value))
   }
 
+  // Helper function for profit calculation
+  const calculateTotalProfit = (items: LineItem[]) => {
+    return items.reduce((sum, item) => 
+      sum + ((item.price - (item.buy_price || 0)) * item.quantity), 0
+    )
+  }
+
   const totalSubtotal = items.reduce((sum, item) => sum + item.subtotal, 0)
+  const totalProfit = calculateTotalProfit(items)
 
   return (
     <div className="space-y-4">
@@ -388,13 +397,9 @@ export function LineItemsBuilder({
                     Total Profit
                   </td>
                   <td className={`px-4 py-3 text-sm font-bold text-right ${
-                    items.reduce((sum, item) => sum + ((item.price - (item.buy_price || 0)) * item.quantity), 0) < 0 
-                      ? 'text-red-600' 
-                      : 'text-green-600'
+                    totalProfit < 0 ? 'text-red-600' : 'text-green-600'
                   }`}>
-                    Rp {new Intl.NumberFormat('id-ID').format(
-                      Math.abs(items.reduce((sum, item) => sum + ((item.price - (item.buy_price || 0)) * item.quantity), 0))
-                    )}
+                    Rp {new Intl.NumberFormat('id-ID').format(Math.abs(totalProfit))}
                   </td>
                   <td className="px-4 py-3 text-sm font-bold text-blue-600 text-right">
                     Rp {new Intl.NumberFormat('id-ID').format(totalSubtotal)}

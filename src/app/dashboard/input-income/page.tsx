@@ -125,6 +125,9 @@ export default function InputIncomePage() {
       for (const item of data.lineItems) {
         if (item.product_id) {
           // Record stock movement (OUT)
+          // NOTE: Quantity is converted to integer as stock_movements table uses INTEGER type
+          // Fractional quantities are rounded down. For decimal precision, consider upgrading
+          // the stock_movements schema to use DECIMAL or NUMERIC type
           const { error: stockError } = await supabase.rpc(
             'record_stock_movement',
             {

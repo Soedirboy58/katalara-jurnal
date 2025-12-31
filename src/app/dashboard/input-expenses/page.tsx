@@ -339,6 +339,9 @@ export default function InputExpensesPage() {
               .eq('id', item.product_id)
             
             // Record stock movement (IN)
+            // NOTE: Quantity is converted to integer as stock_movements table uses INTEGER type
+            // Fractional quantities are rounded down. For decimal precision, consider upgrading
+            // the stock_movements schema to use DECIMAL or NUMERIC type
             const { error: stockError } = await supabase.rpc('record_stock_movement', {
               p_product_id: item.product_id,
               p_quantity: Math.floor(item.quantity), // Convert to integer
