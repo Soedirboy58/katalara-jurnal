@@ -162,6 +162,28 @@ export default function InputExpensesPage() {
     
     const quantity = parseFloat(current.quantity)
     const pricePerUnit = parseFloat(current.price_per_unit)
+    
+    // Validate quantity
+    if (quantity <= 0) {
+      showToast('error', 'Jumlah harus lebih dari 0')
+      return
+    }
+    
+    // Validate price
+    if (pricePerUnit <= 0) {
+      showToast('error', 'Harga beli harus lebih dari 0')
+      return
+    }
+    
+    // Check for duplicates
+    if (current.product_id) {
+      const isDuplicate = formState.items.lineItems.some(item => item.product_id === current.product_id)
+      if (isDuplicate) {
+        showToast('warning', `Produk "${current.product_name}" sudah ada dalam daftar!`)
+        return
+      }
+    }
+    
     const subtotal = quantity * pricePerUnit
     
     const newItem: LineItem = {
@@ -177,7 +199,7 @@ export default function InputExpensesPage() {
     
     actions.addItem(newItem)
     showToast('success', 'Item ditambahkan')
-  }, [formState.items.currentItem, actions, showToast])
+  }, [formState.items.currentItem, formState.items.lineItems, actions, showToast])
   
   // Show educational modal on first visit
   useEffect(() => {
