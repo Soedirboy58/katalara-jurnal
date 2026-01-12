@@ -203,11 +203,7 @@ export function ProductTable({ products, loading, onEdit, onAdjustStock, onDelet
                   </td>
                   <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-right">
                     <div className="text-sm font-semibold text-gray-900">
-<<<<<<< HEAD
                       {formatCurrency(sellingPrice || 0)}
-=======
-                      {formatCurrency(product.selling_price || 0)}
->>>>>>> fd348ae (Enable product table view with stock field support)
                     </div>
                     {margin !== null && (
                       <div className={`text-xs ${margin > 0 ? 'text-green-600' : 'text-red-600'}`}>
@@ -227,21 +223,7 @@ export function ProductTable({ products, loading, onEdit, onAdjustStock, onDelet
                       )}
                     </div>
                   </td>
-<<<<<<< HEAD
                   <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
-=======
-                  <td className="px-6 py-4 whitespace-nowrap text-center">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                      status.color === 'green' ? 'bg-green-100 text-green-800' :
-                      status.color === 'yellow' ? 'bg-yellow-100 text-yellow-800' :
-                      status.color === 'red' ? 'bg-red-100 text-red-800' :
-                      'bg-gray-100 text-gray-800'
-                    }`}>
-                      {status.label}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
->>>>>>> fd348ae (Enable product table view with stock field support)
                     <div className="flex items-center justify-center gap-2">
                       <Button
                         size="sm"
