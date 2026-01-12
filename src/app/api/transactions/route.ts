@@ -3,6 +3,16 @@ import { createClient } from '@/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
 
+function safeSupabaseHost() {
+  try {
+    const raw = process.env.NEXT_PUBLIC_SUPABASE_URL
+    if (!raw) return null
+    return new URL(raw).host
+  } catch {
+    return null
+  }
+}
+
 type PaymentStatusLabel = 'paid' | 'unpaid' | 'partial'
 
 type TransactionsUserColumn = 'owner_id' | 'user_id'
@@ -670,7 +680,18 @@ export async function POST(request: NextRequest) {
                 success: false,
                 error:
                   'Akses ditolak oleh Row Level Security (RLS) untuk tabel transactions. Jalankan SQL di meta.recommendedSql untuk menambahkan policy yang benar.',
-                meta: { ...errorPayload(tErr), recommendedSql: buildTransactionsRlsFixSql() }
+                meta: {
+                  ...errorPayload(tErr),
+                  recommendedSql: buildTransactionsRlsFixSql(),
+                  debug: {
+                    supabaseHost: safeSupabaseHost(),
+                    authUserId: user.id,
+                    userCol,
+                    insertUserId: transactionInsert?.user_id ?? null,
+                    insertOwnerId: transactionInsert?.owner_id ?? null,
+                    insertUserColValue: transactionInsert?.[userCol] ?? null
+                  }
+                }
               },
               { status: 403 }
             )
