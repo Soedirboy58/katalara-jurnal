@@ -286,20 +286,31 @@ export function useIncomes(options: UseIncomesOptions = {}): UseIncomesReturn {
         return { success: true, data: (json.data?.transaction || null) as any, warning }
       }
 
-      // Surface details in browser DevTools as well (toast still shows user-facing message).
-      console.error('Create transaction failed', {
-        status: res.status,
-        error: json?.error,
-        meta: json?.meta,
-        raw: json
-      })
-
       const txErrMsg = (json?.error || `HTTP ${res.status}` || '').toString()
       const txErrCode = (json?.meta?.code || json?.code || '').toString()
       const shouldFallback =
         res.status === 403 ||
         txErrCode === '42501' ||
         isTransactionsSchemaMismatch(txErrMsg)
+
+      if (shouldFallback) {
+        // Expected on some production environments when transactions RLS isn't aligned yet.
+        console.warn('Transactions insert blocked; falling back to legacy incomes', {
+          status: res.status,
+          code: txErrCode,
+          error: json?.error,
+          debug: json?.meta?.debug,
+          recommendedSql: json?.meta?.recommendedSql
+        })
+      } else {
+        // Surface details in browser DevTools as well (toast still shows user-facing message).
+        console.error('Create transaction failed', {
+          status: res.status,
+          error: json?.error,
+          meta: json?.meta,
+          raw: json
+        })
+      }
 
       if (!shouldFallback) {
         const meta = json?.meta ? `\n${JSON.stringify(json.meta)}` : ''
