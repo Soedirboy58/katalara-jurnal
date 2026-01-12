@@ -178,7 +178,7 @@ export const ExpensePaymentSummary: React.FC<ExpensePaymentSummaryProps> = ({
           <div className="grid grid-cols-2 gap-2">
             <select
               value={pph.preset}
-              onChange={(e) => onPphPresetChange(e.target.value as any)}
+              onChange={(e) => onPphPresetChange(e.target.value as '0' | '1' | '2' | '3' | 'custom')}
               className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
             >
               <option value="0">Tidak ada</option>

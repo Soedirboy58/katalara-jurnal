@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Product, ProductFilters, StockStatus } from '@/types'
+import type { AdjustStockParams } from '@/types/supabase-rpc'
 
 export function useProducts(filters?: ProductFilters & { productType?: 'physical' | 'service' }) {
   const [products, setProducts] = useState<Product[]>([])
@@ -73,8 +74,9 @@ export function useProducts(filters?: ProductFilters & { productType?: 'physical
       }
 
       setProducts(filteredData)
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'An error occurred'
+      setError(errorMessage)
       console.error('Error loading products:', err)
     } finally {
       setLoading(false)
@@ -82,15 +84,11 @@ export function useProducts(filters?: ProductFilters & { productType?: 'physical
   }
 
   function getStockStatus(product: Product): StockStatus {
-    if (!product.track_inventory) return 'HEALTHY'
-    const minStock = (product as any).min_stock_alert || (product as any).min_stock || 0
-    // Prefer legacy `stock` column (used widely in UI), fallback to `stock_quantity` if present.
-    const rawStock = (product as any).stock
-    const rawStockQty = (product as any).stock_quantity
-    const stockQty =
-      rawStock !== null && rawStock !== undefined
-        ? (Number(rawStock) || 0)
-        : (Number(rawStockQty) || 0)
+    if ((product as any).track_inventory === false) return 'HEALTHY'
+
+    const minStock = Number((product as any).min_stock_alert ?? (product as any).min_stock ?? 0) || 0
+    const rawStock = (product as any).current_stock ?? (product as any).stock ?? (product as any).stock_quantity ?? 0
+    const stockQty = Number(rawStock) || 0
     if (stockQty === 0) return 'OUT_OF_STOCK'
     if (stockQty <= minStock * 0.5) return 'CRITICAL'
     if (stockQty <= minStock) return 'LOW'
@@ -100,36 +98,38 @@ export function useProducts(filters?: ProductFilters & { productType?: 'physical
 
   async function createProduct(productData: Omit<Product, 'id' | 'created_at' | 'updated_at'>) {
     try {
-      const { data, error } = await (supabase
+      const { data, error } = await supabase
         .from('products')
-        .insert(productData as any)
+        .insert(productData)
         .select()
-        .single() as any)
+        .single()
 
       if (error) throw error
 
       await loadProducts()
       return { data, error: null }
-    } catch (err: any) {
-      return { data: null, error: err.message }
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'An error occurred'
+      return { data: null, error: errorMessage }
     }
   }
 
   async function updateProduct(id: string, updates: Partial<Product>) {
     try {
-      const { data, error } = await (supabase
+      const { data, error } = await supabase
         .from('products')
-        .update(updates as any)
+        .update(updates)
         .eq('id', id)
         .select()
-        .single() as any)
+        .single()
 
       if (error) throw error
 
       await loadProducts()
       return { data, error: null }
-    } catch (err: any) {
-      return { data: null, error: err.message }
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'An error occurred'
+      return { data: null, error: errorMessage }
     }
   }
 
@@ -144,25 +144,28 @@ export function useProducts(filters?: ProductFilters & { productType?: 'physical
 
       await loadProducts()
       return { error: null }
-    } catch (err: any) {
-      return { error: err.message }
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'An error occurred'
+      return { error: errorMessage }
     }
   }
 
   async function adjustStock(productId: string, quantityChange: number, notes?: string) {
     try {
-      const { data, error } = await (supabase.rpc('adjust_stock', {
+      const params: AdjustStockParams = {
         p_product_id: productId,
         p_quantity_change: quantityChange,
         p_notes: notes
-      } as any) as any)
+      }
+      const { data, error } = await supabase.rpc('adjust_stock', params)
 
       if (error) throw error
 
       await loadProducts()
       return { data, error: null }
-    } catch (err: any) {
-      return { data: null, error: err.message }
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'An error occurred'
+      return { data: null, error: errorMessage }
     }
   }
 

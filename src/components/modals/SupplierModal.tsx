@@ -97,10 +97,9 @@ export default function SupplierModal({ isOpen, onClose, onSelect, selectedSuppl
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newSupplier)
       })
+      const json = await res.json().catch(() => ({} as any))
 
-      const json = await res.json()
-      
-      if (json.success) {
+      if (res.ok && json.success) {
         // Refresh list & select new supplier
         await fetchSuppliers()
         onSelect(json.data)
@@ -116,9 +115,10 @@ export default function SupplierModal({ isOpen, onClose, onSelect, selectedSuppl
       } else {
         setErrorMessage(json.error || 'Gagal menambahkan supplier')
       }
-    } catch (error: any) {
-      console.error('Error adding supplier:', error)
-      setErrorMessage(error.message || 'Terjadi kesalahan saat menambahkan supplier')
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Terjadi kesalahan saat menambahkan supplier'
+      console.error('Error adding supplier:', err)
+      setErrorMessage(message)
     } finally {
       setIsSubmitting(false)
     }
@@ -206,7 +206,7 @@ export default function SupplierModal({ isOpen, onClose, onSelect, selectedSuppl
 
             <select
               value={newSupplier.supplier_type}
-              onChange={(e) => setNewSupplier({ ...newSupplier, supplier_type: e.target.value as any })}
+              onChange={(e) => setNewSupplier({ ...newSupplier, supplier_type: e.target.value as 'raw_materials' | 'finished_goods' | 'both' | 'services' })}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
             >
               <option value="finished_goods">📦 Barang Jadi (Reseller)</option>

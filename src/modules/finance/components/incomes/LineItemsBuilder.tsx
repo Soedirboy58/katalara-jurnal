@@ -15,6 +15,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, Package, Search } from 'lucide-react'
 import type { Product } from '@/modules/inventory/types/inventoryTypes'
+import type { ProductLegacy } from '@/types/legacy'
 
 export interface LineItem {
   id: string
@@ -282,6 +283,7 @@ export function LineItemsBuilder({
     const priceNum = parseNumber(price)
     const subtotal = qty * priceNum
 
+    const legacy = product as ProductLegacy
     const newItem: LineItem = {
       id: `item-${Date.now()}`,
       product_id: selectedProductId,
@@ -290,8 +292,8 @@ export function LineItemsBuilder({
       unit: finalUnit,
       price: priceNum,
       subtotal: subtotal,
-      buy_price: (product as any).cost_price || 0,
-      service_duration: (product as any).service_duration
+      buy_price: (product as any).cost_price ?? (product as any).buy_price ?? 0,
+      service_duration: (product as any).service_duration ?? legacy.service_duration
     }
 
     onChange([...items, newItem])

@@ -224,6 +224,7 @@ export function ProductTable({ products, loading, onEdit, onAdjustStock, onDelet
                     </div>
                   </td>
                   <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
+                  <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
                     <div className="flex items-center justify-center gap-2">
                       <Button
                         size="sm"

@@ -29,10 +29,9 @@ export interface Database {
           description: string | null
           cost_price: number
           selling_price: number
-          stock: number | null
-          min_stock_alert: number
-          track_inventory: boolean
           image_url: string | null
+          track_inventory: boolean
+          min_stock_alert: number
           is_active: boolean
           created_at: string
           updated_at: string
@@ -48,7 +47,8 @@ export interface Database {
           description?: string | null
           cost_price?: number
           selling_price?: number
-          stock?: number | null
+          image_url?: string | null
+          track_inventory?: boolean
           min_stock_alert?: number
           track_inventory?: boolean
           image_url?: string | null
@@ -67,7 +67,8 @@ export interface Database {
           description?: string | null
           cost_price?: number
           selling_price?: number
-          stock?: number | null
+          image_url?: string | null
+          track_inventory?: boolean
           min_stock_alert?: number
           track_inventory?: boolean
           image_url?: string | null

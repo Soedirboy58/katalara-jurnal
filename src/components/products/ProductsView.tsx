@@ -96,7 +96,7 @@ export function ProductsView() {
         })
         break
       case 'high-value':
-        filtered = filtered.filter(p => (p as any).selling_price >= 50000)
+        filtered = filtered.filter(p => p.selling_price >= 50000)
         break
       case 'best-seller':
         // Would filter based on sales data
@@ -155,7 +155,7 @@ export function ProductsView() {
       id: 'high-value' as CategoryFilter,
       label: 'High Value',
       icon: '💰',
-      count: products.filter(p => (p as any).selling_price >= 50000).length,
+      count: products.filter(p => p.selling_price >= 50000).length,
       color: 'bg-purple-600'
     },
     {
@@ -237,10 +237,24 @@ export function ProductsView() {
 
   const handleBulkExport = () => {
     const selectedData = products.filter(p => selectedProducts.includes(p.id))
+
+    const getStockQty = (p: Product) => {
+      const qty = (p as any).stock ?? (p as any).stock_quantity ?? (p as any).current_stock ?? (p as any).quantity ?? 0
+      const asNum = typeof qty === 'string' ? Number(qty) : qty
+      return Number.isFinite(asNum) ? asNum : 0
+    }
+
     const csv = [
-      ['Nama', 'SKU', 'Kategori', 'Harga Beli', 'Harga Jual'].join(','),
+      ['Nama', 'SKU', 'Kategori', 'Harga Beli', 'Harga Jual', 'Stok'].join(','),
       ...selectedData.map(p => 
-        [p.name, p.sku, p.category, (p as any).cost_price, (p as any).selling_price].join(',')
+        [
+          p.name,
+          p.sku,
+          p.category,
+          (p as any).cost_price ?? (p as any).buy_price ?? 0,
+          (p as any).selling_price ?? (p as any).sell_price ?? 0,
+          getStockQty(p)
+        ].join(',')
       )
     ].join('\n')
 
