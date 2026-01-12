@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react'
 import { Modal } from '@/components/ui/Modal'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
-import { useProducts } from '@/hooks/useProducts'
 import type { Product } from '@/types'
 import { generateSKU } from '@/utils/helpers'
 import { createClient } from '@/lib/supabase/client'
@@ -16,6 +15,7 @@ interface ProductModalProps {
   onClose: () => void
   product: Product | null
   onSuccess: () => void
+  onCreated?: (product: { id: string; name: string; unit?: string; cost_price?: number }) => void
 }
 
 interface ImagePreview {
@@ -23,8 +23,7 @@ interface ImagePreview {
   preview: string
 }
 
-export function ProductModal({ isOpen, onClose, product, onSuccess }: ProductModalProps) {
-  const { createProduct, updateProduct } = useProducts()
+export function ProductModal({ isOpen, onClose, product, onSuccess, onCreated }: ProductModalProps) {
   const [loading, setLoading] = useState(false)
   const [images, setImages] = useState<ImagePreview[]>([])
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -32,6 +31,7 @@ export function ProductModal({ isOpen, onClose, product, onSuccess }: ProductMod
     name: '',
     sku: '',
     category: '',
+    product_type: 'physical' as 'physical' | 'service',
     unit: 'pcs',
     cost_price: 0,
     selling_price: 0,
@@ -41,10 +41,18 @@ export function ProductModal({ isOpen, onClose, product, onSuccess }: ProductMod
 
   useEffect(() => {
     if (product) {
+      const inferredType =
+        ((product as any).product_type as string | undefined) === 'service'
+          ? 'service'
+          : ((product as any).product_type as string | undefined) === 'physical'
+            ? 'physical'
+            : (product.track_inventory === false ? 'service' : 'physical')
+
       setFormData({
         name: product.name,
         sku: product.sku || '',
         category: product.category || '',
+        product_type: inferredType,
         unit: (product as any).unit || 'pcs',
         cost_price: (product as any).cost_price || 0,
         selling_price: (product as any).selling_price || 0,
@@ -57,6 +65,7 @@ export function ProductModal({ isOpen, onClose, product, onSuccess }: ProductMod
         name: '',
         sku: '',
         category: '',
+        product_type: 'physical',
         unit: 'pcs',
         cost_price: 0,
         selling_price: 0,
@@ -67,6 +76,20 @@ export function ProductModal({ isOpen, onClose, product, onSuccess }: ProductMod
     }
     setErrorMessage(null)
   }, [product, isOpen])
+
+  // Auto-sync inventory tracking based on item type.
+  // Services should not track inventory.
+  useEffect(() => {
+    if (formData.product_type === 'service' && formData.track_inventory) {
+      setFormData((prev) => ({ ...prev, track_inventory: false }))
+    }
+    if (formData.product_type === 'physical' && product == null) {
+      // For new physical products, default to tracking inventory.
+      // (User can still turn it off manually if needed.)
+      setFormData((prev) => ({ ...prev, track_inventory: prev.track_inventory ?? true }))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.product_type])
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || [])
@@ -133,16 +156,17 @@ export function ProductModal({ isOpen, onClose, product, onSuccess }: ProductMod
       const sku = formData.sku || generateSKU(formData.name, formData.category)
 
       // STEP 1: Insert product data
-      const productData = {
+      const productData: any = {
         user_id: user.id,
         name: formData.name,
         sku,
         category: formData.category || null,
+        product_type: formData.product_type,
         unit: formData.unit,
         cost_price: formData.cost_price,
         selling_price: formData.selling_price,
         min_stock_alert: formData.min_stock_alert,
-        track_inventory: formData.track_inventory,
+        track_inventory: formData.product_type === 'service' ? false : formData.track_inventory,
         is_active: true
       }
 
@@ -152,13 +176,35 @@ export function ProductModal({ isOpen, onClose, product, onSuccess }: ProductMod
 
       if (product) {
         // Update existing product
-        const { error } = await updateProduct(product.id, productData)
-        if (error) throw new Error(error)
+        let updateResult = await supabase
+          .from('products')
+          .update({
+            ...productData,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', product.id)
+          .select('id')
+          .single()
+
+        if (updateResult.error && updateResult.error.message?.includes('product_type')) {
+          const { product_type, ...fallback } = productData
+          updateResult = await supabase
+            .from('products')
+            .update({
+              ...fallback,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', product.id)
+            .select('id')
+            .single()
+        }
+
+        if (updateResult.error) throw new Error(updateResult.error.message)
         productId = product.id
         console.log('✅ Product updated successfully')
       } else {
         // Create new product - need to get the ID back
-        const { data: insertedProduct, error: insertError } = await supabase
+        let insertResult = await supabase
           .from('products')
           .insert({
             ...productData,
@@ -168,12 +214,33 @@ export function ProductModal({ isOpen, onClose, product, onSuccess }: ProductMod
           .select('id')
           .single()
 
-        if (insertError) throw new Error(insertError.message)
-        if (!insertedProduct) throw new Error('Failed to get product ID after insert')
+        // Backward compatibility: older schemas may not have `product_type`.
+        if (insertResult.error && insertResult.error.message?.includes('product_type')) {
+          const { product_type, ...fallback } = productData
+          insertResult = await supabase
+            .from('products')
+            .insert({
+              ...fallback,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            })
+            .select('id')
+            .single()
+        }
+
+        if (insertResult.error) throw new Error(insertResult.error.message)
+        if (!insertResult.data) throw new Error('Failed to get product ID after insert')
         
-        productId = insertedProduct.id
+        productId = insertResult.data.id
         console.log('✅ Product created with ID:', productId)
       }
+
+      onCreated?.({
+        id: productId,
+        name: formData.name,
+        unit: formData.unit,
+        cost_price: formData.cost_price
+      })
 
       // STEP 2: Upload image to Supabase Storage (only first image, sesuai schema)
       if (images.length > 0) {
@@ -346,6 +413,33 @@ export function ProductModal({ isOpen, onClose, product, onSuccess }: ProductMod
           />
         </div>
 
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Jenis Item
+          </label>
+          <select
+            value={formData.product_type}
+            onChange={(e) => {
+              const nextType = e.target.value as 'physical' | 'service'
+              setFormData((prev) => ({
+                ...prev,
+                product_type: nextType,
+                // Services should not track inventory.
+                track_inventory: nextType === 'service' ? false : prev.track_inventory,
+                // Nice default unit for services.
+                unit: nextType === 'service' && (!prev.unit || prev.unit === 'pcs') ? 'jam' : prev.unit,
+              }))
+            }}
+            className="w-full h-10 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="physical">Produk (Barang)</option>
+            <option value="service">Jasa (Layanan)</option>
+          </select>
+          <p className="text-xs text-gray-500 mt-1">
+            Untuk Jasa, stok tidak akan dilacak.
+          </p>
+        </div>
+
         <div className="grid grid-cols-2 gap-4">
           <Input
             label="Harga Beli"
@@ -413,6 +507,7 @@ export function ProductModal({ isOpen, onClose, product, onSuccess }: ProductMod
             id="track_inventory"
             checked={formData.track_inventory}
             onChange={(e) => setFormData({ ...formData, track_inventory: e.target.checked })}
+            disabled={formData.product_type === 'service'}
             className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
           />
           <label htmlFor="track_inventory" className="text-sm font-medium text-gray-700">

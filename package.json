@@ -8,8 +8,10 @@
   },
   "scripts": {
     "dev": "next dev",
+    "dev:3008": "next dev -p 3008",
     "build": "next build",
     "start": "next start",
+    "start:3008": "next start -p 3008",
     "lint": "eslint"
   },
   "dependencies": {
@@ -22,13 +24,15 @@
     "@supabase/supabase-js": "^2.81.1",
     "clsx": "^2.1.1",
     "dotenv": "^17.2.3",
-    "jspdf": "^3.0.4",
+    "jspdf": "^4.0.0",
     "lucide-react": "^0.554.0",
-    "next": "16.0.3",
+    "next": "^16.1.1",
+    "pdfjs-dist": "^5.4.530",
     "qrcode.react": "^4.2.0",
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "react-image-crop": "^11.0.10",
+    "react-pdf": "^10.3.0",
     "react-qr-code": "^2.0.18",
     "recharts": "^3.4.1",
     "tailwind-merge": "^3.4.0",
@@ -37,6 +41,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20.19.25",
+    "@types/pdfjs-dist": "^2.10.377",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",

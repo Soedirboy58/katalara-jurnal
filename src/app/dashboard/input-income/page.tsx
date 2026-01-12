@@ -14,33 +14,36 @@ import { IncomesForm } from '@/modules/finance/components/incomes/IncomesForm'
 import { useProducts } from '@/hooks/useProducts'
 import CustomerModal from '@/components/modals/CustomerModal'
 import type { IncomeFormData } from '@/modules/finance/types/financeTypes'
-import { createClient } from '@/lib/supabase/client'
 import { X, CheckCircle, HelpCircle } from 'lucide-react'
 import { TransactionHistory, type TransactionHistoryItem, type TransactionFilters } from '@/components/transactions/TransactionHistory'
+import { getIncomeCategoryLabel } from '@/modules/finance/types/financeTypes'
 import { EditTransactionModal } from '@/components/transactions/EditTransactionModal'
 import { PreviewTransactionModal } from '@/components/transactions/PreviewTransactionModal'
+import { ProductModal } from '@/components/products/ProductModal'
 
 export const dynamic = 'force-dynamic'
 
 export default function InputIncomePage() {
-  const supabase = createClient()
-  
   // Hooks
   const {
     incomes,
     loading: loadingIncomes,
     error,
     fetchIncomes,
+    createIncome,
     deleteIncome
   } = useIncomes({ autoFetch: true })
 
   const {
     products,
-    loading: loadingProducts
+    loading: loadingProducts,
+    refresh: refreshProducts
   } = useProducts()
 
   // Modal state
   const [showCustomerModal, setShowCustomerModal] = useState(false)
+  const [selectedCustomer, setSelectedCustomer] = useState<any>(null)
+  const [showProductModal, setShowProductModal] = useState(false)
   const [showTutorial, setShowTutorial] = useState(false)
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [previewModalOpen, setPreviewModalOpen] = useState(false)
@@ -48,6 +51,23 @@ export default function InputIncomePage() {
   const [activeFaq, setActiveFaq] = useState<number | null>(null)
   const [showFaqForm, setShowFaqForm] = useState(false)
   const [userQuestion, setUserQuestion] = useState('')
+
+  // Save UX state
+  const [saving, setSaving] = useState(false)
+  const [toast, setToast] = useState<{
+    show: boolean
+    type: 'success' | 'error' | 'warning'
+    message: string
+  }>({
+    show: false,
+    type: 'success',
+    message: ''
+  })
+
+  const showToast = (type: 'success' | 'error' | 'warning', message: string) => {
+    setToast({ show: true, type, message })
+    setTimeout(() => setToast({ show: false, type, message: '' }), 4000)
+  }
 
   // Transaction history state
   const [currentPage, setCurrentPage] = useState(1)
@@ -70,106 +90,75 @@ export default function InputIncomePage() {
   }, [])
 
   // Convert incomes to TransactionHistoryItem format
-  const historyItems: TransactionHistoryItem[] = incomes.map(income => ({
-    id: income.id,
-    date: income.income_date,
-    category: income.income_category || 'other_income',
-    customer_or_supplier: income.customer_name || undefined,
-    amount: Number(income.grand_total || income.total_amount || 0),
-    status: income.payment_status === 'paid' ? 'Lunas' : income.payment_status === 'unpaid' ? 'Pending' : 'Tempo',
-    payment_method: income.payment_method || undefined,
-    description: income.notes || undefined
-  }))
+  const historyItems: TransactionHistoryItem[] = incomes.map((t: any) => {
+    const rawStatus = (t.payment_status || '').toString().toLowerCase().trim()
+    const status: TransactionHistoryItem['status'] =
+      rawStatus === 'paid' || rawStatus === 'lunas'
+        ? 'Lunas'
+        : rawStatus === 'partial'
+          ? 'Sebagian'
+          : 'Tempo'
+
+    const dateRaw = (t.transaction_date || t.income_date || '').toString()
+    const date = dateRaw ? dateRaw.slice(0, 10) : ''
+
+    const catRaw = (t.category || t.income_category || t.incomeCategory || '').toString()
+    const categoryLabel = catRaw ? getIncomeCategoryLabel(catRaw) : '❓ Kategori belum tersimpan'
+
+    return {
+      id: t.id,
+      date,
+      category: catRaw,
+      category_label: categoryLabel,
+      customer_or_supplier: t.customer_name || undefined,
+      amount: Number(t.total || t.grand_total || t.total_amount || t.amount || 0),
+      status,
+      payment_method: t.payment_type || t.payment_method || undefined,
+      description: t.notes || undefined,
+      due_date: t.due_date || undefined
+    }
+  })
 
   // Handle form submission
   const handleSubmit = async (data: IncomeFormData) => {
     try {
-      // 1. Insert income record
-      const { data: income, error: incomeError } = await supabase
-        .from('incomes')
-        .insert({
-          income_type: data.income_type,
-          income_category: data.income_category,
-          income_date: data.income_date,
-          customer_name: data.customer_name,
-          payment_method: data.payment_method,
-          payment_type: data.payment_type,
-          notes: data.notes,
-          total_amount: data.lineItems.reduce((sum, item) => 
-            sum + (item.qty * item.price_per_unit), 0
-          )
-        })
-        .select()
-        .single()
+      setSaving(true)
+      const result = await createIncome(data)
 
-      if (incomeError) throw incomeError
-
-      // 2. Insert income items
-      const itemsToInsert = data.lineItems.map(item => ({
-        income_id: income.id,
-        product_id: item.product_id,
-        product_name: item.product_name,
-        qty: item.qty,
-        unit: item.unit,
-        price_per_unit: item.price_per_unit,
-        buy_price: item.buy_price
-      }))
-
-      const { error: itemsError } = await supabase
-        .from('income_items')
-        .insert(itemsToInsert)
-
-      if (itemsError) throw itemsError
-
-      // 3. Update stock for physical products
-      for (const item of data.lineItems) {
-        if (item.product_id) {
-          // Reduce stock
-          const { error: stockError } = await supabase.rpc(
-            'update_product_stock',
-            {
-              product_id: item.product_id,
-              qty_change: -item.qty
-            }
-          )
-
-          if (stockError) {
-            console.error('Stock update error:', stockError)
-          }
-
-          // Log stock movement
-          await supabase.from('stock_movements').insert({
-            product_id: item.product_id,
-            movement_type: 'out',
-            quantity: item.qty,
-            reference_type: 'income',
-            reference_id: income.id,
-            movement_date: data.income_date,
-            notes: `Penjualan kepada ${data.customer_name}`
-          })
+      if (!result.success) {
+        showToast('error', result.error || '❌ Gagal menyimpan transaksi')
+        return {
+          success: false,
+          error: result.error || 'Gagal menyimpan transaksi'
         }
       }
 
-      // Success
-      await fetchIncomes()
+      await refreshProducts()
+      setSelectedCustomer(null)
+      if (result.warning) showToast('warning', result.warning)
+      else showToast('success', '✅ Transaksi berhasil disimpan')
       return { success: true }
     } catch (error: any) {
       console.error('Submit error:', error)
+      showToast('error', `❌ Gagal menyimpan: ${error.message || 'Terjadi kesalahan'}`)
       return {
         success: false,
         error: error.message || 'Gagal menyimpan transaksi'
       }
+    } finally {
+      setSaving(false)
     }
   }
 
   // Handle delete
   const handleDelete = async (incomeId: string) => {
-    const confirmed = confirm('⚠️ Yakin ingin menghapus transaksi ini?\n\nStok produk TIDAK akan dikembalikan.')
+    const confirmed = confirm('⚠️ Yakin ingin menghapus transaksi ini?\n\nStok produk akan dikembalikan (rollback).')
     if (!confirmed) return
 
     const result = await deleteIncome(incomeId)
     if (result.success) {
       alert('✅ Transaksi berhasil dihapus')
+      await refreshProducts()
     } else {
       alert(`❌ Gagal menghapus: ${result.error}`)
     }
@@ -177,17 +166,39 @@ export default function InputIncomePage() {
 
   // Handle bulk delete
   const handleBulkDelete = async (ids: string[]) => {
-    for (const id of ids) {
-      await deleteIncome(id)
+    const confirmed = confirm(`Hapus ${ids.length} transaksi yang dipilih?\n\nStok produk akan dikembalikan (rollback).`)
+    if (!confirmed) return
+
+    // Prefer bulk delete on transactions endpoint; fall back to per-item delete (supports legacy incomes)
+    const res = await fetch('/api/transactions', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids })
+    }).catch(() => null as any)
+
+    const json = res ? await res.json().catch(() => null) : null
+    if (res?.ok && json?.success) {
+      alert(`✅ ${ids.length} transaksi berhasil dihapus`)
+      await fetchIncomes()
+      await refreshProducts()
+      return
     }
-    alert(`✅ ${ids.length} transaksi berhasil dihapus`)
+
+    // Fallback: delete one-by-one via hook
+    const results = await Promise.all(ids.map((id) => deleteIncome(id)))
+    const failed = results.filter((r) => !r.success)
+    if (failed.length) {
+      alert(`❌ Gagal menghapus ${failed.length} transaksi. Cek satu per satu.`)
+    } else {
+      alert(`✅ ${ids.length} transaksi berhasil dihapus`)
+    }
     await fetchIncomes()
+    await refreshProducts()
   }
 
   // Handle edit
   const handleEdit = (incomeId: string) => {
-    setSelectedTransactionId(incomeId)
-    setEditModalOpen(true)
+    alert('⚠️ Edit transaksi pendapatan belum tersedia (sementara).')
   }
 
   // Handle preview
@@ -202,11 +213,11 @@ export default function InputIncomePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
+    <div className="min-h-screen bg-gray-50 p-3 sm:p-6 pb-24">
+      <div className="max-w-7xl mx-auto space-y-4 sm:space-y-6">
         {/* Page Header */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">
                 💰 Input Pendapatan
@@ -217,7 +228,7 @@ export default function InputIncomePage() {
             </div>
             <button
               onClick={() => setShowTutorial(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg transition-colors"
+              className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg transition-colors"
             >
               <HelpCircle className="w-5 h-5" />
               <span className="text-sm font-medium">Tutorial</span>
@@ -228,10 +239,12 @@ export default function InputIncomePage() {
         {/* Income Form */}
         <IncomesForm
           onSubmit={handleSubmit}
-          loading={loadingIncomes}
+          loading={saving}
           products={products as any}
           loadingProducts={loadingProducts}
+          onAddProduct={() => setShowProductModal(true)}
           onAddCustomer={() => setShowCustomerModal(true)}
+          selectedCustomer={selectedCustomer}
         />
 
         {/* Transactions Table */}
@@ -282,11 +295,11 @@ export default function InputIncomePage() {
       <button
         type="button"
         onClick={() => setShowTutorial(true)}
-        className="fixed bottom-6 right-6 z-40 bg-green-600 hover:bg-green-700 text-white rounded-full p-4 shadow-lg flex items-center gap-2 transition-all hover:scale-110"
+        className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-40 bg-green-600 hover:bg-green-700 text-white rounded-full p-3 sm:p-4 shadow-lg flex items-center gap-2 transition-all hover:scale-110"
         title="Panduan Penggunaan"
       >
         <HelpCircle className="w-6 h-6" />
-        <span className="font-medium">Tutorial</span>
+        <span className="font-medium hidden sm:inline">Tutorial</span>
       </button>
 
       {/* Modals */}
@@ -294,10 +307,94 @@ export default function InputIncomePage() {
         <CustomerModal
           isOpen={showCustomerModal}
           onClose={() => setShowCustomerModal(false)}
-          onSelect={() => {}}
-          selectedCustomer={null}
+          onSelect={(c: any) => {
+            setSelectedCustomer(c)
+            setShowCustomerModal(false)
+          }}
+          selectedCustomer={selectedCustomer}
         />
       )}
+
+      {/* Saving Overlay */}
+      {saving && (
+        <div className="fixed inset-0 z-[90] bg-black/20 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-2xl border border-gray-200 p-6 w-full max-w-sm">
+            <div className="flex items-center gap-3">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600" />
+              <div>
+                <p className="text-sm font-semibold text-gray-900">Menyimpan transaksi...</p>
+                <p className="text-xs text-gray-600">Mohon tunggu sebentar</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast Notification (Centered) */}
+      {toast.show && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] animate-slide-in">
+          <div
+            className={`
+              rounded-lg shadow-2xl p-4 min-w-[300px] max-w-md
+              flex items-start gap-3 border-l-4
+              ${
+                toast.type === 'success'
+                  ? 'bg-green-50 border-green-500'
+                  : toast.type === 'error'
+                    ? 'bg-red-50 border-red-500'
+                    : 'bg-amber-50 border-amber-500'
+              }
+            `}
+          >
+            <span className="text-2xl flex-shrink-0">
+              {toast.type === 'success' ? '✅' : toast.type === 'error' ? '❌' : '⚠️'}
+            </span>
+            <div className="flex-1">
+              <p
+                className={`
+                  text-sm font-medium
+                  ${
+                    toast.type === 'success'
+                      ? 'text-green-900'
+                      : toast.type === 'error'
+                        ? 'text-red-900'
+                        : 'text-amber-900'
+                  }
+                `}
+              >
+                {toast.message}
+              </p>
+            </div>
+            <button
+              onClick={() => setToast({ ...toast, show: false })}
+              className={`
+                flex-shrink-0 rounded-full p-1 transition-colors
+                ${
+                  toast.type === 'success'
+                    ? 'hover:bg-green-200'
+                    : toast.type === 'error'
+                      ? 'hover:bg-red-200'
+                      : 'hover:bg-amber-200'
+                }
+              `}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
+
+      <ProductModal
+        isOpen={showProductModal}
+        onClose={() => setShowProductModal(false)}
+        product={null}
+        onSuccess={async () => {
+          await refreshProducts()
+          setShowProductModal(false)
+        }}
+      />
 
       {/* Tutorial Modal - Enhanced Educational Version */}
       {showTutorial && (
@@ -389,9 +486,9 @@ export default function InputIncomePage() {
                 <div className="border-l-4 border-green-500 pl-4">
                   <h3 className="text-lg font-semibold text-gray-800 mb-2">2️⃣ Customer (Opsional)</h3>
                   <ul className="list-disc list-inside text-gray-600 space-y-1 text-sm">
-                    <li>Pilih customer yang sudah ada atau buat baru</li>
-                    <li>Bisa <strong>langsung lanjut tanpa customer</strong> (Anonymous)</li>
-                    <li>Customer membantu melacak siapa yang sering membeli</li>
+                    <li>Pilih pelanggan yang sudah ada atau buat baru</li>
+                    <li>Bisa <strong>langsung lanjut tanpa pelanggan</strong> (Anonymous)</li>
+                    <li>Pelanggan membantu melacak siapa yang sering membeli</li>
                   </ul>
                 </div>
                 
@@ -410,13 +507,13 @@ export default function InputIncomePage() {
                   <div className="grid grid-cols-3 gap-3 mt-2">
                     <div className="bg-gray-50 p-3 rounded text-center">
                       <div className="text-2xl mb-1">💵</div>
-                      <p className="font-semibold text-sm">Cash</p>
+                      <p className="font-semibold text-sm">Tunai</p>
                       <p className="text-xs text-gray-600">Tunai langsung</p>
                     </div>
                     <div className="bg-gray-50 p-3 rounded text-center">
                       <div className="text-2xl mb-1">🏧</div>
                       <p className="font-semibold text-sm">Transfer</p>
-                      <p className="text-xs text-gray-600">Bank/E-wallet</p>
+                      <p className="text-xs text-gray-600">Bank/Dompet Digital</p>
                     </div>
                     <div className="bg-gray-50 p-3 rounded text-center">
                       <div className="text-2xl mb-1">📅</div>
@@ -445,7 +542,7 @@ export default function InputIncomePage() {
                     },
                     {
                       q: 'Apakah harus input customer setiap transaksi?',
-                      a: 'Tidak wajib! Customer bersifat opsional. Berguna untuk melacak pelanggan setia, tapi boleh dikosongkan untuk transaksi retail.'
+                      a: 'Tidak wajib! Pelanggan bersifat opsional. Berguna untuk melacak pelanggan setia, tapi boleh dikosongkan untuk transaksi retail.'
                     },
                     {
                       q: 'Kenapa stok produk berkurang otomatis?',

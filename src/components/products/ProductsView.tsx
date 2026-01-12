@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button'
 import { ProductKPICards } from './ProductKPICards'
 import { ProductCategoryTabs } from './ProductCategoryTabs'
 // import { ProductTableAdvanced } from './ProductTableAdvanced' // ⚠️ Disabled - uses old schema fields
+import { ProductTable } from './ProductTable'
 import { ProductCardView } from './ProductCardView'
 import { BulkActionsBar } from './BulkActionsBar'
 import { ProductModal } from './ProductModal'
@@ -46,9 +47,26 @@ export function ProductsView() {
   // Computed values for KPIs  
   const kpiData = useMemo(() => {
     const totalProducts = products.length
-    // ⚠️ Stock tracking disabled - fields not in schema
-    const totalStockValue = 0
-    const lowStockCount = 0
+
+    const getStockQty = (p: Product) => {
+      const qty = (p as any).stock ?? (p as any).stock_quantity ?? (p as any).quantity ?? 0
+      const asNum = typeof qty === 'string' ? Number(qty) : qty
+      return Number.isFinite(asNum) ? asNum : 0
+    }
+
+    const getCost = (p: Product) => {
+      const cost = (p as any).cost_price ?? (p as any).buy_price ?? 0
+      const asNum = typeof cost === 'string' ? Number(cost) : cost
+      return Number.isFinite(asNum) ? asNum : 0
+    }
+
+    // Compute only if schema supports stock_quantity/stock
+    const totalStockValue = products.reduce((sum, p) => sum + (getCost(p) * getStockQty(p)), 0)
+
+    const lowStockCount = products.filter(p => {
+      const st = getStockStatus(p)
+      return st === 'LOW' || st === 'CRITICAL' || st === 'OUT_OF_STOCK'
+    }).length
 
     // Best seller (placeholder - would need sales data)
     const bestSeller = products[0]?.name || 'N/A'
@@ -72,8 +90,10 @@ export function ProductsView() {
     // Apply category filter
     switch (categoryFilter) {
       case 'low-stock':
-        // ⚠️ Stock tracking disabled
-        filtered = []
+        filtered = filtered.filter(p => {
+          const st = getStockStatus(p)
+          return st === 'LOW' || st === 'CRITICAL' || st === 'OUT_OF_STOCK'
+        })
         break
       case 'high-value':
         filtered = filtered.filter(p => (p as any).selling_price >= 50000)
@@ -154,8 +174,27 @@ export function ProductsView() {
   }
 
   const handleAdjustStock = (product: Product) => {
-    setSelectedProduct(product)
-    setIsStockModalOpen(true)
+    // Minimal UX: prompt-based stock adjust until StockAdjustModal is re-enabled
+    const raw = prompt(
+      `Penyesuaian stok untuk: ${product.name}\n\nMasukkan perubahan stok (contoh: 5 atau -3):`,
+      '0'
+    )
+    if (raw === null) return
+    const qtyChange = Number(raw)
+    if (!Number.isFinite(qtyChange) || qtyChange === 0) {
+      alert('Perubahan stok tidak valid atau 0')
+      return
+    }
+    const notes = prompt('Catatan (opsional):', 'Penyesuaian stok manual') || undefined
+
+    ;(async () => {
+      const { error } = await adjustStock(product.id, qtyChange, notes)
+      if (error) {
+        alert('Gagal menyesuaikan stok: ' + error)
+        return
+      }
+      alert('✅ Stok berhasil disesuaikan')
+    })()
   }
 
   const handleDelete = async (product: Product) => {
@@ -373,10 +412,13 @@ export function ProductsView() {
 
       {/* Product Display */}
       {viewMode === 'table' ? (
-        <div className="bg-white p-8 rounded-lg shadow text-center">
-          <p className="text-gray-600">⚠️ Table view temporarily disabled (schema update)</p>
-          <Button onClick={() => setViewMode('card')} className="mt-4">Switch to Card View</Button>
-        </div>
+        <ProductTable
+          products={paginatedProducts}
+          loading={loading}
+          onEdit={handleEdit}
+          onAdjustStock={handleAdjustStock}
+          onDelete={handleDelete}
+        />
       ) : (
         <ProductCardView
           products={paginatedProducts}

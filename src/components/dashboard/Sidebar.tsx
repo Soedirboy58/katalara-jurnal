@@ -14,6 +14,7 @@ import {
   XMarkIcon,
   Bars3Icon,
   CubeIcon,
+  WrenchScrewdriverIcon,
   UserGroupIcon,
   ChartBarIcon,
   RocketLaunchIcon,
@@ -56,6 +57,13 @@ const menuItems = [
     href: '/dashboard/products', 
     icon: CubeIcon,
     description: 'Kelola produk & stok'
+  },
+  {
+    name: 'Produksi / Perakitan',
+    href: '/dashboard/production',
+    icon: WrenchScrewdriverIcon,
+    description: 'Rakit produk jadi dari komponen',
+    badge: 'New'
   },
   { 
     name: 'Pelanggan', 
@@ -177,7 +185,7 @@ export function Sidebar({ isOpen, onClose, collapsed, onToggleCollapse }: Sideba
               {!collapsed && (
                 <div className="text-center">
                   <h2 className="text-base font-bold text-white">Katalara</h2>
-                  <p className="text-[10px] text-white/50 font-medium">Business Platform</p>
+                  <p className="text-[10px] text-white/80 font-medium">Business Platform</p>
                 </div>
               )}
             </div>
@@ -210,7 +218,7 @@ export function Sidebar({ isOpen, onClose, collapsed, onToggleCollapse }: Sideba
                       ${
                         isActive
                           ? 'bg-white/20 text-white shadow-md'
-                          : 'text-white/80 hover:bg-white/10 hover:text-white'
+                          : 'text-white hover:bg-white/10'
                       }
                     `}
                   >

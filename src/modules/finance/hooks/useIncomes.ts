@@ -11,8 +11,38 @@
  */
 
 import { useState, useEffect, useCallback } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import type { Income, IncomeItem, IncomeFormData } from '../types/financeTypes'
+
+const isTransactionsSchemaMismatch = (message: string) => {
+  const m = (message || '').toLowerCase()
+  if (!m) return false
+  // Postgres undefined column
+  if (m.includes('column transactions.owner_id does not exist')) return true
+  if (m.includes('column transactions.user_id does not exist')) return true
+  // PostgREST schema cache variants
+  if (m.includes('schema cache') && m.includes('transactions') && (m.includes('owner_id') || m.includes('user_id'))) return true
+  if (m.includes('could not find') && m.includes('transactions') && (m.includes('owner_id') || m.includes('user_id'))) return true
+  return false
+}
+
+const computeTotals = (formData: IncomeFormData) => {
+  const subtotal = (formData.lineItems || []).reduce((sum, it) => sum + Number(it.qty || 0) * Number(it.price_per_unit || 0), 0)
+  const discountMode = formData.discount_mode || 'percent'
+  const discountValue = Number(formData.discount_value || 0)
+  const discountAmount =
+    discountMode === 'nominal'
+      ? Math.max(0, discountValue)
+      : Math.max(0, (subtotal * Math.max(0, discountValue)) / 100)
+  const afterDiscount = Math.max(0, subtotal - discountAmount)
+  const ppnEnabled = Boolean(formData.ppn_enabled)
+  const ppnRate = Number(formData.ppn_rate || 11)
+  const ppnAmount = ppnEnabled ? Math.max(0, (afterDiscount * Math.max(0, ppnRate)) / 100) : 0
+  const otherFees = 0
+  const total = Math.max(0, afterDiscount + ppnAmount + otherFees)
+  const downPayment = Math.max(0, Number(formData.down_payment || 0))
+  const remaining = Math.max(0, total - downPayment)
+  return { subtotal, discountAmount, afterDiscount, ppnAmount, total, downPayment, remaining }
+}
 
 interface UseIncomesOptions {
   autoFetch?: boolean // Auto-fetch on mount
@@ -39,7 +69,7 @@ interface UseIncomesReturn {
   fetchIncomes: () => Promise<void>
   fetchIncomeById: (id: string) => Promise<Income | null>
   fetchIncomeItems: (incomeId: string) => Promise<IncomeItem[]>
-  createIncome: (data: IncomeFormData) => Promise<{ success: boolean; data?: Income; error?: string }>
+  createIncome: (data: IncomeFormData) => Promise<{ success: boolean; data?: Income; error?: string; warning?: string }>
   updateIncome: (id: string, data: Partial<Income>) => Promise<{ success: boolean; error?: string }>
   deleteIncome: (id: string) => Promise<{ success: boolean; error?: string }>
   
@@ -59,8 +89,6 @@ export function useIncomes(options: UseIncomesOptions = {}): UseIncomesReturn {
     paymentStatus = 'all',
     incomeType = 'all'
   } = options
-  
-  const supabase = createClient()
   
   // State
   const [incomes, setIncomes] = useState<Income[]>([])
@@ -91,48 +119,39 @@ export function useIncomes(options: UseIncomesOptions = {}): UseIncomesReturn {
     try {
       setLoading(true)
       setError(null)
-      
-      // Get session
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session?.user) {
-        throw new Error('No authenticated user')
-      }
-      
-      // Build query
-      let query = supabase
-        .from('incomes')
-        .select('*', { count: 'exact' })
-        .eq('user_id', session.user.id)
-      
-      // Apply filters
-      if (filters.startDate) {
-        query = query.gte('income_date', filters.startDate)
-      }
-      if (filters.endDate) {
-        query = query.lte('income_date', filters.endDate)
-      }
-      if (filters.paymentStatus && filters.paymentStatus !== 'all') {
-        query = query.eq('payment_status', filters.paymentStatus)
-      }
-      if (filters.incomeType && filters.incomeType !== 'all') {
-        query = query.eq('income_type', filters.incomeType)
-      }
-      
-      // Apply pagination
+
+      const params = new URLSearchParams()
       const from = (page - 1) * pageSize
-      const to = from + pageSize - 1
-      query = query.range(from, to)
-      
-      // Order by date (newest first)
-      query = query.order('income_date', { ascending: false })
-      
-      // Execute query
-      const { data, error: fetchError, count } = await query
-      
-      if (fetchError) throw fetchError
-      
-      setIncomes(data || [])
-      setTotalCount(count || 0)
+      params.set('limit', String(pageSize))
+      params.set('offset', String(from))
+      if (filters.startDate) params.set('start_date', filters.startDate)
+      if (filters.endDate) params.set('end_date', filters.endDate)
+      if (filters.paymentStatus && filters.paymentStatus !== 'all') {
+        params.set('payment_status', filters.paymentStatus)
+      }
+
+      // Prefer new transactions endpoint; fall back to legacy incomes endpoint
+      const txRes = await fetch(`/api/transactions?${params.toString()}`)
+      const txJson = await txRes.json().catch(() => null)
+      if (txRes.ok && txJson?.success) {
+        setIncomes((txJson.data || []) as any)
+        setTotalCount(txJson.count || 0)
+        return
+      }
+
+      const txErrMsg = (txJson?.error || `HTTP ${txRes.status}` || '').toString()
+      if (!isTransactionsSchemaMismatch(txErrMsg)) {
+        throw new Error(txErrMsg || 'Failed to fetch transactions')
+      }
+
+      const incRes = await fetch(`/api/income?${params.toString()}`)
+      const incJson = await incRes.json().catch(() => null)
+      if (!incRes.ok || !incJson?.success) {
+        throw new Error((incJson?.error || 'Failed to fetch incomes').toString())
+      }
+
+      setIncomes((incJson.data || []) as any)
+      setTotalCount(incJson.count || 0)
       
     } catch (err: any) {
       console.error('Error fetching incomes:', err)
@@ -140,40 +159,33 @@ export function useIncomes(options: UseIncomesOptions = {}): UseIncomesReturn {
     } finally {
       setLoading(false)
     }
-  }, [supabase, page, pageSize, filters])
+  }, [page, pageSize, filters])
   
   /**
    * Fetch single income by ID
    */
   const fetchIncomeById = useCallback(async (id: string): Promise<Income | null> => {
     try {
-      const { data, error: fetchError } = await supabase
-        .from('incomes')
-        .select('*')
-        .eq('id', id)
-        .single()
-      
-      if (fetchError) throw fetchError
-      return data
+      const res = await fetch(`/api/transactions/${id}`)
+      const json = await res.json()
+      if (!res.ok || !json?.success) return null
+      return (json.data?.transaction || null) as any
       
     } catch (err: any) {
       console.error('Error fetching income:', err)
       return null
     }
-  }, [supabase])
+  }, [])
   
   /**
    * Fetch income items for specific income
    */
   const fetchIncomeItems = useCallback(async (incomeId: string): Promise<IncomeItem[]> => {
     try {
-      const { data, error: fetchError } = await supabase
-        .from('income_items')
-        .select('*')
-        .eq('income_id', incomeId)
-        .order('created_at', { ascending: true })
-      
-      if (fetchError) throw fetchError
+      const res = await fetch(`/api/transactions/${incomeId}`)
+      const json = await res.json()
+      if (!res.ok || !json?.success) return []
+      const data = (json.data?.items || []) as any[]
       
       // Cache in map
       setIncomeItems(prev => {
@@ -188,87 +200,152 @@ export function useIncomes(options: UseIncomesOptions = {}): UseIncomesReturn {
       console.error('Error fetching income items:', err)
       return []
     }
-  }, [supabase])
+  }, [])
   
   /**
    * Create new income with line items
    */
   const createIncome = useCallback(async (
     formData: IncomeFormData
-  ): Promise<{ success: boolean; data?: Income; error?: string }> => {
+  ): Promise<{ success: boolean; data?: Income; error?: string; warning?: string }> => {
     try {
-      // Get session
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session?.user) {
-        return { success: false, error: 'No authenticated user' }
-      }
-      
-      // Calculate totals from line items
-      const subtotal = formData.lineItems.reduce((sum, item) => {
-        return sum + (item.qty * item.price_per_unit)
-      }, 0)
-      
-      // Prepare income data (compatible with legacy schema)
-      const singleItem = formData.lineItems.length === 1 ? formData.lineItems[0] : null
-
-      const incomeData: Record<string, any> = {
-        user_id: session.user.id,
+      const payload = {
+        transaction_date: formData.income_date,
         income_type: formData.income_type,
         category: formData.income_category,
-        income_date: formData.income_date,
-        customer_name: formData.customer_name || null,
-        payment_method: formData.payment_method,
+        customer_id: formData.customer_id,
+        customer_name: formData.customer_name,
+        customer_phone: formData.customer_phone,
+        customer_address: formData.customer_address,
         payment_type: formData.payment_type,
-        payment_status: formData.payment_type === 'cash' ? 'Lunas' : 'Pending',
-        amount: subtotal,
-        notes: formData.notes || null,
+        tempo_days: formData.tempo_days,
+        due_date: formData.due_date,
+        down_payment: formData.down_payment,
+        discount_mode: formData.discount_mode,
+        discount_value: formData.discount_value,
+        ppn_enabled: formData.ppn_enabled,
+        ppn_rate: formData.ppn_rate,
+        notes: formData.notes,
+        items: (formData.lineItems || []).map((it) => ({
+          product_id: it.product_id,
+          product_name: it.product_name,
+          qty: it.qty,
+          unit: it.unit,
+          price_per_unit: it.price_per_unit
+        }))
       }
 
-      if (singleItem) {
-        incomeData.product_id = singleItem.product_id || null
-        incomeData.quantity = singleItem.qty
-        incomeData.price_per_unit = singleItem.price_per_unit
-        incomeData.description = singleItem.product_name
-      } else {
-        incomeData.description = formData.notes || 'Transaksi pendapatan'
+      const res = await fetch('/api/transactions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+      const json = await res.json().catch(() => null)
+      if (res.ok && json?.success) {
+        let warning: string | undefined
+        const transaction = (json.data?.transaction || null) as any
+
+        // Best-effort: if this income is a loan receipt, also create a Loan record and link it.
+        // This should NOT block saving the transaction (UMKM-first UX).
+        const cat = (formData.income_category || '').toString()
+        const isLoanCategory = cat === 'loan_received' || cat === 'loan_receipt'
+        if (transaction?.id && isLoanCategory && formData.loan_details) {
+          try {
+            const loanPayload = {
+              ...formData.loan_details,
+              income_transaction_id: transaction.id,
+              // Keep any additional context in loan notes as well.
+              notes: formData.notes || null
+            }
+
+            const loanRes = await fetch('/api/loans', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(loanPayload)
+            })
+            const loanJson = await loanRes.json().catch(() => null)
+            if (!loanRes.ok) {
+              console.error('Create loan failed (non-blocking)', {
+                status: loanRes.status,
+                error: loanJson?.error,
+                raw: loanJson
+              })
+              warning = '⚠️ Transaksi tersimpan, tapi gagal membuat data pinjaman otomatis. Kamu bisa buat pinjaman manual di menu Pinjaman.'
+            }
+          } catch (e: any) {
+            console.error('Create loan error (non-blocking):', e)
+            warning = '⚠️ Transaksi tersimpan, tapi gagal membuat data pinjaman otomatis. Kamu bisa buat pinjaman manual di menu Pinjaman.'
+          }
+        }
+
+        await fetchIncomes()
+        return { success: true, data: (json.data?.transaction || null) as any, warning }
       }
-      
-      // Insert income
-      const { data: newIncome, error: incomeError } = await supabase
-        .from('incomes')
-        .insert(incomeData)
-        .select()
-        .single()
-      
-      if (incomeError) throw incomeError
-      
-      // Insert line items
-      const itemsData = formData.lineItems.map(item => ({
-        income_id: newIncome.id,
-        user_id: session.user.id,
-        product_id: item.product_id || null,
-        product_name: item.product_name,
-        qty: item.qty,
-        unit: item.unit,
-        price_per_unit: item.price_per_unit,
-        buy_price: item.buy_price,
-        profit_per_unit: item.price_per_unit - item.buy_price,
-        subtotal: item.qty * item.price_per_unit,
-        total_profit: item.qty * (item.price_per_unit - item.buy_price),
-      }))
-      
-      const { error: itemsError } = await supabase
-        .from('income_items')
-        .insert(itemsData)
-      
-      if (itemsError) {
-        console.warn('Skipping income_items insert:', itemsError.message)
+
+      // Surface details in browser DevTools as well (toast still shows user-facing message).
+      console.error('Create transaction failed', {
+        status: res.status,
+        error: json?.error,
+        meta: json?.meta,
+        raw: json
+      })
+
+      const txErrMsg = (json?.error || `HTTP ${res.status}` || '').toString()
+      if (!isTransactionsSchemaMismatch(txErrMsg)) {
+        const meta = json?.meta ? `\n${JSON.stringify(json.meta)}` : ''
+        return { success: false, error: (txErrMsg || 'Failed to create transaction') + meta }
       }
-      
-      // Refresh list
+
+      // Fallback to legacy incomes endpoint
+      const totals = computeTotals(formData)
+      const dp = totals.downPayment
+      const total = totals.total
+      const paymentStatus =
+        formData.payment_type === 'tempo'
+          ? 'Tempo'
+          : dp > 0 && dp < total
+            ? 'partial'
+            : 'Lunas'
+
+      const legacyPayload: any = {
+        income_date: formData.income_date,
+        income_type: formData.income_type,
+        category: formData.income_category,
+        amount: total,
+        description: formData.notes || null,
+        notes: formData.notes || null,
+        payment_method: formData.payment_method,
+        payment_type: formData.payment_type,
+        payment_status: paymentStatus,
+        due_date: formData.payment_type === 'tempo' ? formData.due_date || null : null,
+        customer_id: formData.customer_id || null,
+        down_payment: dp,
+        remaining: totals.remaining,
+        subtotal: totals.subtotal,
+        discount: totals.discountAmount,
+        tax_ppn: totals.ppnAmount,
+        line_items: formData.lineItems.map((it) => ({
+          product_id: it.product_id || null,
+          product_name: it.product_name,
+          quantity: it.qty,
+          unit: it.unit,
+          price_per_unit: it.price_per_unit,
+          subtotal: Number(it.qty || 0) * Number(it.price_per_unit || 0)
+        }))
+      }
+
+      const incRes = await fetch('/api/income', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(legacyPayload)
+      })
+      const incJson = await incRes.json().catch(() => null)
+      if (!incRes.ok || !incJson?.success) {
+        return { success: false, error: (incJson?.error || 'Failed to create income').toString() }
+      }
+
       await fetchIncomes()
-      
-      return { success: true, data: newIncome }
+      return { success: true, data: (incJson.data || null) as any }
       
     } catch (err: any) {
       console.error('Error creating income:', err)
@@ -277,7 +354,7 @@ export function useIncomes(options: UseIncomesOptions = {}): UseIncomesReturn {
         error: err.message || 'Failed to create income' 
       }
     }
-  }, [supabase, fetchIncomes])
+  }, [fetchIncomes])
   
   /**
    * Update existing income
@@ -287,17 +364,9 @@ export function useIncomes(options: UseIncomesOptions = {}): UseIncomesReturn {
     updates: Partial<Income>
   ): Promise<{ success: boolean; error?: string }> => {
     try {
-      const { error: updateError } = await supabase
-        .from('incomes')
-        .update(updates)
-        .eq('id', id)
-      
-      if (updateError) throw updateError
-      
-      // Refresh list
-      await fetchIncomes()
-      
-      return { success: true }
+      // Not implemented for migration-style transactions yet
+      console.warn('updateIncome not implemented for transactions:', id, updates)
+      return { success: false, error: 'Edit belum tersedia untuk transaksi ini' }
       
     } catch (err: any) {
       console.error('Error updating income:', err)
@@ -306,7 +375,7 @@ export function useIncomes(options: UseIncomesOptions = {}): UseIncomesReturn {
         error: err.message || 'Failed to update income' 
       }
     }
-  }, [supabase, fetchIncomes])
+  }, [])
   
   /**
    * Delete income (cascade deletes income_items)
@@ -315,16 +384,26 @@ export function useIncomes(options: UseIncomesOptions = {}): UseIncomesReturn {
     id: string
   ): Promise<{ success: boolean; error?: string }> => {
     try {
-      const { error: deleteError } = await supabase
-        .from('incomes')
-        .delete()
-        .eq('id', id)
-      
-      if (deleteError) throw deleteError
-      
-      // Refresh list
+      const res = await fetch(`/api/transactions/${id}`, { method: 'DELETE' })
+      const json = await res.json().catch(() => null)
+      if (res.ok && json?.success) {
+        await fetchIncomes()
+        return { success: true }
+      }
+
+      const txErrMsg = (json?.error || `HTTP ${res.status}` || '').toString()
+      if (!isTransactionsSchemaMismatch(txErrMsg)) {
+        return { success: false, error: txErrMsg || 'Failed to delete transaction' }
+      }
+
+      // Fallback to legacy incomes deletion
+      const incRes = await fetch(`/api/income/${id}`, { method: 'DELETE' })
+      const incJson = await incRes.json().catch(() => null)
+      if (!incRes.ok || !incJson?.success) {
+        return { success: false, error: (incJson?.error || 'Failed to delete income').toString() }
+      }
+
       await fetchIncomes()
-      
       return { success: true }
       
     } catch (err: any) {
@@ -334,7 +413,7 @@ export function useIncomes(options: UseIncomesOptions = {}): UseIncomesReturn {
         error: err.message || 'Failed to delete income' 
       }
     }
-  }, [supabase, fetchIncomes])
+  }, [fetchIncomes])
   
   // Auto-fetch on mount or when dependencies change
   useEffect(() => {

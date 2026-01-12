@@ -5,6 +5,86 @@ import { NextResponse } from 'next/server'
 // Force dynamic rendering to fix cookies issue
 export const dynamic = 'force-dynamic'
 
+const isInventoryPurchaseCategory = (category: any) => {
+  const c = (category || '').toString().trim()
+  return c === 'raw_materials' || c === 'finished_goods'
+}
+
+async function getProductStockField(
+  supabase: any,
+  productId: string
+): Promise<{ field: 'stock_quantity' | 'stock'; value: number } | null> {
+  const first = await supabase
+    .from('products')
+    .select('stock_quantity')
+    .eq('id', productId)
+    .single()
+
+  if (!first.error) {
+    const v = Number(first.data?.stock_quantity ?? 0)
+    return { field: 'stock_quantity', value: Number.isFinite(v) ? v : 0 }
+  }
+
+  const msg = (first.error as any)?.message?.toString()?.toLowerCase?.() || ''
+  const code = (first.error as any)?.code || ''
+  const isMissing = code === '42703' || msg.includes('column') || msg.includes('stock_quantity')
+  if (!isMissing) return null
+
+  const second = await supabase
+    .from('products')
+    .select('stock')
+    .eq('id', productId)
+    .single()
+
+  if (second.error) return null
+
+  const v = Number(second.data?.stock ?? 0)
+  return { field: 'stock', value: Number.isFinite(v) ? v : 0 }
+}
+
+async function rollbackProductStocksFromExpenseItems(
+  supabase: any,
+  expenseIds: string[]
+) {
+  const { data: expenseItems, error: fetchItemsError } = await supabase
+    .from('expense_items')
+    .select('product_id, qty')
+    .in('expense_id', expenseIds)
+
+  if (fetchItemsError || !expenseItems || expenseItems.length === 0) return
+
+  const qtyByProduct = new Map<string, number>()
+  for (const item of expenseItems) {
+    const productId = item?.product_id
+    if (!productId) continue
+    const qty = Number(item?.qty ?? 0)
+    if (!Number.isFinite(qty) || qty <= 0) continue
+    qtyByProduct.set(productId, (qtyByProduct.get(productId) || 0) + qty)
+  }
+
+  for (const [productId, qty] of qtyByProduct.entries()) {
+    const stockInfo = await getProductStockField(supabase, productId)
+    if (!stockInfo) continue
+
+    const newStock = Math.max(0, stockInfo.value - qty)
+    await supabase
+      .from('products')
+      .update({ [stockInfo.field]: newStock })
+      .eq('id', productId)
+
+    // Best-effort: keep both legacy and newer stock columns in sync.
+    const otherField = stockInfo.field === 'stock_quantity' ? 'stock' : 'stock_quantity'
+    try {
+      await supabase
+        .from('products')
+        .update({ [otherField]: newStock })
+        .eq('id', productId)
+    } catch {
+      // ignore
+    }
+  }
+}
+
 // POST: Create new expense with multi-items support
 export async function POST(request: Request) {
   const cookieStore = await cookies()
@@ -156,30 +236,58 @@ export async function POST(request: Request) {
       } else {
         itemsInserted = itemsResult?.length || 0
         console.log(`✅ ${itemsInserted} items inserted to expense_items`)
-        
-        // ✅ UPDATE STOCK: Add purchased quantity to products
-        for (const item of line_items) {
-          if (item.product_id) {
-            const qty = parseFloat(item.quantity)
-            console.log(`📈 Adding ${qty} to product ${item.product_id} stock...`)
-            
-            // Fetch current stock, calculate new value, then update
-            const { data: currentProduct } = await supabase
+
+        // ✅ UPDATE STOCK: Only for inventory purchase categories
+        if (isInventoryPurchaseCategory(category)) {
+          const qtyByProduct = new Map<string, number>()
+          for (const item of line_items) {
+            const productId = (item?.product_id || '').toString()
+            if (!productId) continue
+            const qty = Number(item?.quantity ?? item?.qty ?? 0)
+            if (!Number.isFinite(qty) || qty <= 0) continue
+            qtyByProduct.set(productId, (qtyByProduct.get(productId) || 0) + qty)
+          }
+
+          const productIds = Array.from(qtyByProduct.keys())
+          const trackMap = new Map<string, boolean>()
+          if (productIds.length) {
+            try {
+              const { data: rows, error: trackErr } = await supabase
+                .from('products')
+                .select('id, track_inventory')
+                .in('id', productIds)
+
+              if (!trackErr) {
+                ;(rows || []).forEach((p: any) => {
+                  trackMap.set(p.id, p.track_inventory !== false)
+                })
+              }
+            } catch {
+              // ignore
+            }
+          }
+
+          for (const [productId, qty] of qtyByProduct.entries()) {
+            if (trackMap.has(productId) && trackMap.get(productId) === false) continue
+
+            const stockInfo = await getProductStockField(supabase, productId)
+            if (!stockInfo) continue
+
+            const newStock = Math.max(0, stockInfo.value + qty)
+            await supabase
               .from('products')
-              .select('stock_quantity')
-              .eq('id', item.product_id)
-              .single()
-            
-            if (currentProduct) {
-              const currentStock = currentProduct.stock_quantity || 0
-              const newStock = currentStock + qty
-              
+              .update({ [stockInfo.field]: newStock })
+              .eq('id', productId)
+
+            // Best-effort sync to the other column so UI/other modules stay consistent.
+            const otherField = stockInfo.field === 'stock_quantity' ? 'stock' : 'stock_quantity'
+            try {
               await supabase
                 .from('products')
-                .update({ stock_quantity: newStock })
-                .eq('id', item.product_id)
-              
-              console.log(`✅ Stock updated: ${currentStock} + ${qty} = ${newStock}`)
+                .update({ [otherField]: newStock })
+                .eq('id', productId)
+            } catch {
+              // ignore
             }
           }
         }
@@ -364,48 +472,8 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // 🔄 RESTORE STOCK: Fetch expense_items for all expenses to rollback stock
-    const { data: expenseItems, error: fetchItemsError } = await supabase
-      .from('expense_items')
-      .select('product_id, qty, product_name')
-      .in('expense_id', ids)
-
-    if (!fetchItemsError && expenseItems && expenseItems.length > 0) {
-      console.log(`🔄 Rollback stock for ${expenseItems.length} items...`)
-      
-      // Rollback stock for each item
-      for (const item of expenseItems) {
-        if (item.product_id && item.qty) {
-          const qty = parseFloat(item.qty)
-          console.log(`📉 Removing ${qty} from product ${item.product_id} (${item.product_name})...`)
-          
-          const { error: stockError } = await supabase.rpc('increment_product_stock', {
-            p_product_id: item.product_id,
-            p_quantity: -qty  // Negative to subtract
-          })
-          
-          if (stockError) {
-            // Fallback: Get current stock and update
-            console.log('⚠️ RPC not found, using fallback logic...')
-            const { data: product } = await supabase
-              .from('products')
-              .select('stock_quantity')
-              .eq('id', item.product_id)
-              .single()
-            
-            if (product) {
-              const newStock = Math.max(0, (product.stock_quantity || 0) - qty)
-              await supabase
-                .from('products')
-                .update({ stock_quantity: newStock })
-                .eq('id', item.product_id)
-            }
-          } else {
-            console.log(`✅ Stock rolled back for product ${item.product_id}`)
-          }
-        }
-      }
-    }
+    // Restore stock based on expense_items (robust: no RPC required)
+    await rollbackProductStocksFromExpenseItems(supabase, ids)
     
     // Delete expense_items first (foreign key constraint)
     const { error: deleteItemsError } = await supabase
@@ -418,38 +486,8 @@ export async function DELETE(request: Request) {
       // Continue anyway to delete expenses
     }
 
-    // Now delete expenses (old logic for backward compatibility)
-    const { data: expenses, error: fetchError } = await supabase
-      .from('expenses')
-      .select('id, product_id, quantity')
-      .in('id', ids)
-
-    if (!fetchError && expenses && expenses.length > 0) {
-      // Old schema compatibility - skip if already handled by expense_items
-      for (const expense of expenses) {
-        if (expense.product_id && expense.quantity && !expenseItems?.length) {
-          const qty = parseFloat(expense.quantity)
-          console.log(`📉 (Legacy) Removing ${qty} from product ${expense.product_id}...`)
-          
-          // Get current stock and update
-          const { data: product } = await supabase
-            .from('products')
-            .select('stock_quantity')
-            .eq('id', expense.product_id)
-            .single()
-          
-          if (product) {
-            const newStock = Math.max(0, (product.stock_quantity || 0) - qty)
-            await supabase
-              .from('products')
-              .update({ 
-                stock_quantity: newStock
-              })
-              .eq('id', expense.product_id)
-          }
-        }
-      }
-    }
+    // Note: legacy expenses.product_id/quantity rollback removed.
+    // Stock rollback is now consistently based on expense_items.
 
     // Delete expenses (RLS will ensure user owns them)
     const { error } = await supabase

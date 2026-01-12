@@ -36,6 +36,7 @@ import { Save, X, CheckCircle, AlertTriangle, HelpCircle } from 'lucide-react'
 import { TransactionHistory, type TransactionHistoryItem, type TransactionFilters } from '@/components/transactions/TransactionHistory'
 import { EditTransactionModal } from '@/components/transactions/EditTransactionModal'
 import { PreviewTransactionModal } from '@/components/transactions/PreviewTransactionModal'
+import { EXPENSE_CATEGORIES_BY_TYPE, getExpenseCategoryLabel } from '@/modules/finance/types/financeTypes'
 
 export const dynamic = 'force-dynamic'
 
@@ -74,6 +75,183 @@ export default function InputExpensesPage() {
   
   // Products hook
   const { products, loading: productsLoading, refresh: refreshProducts } = useProducts()
+
+  const normalizeExpenseStatusLabel = useCallback((raw: string | null | undefined): 'Lunas' | 'Tempo' => {
+    const v = (raw || '').toString().trim().toLowerCase()
+    if (v === 'paid' || v === 'lunas' || v === 'lunas ') return 'Lunas'
+    if (v === 'lunas') return 'Lunas'
+    if (v === 'paid') return 'Lunas'
+    // Treat everything else as Tempo (includes unpaid/pending/partial/cicilan/belum_lunas)
+    return 'Tempo'
+  }, [])
+
+  const computeTempoDueDate = useCallback(() => {
+    if (formState.payment.dueDate) return formState.payment.dueDate
+    const days = Number(formState.payment.tempoDays || 0)
+    if (!days || Number.isNaN(days)) return ''
+    const base = new Date(formState.header.transactionDate)
+    if (Number.isNaN(base.getTime())) return ''
+    base.setDate(base.getDate() + days)
+    return base.toISOString().slice(0, 10)
+  }, [formState.header.transactionDate, formState.payment.dueDate, formState.payment.tempoDays])
+
+  const getPaymentStatusCandidates = useCallback((status: string | null | undefined) => {
+    const raw = (status || '').trim()
+    const normalized = raw.toLowerCase()
+
+    // UI values typically: 'Lunas' | 'Tempo' (maybe also 'Pending')
+    if (normalized === 'lunas' || normalized === 'paid') {
+      return ['paid', 'lunas', 'Lunas']
+    }
+
+    if (normalized === 'pending' || normalized === 'unpaid' || normalized === 'belum_lunas') {
+      return ['unpaid', 'pending', 'belum_lunas', 'Pending']
+    }
+
+    if (normalized === 'tempo' || normalized === 'jatuh tempo' || normalized === 'cicilan' || normalized === 'partial') {
+      return ['partial', 'cicilan', 'unpaid', 'pending', 'belum_lunas', 'Tempo', 'Jatuh Tempo']
+    }
+
+    // Fallback: try as-is, then common variants
+    return [raw, 'paid', 'lunas', 'unpaid', 'pending', 'belum_lunas', 'partial', 'cicilan', 'Pending', 'Lunas']
+  }, [])
+
+  const insertExpenseWithPaymentStatusFallback = useCallback(async (baseData: Record<string, any>, statusRaw: string) => {
+    const candidates = getPaymentStatusCandidates(statusRaw)
+    let lastError: any = null
+
+    const extractMissingColumn = (err: any) => {
+      const msg = ((err as any)?.message || (err as any)?.details || '').toString()
+      // PostgREST schema cache format
+      let m = msg.match(/Could not find the '([^']+)' column/i)
+      if (m?.[1]) return m[1]
+      // Postgres format
+      m = msg.match(/column\s+[^.]+\.([^\s]+)\s+does not exist/i)
+      if (m?.[1]) return m[1].replace(/"/g, '')
+      m = msg.match(/column\s+"([^"]+)"\s+does not exist/i)
+      if (m?.[1]) return m[1]
+      return ''
+    }
+
+    const isSchemaMismatch = (error: any) => {
+      const msg = ((error as any)?.message || '').toString().toLowerCase()
+      const code = (error as any)?.code || ''
+      return code === '42703' || msg.includes('column') || msg.includes('could not find')
+    }
+
+    const optionalKeysOrder = [
+      'supplier_id',
+      'supplier_name',
+      'due_date',
+      'down_payment',
+      'remaining_payment',
+      'po_number',
+      'description',
+      'notes'
+    ]
+
+    for (const candidate of candidates) {
+      // Try full payload first; if schema rejects unknown columns, retry with minimal payload.
+      let payload: any = {
+        ...baseData,
+        payment_status: candidate
+      }
+
+      let data: any = null
+      let error: any = null
+
+      for (let i = 0; i < 10; i++) {
+        ;({ data, error } = await supabase
+          .from('expenses')
+          .insert(payload)
+          .select()
+          .single())
+
+        if (!error) break
+
+        if (!isSchemaMismatch(error)) break
+
+        const missing = extractMissingColumn(error)
+        if (missing && Object.prototype.hasOwnProperty.call(payload, missing)) {
+          delete payload[missing]
+          continue
+        }
+
+        const nextKey = optionalKeysOrder.find((k) => Object.prototype.hasOwnProperty.call(payload, k))
+        if (nextKey) {
+          delete payload[nextKey]
+          continue
+        }
+
+        break
+      }
+
+      if (!error) return data
+
+      lastError = error
+
+      const msg = (error as any)?.message || ''
+      const code = (error as any)?.code || ''
+      const isStatusConstraint = code === '23514' || msg.toLowerCase().includes('payment_status')
+      if (!isStatusConstraint) break
+    }
+
+    throw lastError
+  }, [getPaymentStatusCandidates, supabase])
+
+  const parseEmbeddedValueFromNotes = useCallback((notes: any, prefix: string) => {
+    const text = (notes || '').toString()
+    if (!text) return ''
+    const re = new RegExp(`^\\s*${prefix}\\s*:\\s*(.+)\\s*$`, 'im')
+    const m = text.match(re)
+    return m?.[1]?.trim() || ''
+  }, [])
+
+  const insertExpenseItemsWithSchemaFallback = useCallback(async (items: any[], userId: string) => {
+    const attempts: Array<() => Promise<any>> = []
+
+    // Try the most common schema first: user_id + notes
+    attempts.push(() => supabase.from('expense_items').insert(items.map(i => ({ ...i, user_id: userId, notes: i.notes ?? null }))))
+
+    // Some schemas use owner_id + description
+    attempts.push(() => supabase.from('expense_items').insert(items.map(i => ({
+      ...i,
+      owner_id: userId,
+      description: i.notes ?? null
+    }))))
+
+    // Some schemas use owner_id + notes
+    attempts.push(() => supabase.from('expense_items').insert(items.map(i => ({ ...i, owner_id: userId, notes: i.notes ?? null }))))
+
+    let lastError: any = null
+    for (const run of attempts) {
+      const { error } = await run()
+      if (!error) return
+      lastError = error
+
+      const msg = (error as any)?.message || ''
+      const code = (error as any)?.code || ''
+
+      // Only retry for missing-column / schema mismatch cases
+      const isSchemaMismatch = code === '42703' || msg.toLowerCase().includes('column') || msg.toLowerCase().includes('could not find')
+      if (!isSchemaMismatch) break
+    }
+
+    throw lastError
+  }, [supabase])
+
+  const updateProductStockBestEffort = useCallback(async (productId: string, newStock: number) => {
+    // Prefer stock_quantity, fallback to stock
+    const first = await supabase.from('products').update({ stock_quantity: newStock }).eq('id', productId)
+    if (!first.error) return
+
+    const msg = (first.error as any)?.message || ''
+    const code = (first.error as any)?.code || ''
+    const isMissingColumn = code === '42703' || msg.toLowerCase().includes('stock_quantity') || msg.toLowerCase().includes('column')
+    if (!isMissingColumn) return
+
+    await supabase.from('products').update({ stock: newStock }).eq('id', productId)
+  }, [supabase])
   
   // Toast notifications
   const [toast, setToast] = useState<{
@@ -101,17 +279,22 @@ export default function InputExpensesPage() {
   })
   
   // Convert expenses to TransactionHistoryItem format
-  const historyItems: TransactionHistoryItem[] = expenses.map(expense => ({
+  const historyItems: TransactionHistoryItem[] = expenses.map((expense: any) => {
+    const catRaw = (expense?.expense_category || expense?.category || '').toString().trim()
+    return {
     id: expense.id,
     date: expense.expense_date,
-    category: expense.expense_category || 'operational_expense',
-    customer_or_supplier: expense.supplier_name || '-',
+    category: catRaw || '',
+    category_label: catRaw ? getExpenseCategoryLabel(catRaw) : '❓ Kategori belum tersimpan',
+    customer_or_supplier: expense.supplier_name || parseEmbeddedValueFromNotes(expense.notes, 'Supplier') || '-',
     amount: expense.grand_total || expense.total_amount || 0,
-    status: expense.payment_status === 'paid' ? 'Lunas' : 
-            expense.payment_status === 'unpaid' ? 'Pending' : 'Tempo',
+    status: normalizeExpenseStatusLabel(expense.payment_status),
     payment_method: expense.payment_method || undefined,
-    description: expense.notes || undefined
-  }))
+    description: expense.description || expense.notes || undefined,
+    po_number: expense.po_number || undefined,
+    due_date: expense.due_date || parseEmbeddedValueFromNotes(expense.notes, 'Jatuh Tempo') || undefined
+    }
+  })
   
   // ============================================
   // HANDLERS
@@ -178,14 +361,107 @@ export default function InputExpensesPage() {
   // Handle category change
   const handleCategoryChange = useCallback((type: 'operating' | 'investing' | 'financing', categoryValue: string) => {
     actions.setCategory(type, categoryValue)
-    
-    // Show production output option for raw materials
-    if (categoryValue === 'raw_materials') {
-      actions.toggleProductionOutput(true)
-    } else {
+
+    // Reset production output state; only relevant for raw materials
+    if (categoryValue !== 'raw_materials') {
       actions.toggleProductionOutput(false)
+      actions.setProductionOutput({ productId: '', quantity: '', unit: 'pcs' })
+      return
     }
+
+    // For raw materials, show the section but keep it opt-in (legacy behavior)
+    actions.toggleProductionOutput(false)
+    actions.setProductionOutput({ productId: '', quantity: '', unit: 'pcs' })
   }, [actions])
+
+  const getExpenseEducationContent = useCallback((expenseType: 'operating' | 'investing' | 'financing', category: string) => {
+    const base = {
+      title: getExpenseCategoryLabel(category),
+      tone: 'info' as 'info' | 'warning',
+      points: [] as string[],
+      caution: '' as string | undefined
+    }
+
+    if (expenseType === 'operating' && category === 'finished_goods') {
+      return {
+        ...base,
+        points: [
+          'Untuk beli produk jadi yang langsung dijual kembali (reseller).',
+          'Stok produk akan bertambah otomatis sesuai item yang kamu input.'
+        ],
+        caution: 'Tip: pilih produk dari inventory agar stok dan laporan rapi.'
+      }
+    }
+
+    if (expenseType === 'operating' && category === 'raw_materials') {
+      return {
+        ...base,
+        points: [
+          'Untuk beli bahan baku/komponen produksi.',
+          'Kamu bisa (opsional) isi Output Produksi agar stok produk jadi bertambah otomatis.'
+        ],
+        caution: 'Tip: gunakan Output Produksi kalau kamu ingin stok finished goods ter-update.'
+      }
+    }
+
+    if (expenseType === 'operating' && category === 'employee_expense') {
+      return {
+        ...base,
+        points: [
+          'Untuk gaji, upah harian, lembur, insentif, dan biaya terkait karyawan.',
+          'Gunakan kolom item/deskripsi agar mudah ditelusuri (mis: Gaji Januari, Lembur, Bonus).'
+        ]
+      }
+    }
+
+    if (expenseType === 'operating' && category === 'utilities') {
+      return {
+        ...base,
+        points: [
+          'Untuk listrik, air, internet, pulsa operasional, dan tagihan rutin.',
+          'Saran: tulis periodenya (mis: Listrik Jan 2026) supaya laporan mudah dibaca.'
+        ]
+      }
+    }
+
+    if (expenseType === 'operating' && category === 'marketing') {
+      return {
+        ...base,
+        points: [
+          'Untuk iklan, promosi, endorsement, biaya marketplace, dan campaign.',
+          'Tulis channelnya (IG/TikTok/Ads/Marketplace) agar evaluasi marketing lebih gampang.'
+        ]
+      }
+    }
+
+    if (expenseType === 'investing') {
+      return {
+        ...base,
+        tone: 'warning',
+        points: [
+          'Untuk pembelian aset/peralatan yang dipakai berulang (jangka panjang).',
+          'Biasanya bukan biaya harian, jadi pisahkan dari operasional.'
+        ],
+        caution: 'Tip: tulis spesifikasi aset (merk/tipe) agar mudah dilacak.'
+      }
+    }
+
+    if (expenseType === 'financing') {
+      return {
+        ...base,
+        tone: 'warning',
+        points: [
+          'Untuk pembayaran cicilan/utang/bunga/bagi hasil terkait pendanaan.',
+          'Pisahkan dari operasional agar kesehatan arus kas terbaca jelas.'
+        ]
+      }
+    }
+
+    return {
+      ...base,
+      points: ['Pilih kategori yang paling mendekati agar laporan lebih akurat.']
+    }
+  }, [])
   
   // Add other fee
   const handleAddOtherFee = useCallback(() => {
@@ -234,45 +510,64 @@ export default function InputExpensesPage() {
         ? calculations.grandTotal - formState.payment.downPayment
         : 0
       
-      // Insert expense
-      const { data: expense, error: expenseError } = await supabase
-        .from('expenses')
-        .insert({
+      // Insert expense (retry payment_status variants to satisfy DB CHECK constraints)
+      const tempoDueDate = formState.payment.status === 'Tempo' ? computeTempoDueDate() : ''
+
+      // If DB doesn't have a dedicated description/po_number column, embed into notes.
+      const combinedNotesParts = [
+        formState.header.notes?.trim(),
+      ].filter(Boolean)
+
+      const embeddedMetaLines = [
+        formState.supplier?.name ? `Supplier: ${formState.supplier.name}` : '',
+        formState.header.description ? `Deskripsi: ${formState.header.description}` : '',
+        formState.header.poNumber ? `PO: ${formState.header.poNumber}` : '',
+        formState.payment.status === 'Tempo' ? `DP: ${formState.payment.downPayment || 0}` : '',
+        formState.payment.status === 'Tempo' ? `Sisa Hutang: ${Math.max(0, remainingPayment) || 0}` : '',
+        tempoDueDate ? `Jatuh Tempo: ${tempoDueDate}` : ''
+      ].filter(Boolean)
+
+      const notesWithMeta = [
+        ...embeddedMetaLines,
+        ...combinedNotesParts
+      ].filter(Boolean).join('\n')
+
+      const expense = await insertExpenseWithPaymentStatusFallback(
+        {
           user_id: user.id,
           expense_date: formState.header.transactionDate,
-          expense_type: 'operating',
+          expense_type: formState.category.expenseType,
           expense_category: formState.category.category,
+          // compatibility with older schemas that use a generic category column
+          category: formState.category.category,
           grand_total: calculations.grandTotal,
           payment_method: formState.payment.method,
-          payment_status: formState.payment.status,
-          notes: formState.header.notes
-        })
-        .select()
-        .single()
+          // optional/best-effort fields
+          supplier_id: formState.supplier?.id || undefined,
+          supplier_name: formState.supplier?.name || undefined,
+          description: formState.header.description,
+          po_number: formState.header.poNumber,
+          due_date: tempoDueDate || undefined,
+          down_payment: formState.payment.status === 'Tempo' ? (formState.payment.downPayment || 0) : 0,
+          remaining_payment: formState.payment.status === 'Tempo' ? Math.max(0, remainingPayment) : 0,
+          notes: notesWithMeta || undefined
+        },
+        formState.payment.status
+      )
       
-      if (expenseError) throw expenseError
-      
-      // Insert expense items
+      // Insert expense items (minimal payload + schema fallbacks)
       const expenseItems = formState.items.lineItems.map(item => ({
         expense_id: expense.id,
-        owner_id: user.id,
         product_id: item.product_id,
         product_name: item.product_name,
         qty: item.quantity,
         unit: item.unit,
         price_per_unit: item.price_per_unit,
         subtotal: item.subtotal,
-        description: item.notes,
-        is_restock: false,
-        quantity_added: 0,
-        stock_deducted: false
+        notes: item.notes
       }))
-      
-      const { error: itemsError } = await supabase
-        .from('expense_items')
-        .insert(expenseItems)
-      
-      if (itemsError) throw itemsError
+
+      await insertExpenseItemsWithSchemaFallback(expenseItems, user.id)
       
       // Update stock for product purchases
       if (formState.category.category === 'raw_materials' || formState.category.category === 'finished_goods') {
@@ -281,13 +576,10 @@ export default function InputExpensesPage() {
             // Increase stock
             const product = products.find(p => p.id === item.product_id)
             if (product) {
-              const currentStock = (product as any).stock_quantity || 0
+              const currentStock = (product as any).stock_quantity ?? (product as any).stock ?? 0
               const newStock = currentStock + item.quantity
-              
-              await supabase
-                .from('products')
-                .update({ stock_quantity: newStock })
-                .eq('id', item.product_id)
+
+              await updateProductStockBestEffort(item.product_id, newStock)
             }
           }
         }
@@ -301,7 +593,8 @@ export default function InputExpensesPage() {
       
     } catch (error) {
       console.error('Error saving expense:', error)
-      showToast('error', 'Gagal menyimpan data. Silakan coba lagi.')
+      const message = (error as any)?.message
+      showToast('error', message ? `Gagal menyimpan: ${message}` : 'Gagal menyimpan data. Silakan coba lagi.')
     } finally {
       actions.setSubmitting(false)
     }
@@ -314,49 +607,69 @@ export default function InputExpensesPage() {
     supabase,
     products,
     refreshExpenses,
-    refreshProducts
+    refreshProducts,
+    insertExpenseWithPaymentStatusFallback,
+    insertExpenseItemsWithSchemaFallback,
+    updateProductStockBestEffort,
+    getExpenseCategoryLabel,
+    normalizeExpenseStatusLabel,
+    computeTempoDueDate
   ])
     // Transaction history handlers
   const handleDelete = async (expenseId: string) => {
-    const confirmed = confirm('⚠️ Yakin ingin menghapus transaksi ini?\n\nStok produk TIDAK akan dikembalikan.')
+    const confirmed = confirm(
+      '⚠️ Yakin ingin menghapus transaksi ini?\n\nJika transaksi berisi pembelian produk, stok akan dikembalikan seperti semula.'
+    )
     if (!confirmed) return
 
     try {
-      const { error } = await supabase
-        .from('expenses')
-        .delete()
-        .eq('id', expenseId)
-
-      if (error) throw error
+      const res = await fetch(`/api/expenses/${expenseId}`, { method: 'DELETE' })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(json?.error || 'Gagal menghapus transaksi')
       
-      showToast('success', '✅ Transaksi berhasil dihapus')
+      showToast('success', '✅ Transaksi berhasil dihapus (stok dikembalikan bila ada)')
       refreshExpenses()
+      refreshProducts()
     } catch (error) {
       console.error('Delete error:', error)
-      showToast('error', '❌ Gagal menghapus transaksi')
+      const msg = (error as any)?.message
+      showToast('error', msg ? `❌ ${msg}` : '❌ Gagal menghapus transaksi')
     }
   }
 
   const handleBulkDelete = async (ids: string[]) => {
-    const confirmed = confirm(`⚠️ Yakin ingin menghapus ${ids.length} transaksi?\n\nStok produk TIDAK akan dikembalikan.`)
+    const confirmed = confirm(
+      `⚠️ Yakin ingin menghapus ${ids.length} transaksi?\n\nJika transaksi berisi pembelian produk, stok akan dikembalikan seperti semula.`
+    )
     if (!confirmed) return
 
     try {
-      for (const id of ids) {
-        await supabase.from('expenses').delete().eq('id', id)
-      }
+      const res = await fetch('/api/expenses', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids })
+      })
+
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(json?.error || 'Gagal menghapus transaksi')
       
-      showToast('success', `✅ ${ids.length} transaksi berhasil dihapus`)
+      showToast('success', `✅ ${ids.length} transaksi berhasil dihapus (stok dikembalikan bila ada)`)
       refreshExpenses()
+      refreshProducts()
     } catch (error) {
       console.error('Bulk delete error:', error)
-      showToast('error', '❌ Gagal menghapus transaksi')
+      const msg = (error as any)?.message
+      showToast('error', msg ? `❌ ${msg}` : '❌ Gagal menghapus transaksi')
     }
   }
 
   const handleEdit = (expenseId: string) => {
+    showToast(
+      'warning',
+      'Fitur akan diaktifkan mendatang, semetnara gunakan hapus dan buat transaksi baru jika terjadi kesalahan'
+    )
     setSelectedTransactionId(expenseId)
-    setEditModalOpen(true)
+    setEditModalOpen(false)
   }
 
   const handlePreview = (expenseId: string) => {
@@ -368,53 +681,43 @@ export default function InputExpensesPage() {
   // ============================================
   
   const getCategoryOptions = () => {
-    const categories = {
-      operating: [
-        { value: 'raw_materials', label: '📦 Bahan Baku' },
-        { value: 'finished_goods', label: '🎁 Barang Jadi' },
-        { value: 'office_supplies', label: '📝 Perlengkapan Kantor' },
-        { value: 'utilities', label: '💡 Utilitas (Listrik, Air, Internet)' },
-        { value: 'marketing', label: '📢 Marketing & Promosi' },
-        { value: 'employee_expense', label: '👥 Biaya Karyawan' },
-        { value: 'transportation', label: '🚗 Transportasi & Logistik' },
-        { value: 'maintenance', label: '🔧 Maintenance & Perbaikan' },
-        { value: 'other_operating', label: '📋 Operasional Lainnya' }
-      ],
-      investing: [
-        { value: 'equipment', label: '🏭 Peralatan Produksi' },
-        { value: 'technology', label: '💻 Teknologi & Software' },
-        { value: 'property', label: '🏢 Properti & Bangunan' },
-        { value: 'vehicle', label: '🚚 Kendaraan' },
-        { value: 'other_investing', label: '💼 Investasi Lainnya' }
-      ],
-      financing: [
-        { value: 'loan_payment', label: '🏦 Pembayaran Pinjaman' },
-        { value: 'interest', label: '💰 Bunga Pinjaman' },
-        { value: 'dividend', label: '📊 Dividen' },
-        { value: 'other_financing', label: '💳 Financing Lainnya' }
-      ]
-    }
-    
-    return categories[formState.category.expenseType] || []
+    return EXPENSE_CATEGORIES_BY_TYPE[formState.category.expenseType] || []
   }
+
+  const isInventoryPurchaseCategory =
+    formState.category.category === 'raw_materials' || formState.category.category === 'finished_goods'
+
+  const itemsMode: 'inventory' | 'general' = isInventoryPurchaseCategory ? 'inventory' : 'general'
+
+  const itemsNamePlaceholder = isInventoryPurchaseCategory
+    ? 'Ketik nama produk atau pilih dari daftar'
+    : (() => {
+        const cat = formState.category.category
+        if (cat === 'employee_expense') return 'Contoh: Gaji Karyawan, Lembur, Bonus'
+        if (cat === 'marketing') return 'Contoh: Iklan IG, Endorse, Biaya Marketplace'
+        if (cat === 'utilities') return 'Contoh: Listrik Jan 2026, Internet'
+        if (cat === 'transportation') return 'Contoh: Ongkir, BBM, Kurir'
+        if (cat === 'maintenance') return 'Contoh: Service mesin, Perbaikan toko'
+        return 'Contoh: Biaya operasional, administrasi, dll'
+      })()
   
   // ============================================
   // RENDER
   // ============================================
   
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <form onSubmit={handleSubmit} className="max-w-7xl mx-auto space-y-6">
+    <div className="min-h-screen bg-gray-50 p-3 sm:p-6">
+      <form onSubmit={handleSubmit} className="max-w-7xl mx-auto space-y-4 sm:space-y-6 pb-24">
         
         {/* Tutorial Button - Fixed Position */}
         <button
           type="button"
           onClick={() => setShowTutorial(true)}
-          className="fixed bottom-6 right-6 z-40 bg-blue-600 hover:bg-blue-700 text-white rounded-full p-4 shadow-lg flex items-center gap-2 transition-all hover:scale-110"
+          className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-40 bg-blue-600 hover:bg-blue-700 text-white rounded-full p-3 sm:p-4 shadow-lg flex items-center gap-2 transition-all hover:scale-110"
           title="Panduan Penggunaan"
         >
           <HelpCircle className="w-6 h-6" />
-          <span className="font-medium">Tutorial</span>
+          <span className="font-medium hidden sm:inline">Tutorial</span>
         </button>
         
         {/* Header */}
@@ -479,7 +782,7 @@ export default function InputExpensesPage() {
               >
                 <option value="operating">Operasional</option>
                 <option value="investing">Investasi</option>
-                <option value="financing">Financing</option>
+                <option value="financing">Pendanaan</option>
               </select>
               
               {/* Category */}
@@ -494,6 +797,36 @@ export default function InputExpensesPage() {
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
                 ))}
               </select>
+
+              {/* Category Info Box (mirrors Income pattern) */}
+              {formState.category.category && (
+                <div
+                  className={`rounded-lg border p-4 text-sm ${
+                    getExpenseEducationContent(formState.category.expenseType, formState.category.category).tone === 'warning'
+                      ? 'bg-amber-50 border-amber-200 text-amber-900'
+                      : 'bg-blue-50 border-blue-200 text-blue-900'
+                  }`}
+                >
+                  <div className="font-semibold mb-2 flex items-center gap-2">
+                    <span>
+                      {getExpenseEducationContent(formState.category.expenseType, formState.category.category).tone === 'warning'
+                        ? '⚠️'
+                        : 'ℹ️'}
+                    </span>
+                    <span>{getExpenseEducationContent(formState.category.expenseType, formState.category.category).title}</span>
+                  </div>
+                  <ul className="list-disc list-inside space-y-1">
+                    {getExpenseEducationContent(formState.category.expenseType, formState.category.category).points.map((p, idx) => (
+                      <li key={idx}>{p}</li>
+                    ))}
+                  </ul>
+                  {getExpenseEducationContent(formState.category.expenseType, formState.category.category).caution && (
+                    <div className="mt-2 text-xs opacity-90">
+                      {getExpenseEducationContent(formState.category.expenseType, formState.category.category).caution}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -501,16 +834,22 @@ export default function InputExpensesPage() {
         {/* Items Table */}
         <ExpenseItemsTable
           lineItems={formState.items.lineItems}
+          products={products}
+          loadingProducts={productsLoading}
           currentItem={formState.items.currentItem}
           onAddItem={handleAddItem}
           onRemoveItem={actions.removeItem}
           onCurrentItemChange={actions.updateCurrentItem}
           onShowProductModal={() => actions.toggleUI('showProductModal', true)}
-          categoryType={formState.category.category as any}
+          mode={itemsMode}
+          title={isInventoryPurchaseCategory ? 'Daftar Item Pembelian' : 'Daftar Item Pengeluaran'}
+          nameLabel={isInventoryPurchaseCategory ? 'Produk' : 'Item / Deskripsi'}
+          namePlaceholder={itemsNamePlaceholder}
+          enableQuickCreateProduct={isInventoryPurchaseCategory}
         />
         
         {/* Production Output (for raw materials -> finished goods) */}
-        {formState.category.category === 'raw_materials' && formState.items.lineItems.length > 0 && (
+        {formState.category.category === 'raw_materials' && (
           <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg shadow-sm p-6 border-2 border-green-200">
             <div className="flex items-center justify-between mb-4">
               <div>
@@ -705,6 +1044,15 @@ export default function InputExpensesPage() {
           isOpen={formState.ui.showProductModal}
           onClose={() => actions.toggleUI('showProductModal', false)}
           product={null}
+          onCreated={(p) => {
+            // Auto-select the newly created product for the current line item
+            actions.updateCurrentItem({
+              product_id: p.id,
+              product_name: p.name,
+              unit: p.unit || formState.items.currentItem.unit || 'pcs',
+              price_per_unit: (p.cost_price ?? 0).toString()
+            })
+          }}
           onSuccess={() => {
             showToast('success', 'Produk berhasil dibuat!')
             actions.toggleUI('showProductModal', false)

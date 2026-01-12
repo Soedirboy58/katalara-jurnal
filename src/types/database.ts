@@ -22,6 +22,9 @@ export interface Database {
           name: string
           sku: string | null
           category: string | null
+          // Optional newer schema field (service vs physical)
+          // Kept nullable for backward compatibility.
+          product_type: string | null
           unit: string
           description: string | null
           cost_price: number
@@ -40,6 +43,7 @@ export interface Database {
           name: string
           sku?: string | null
           category?: string | null
+          product_type?: string | null
           unit?: string
           description?: string | null
           cost_price?: number
@@ -58,6 +62,7 @@ export interface Database {
           name?: string
           sku?: string | null
           category?: string | null
+          product_type?: string | null
           unit?: string
           description?: string | null
           cost_price?: number

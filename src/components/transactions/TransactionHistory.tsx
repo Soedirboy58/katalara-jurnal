@@ -12,13 +12,15 @@ import { Search, Filter, Calendar, LayoutGrid, List, Trash2, Edit, Eye, ChevronL
 export interface TransactionHistoryItem {
   id: string
   date: string
-  category: string
+  category: string // category code (used for filtering)
+  category_label?: string // display label
   customer_or_supplier?: string
   amount: number
-  status: 'Lunas' | 'Tempo' | 'Pending'
+  status: 'Lunas' | 'Tempo' | 'Sebagian'
   payment_method?: string
   description?: string
   po_number?: string
+  due_date?: string
 }
 
 export interface TransactionFilters {
@@ -73,6 +75,7 @@ export function TransactionHistory({
       const searchLower = filters.searchQuery.toLowerCase()
       const matchesSearch = 
         transaction.category?.toLowerCase().includes(searchLower) ||
+        transaction.category_label?.toLowerCase().includes(searchLower) ||
         transaction.customer_or_supplier?.toLowerCase().includes(searchLower) ||
         transaction.description?.toLowerCase().includes(searchLower) ||
         transaction.po_number?.toLowerCase().includes(searchLower)
@@ -117,7 +120,10 @@ export function TransactionHistory({
   }
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
+    const raw = (dateString || '').toString().trim()
+    if (!raw) return '-'
+    const date = new Date(raw)
+    if (Number.isNaN(date.getTime())) return raw
     return new Intl.DateTimeFormat('id-ID', {
       day: '2-digit',
       month: 'short',
@@ -155,7 +161,7 @@ export function TransactionHistory({
     const statusMap = {
       'Lunas': 'bg-green-100 text-green-800',
       'Tempo': 'bg-yellow-100 text-yellow-800',
-      'Pending': 'bg-orange-100 text-orange-800'
+      'Sebagian': 'bg-orange-100 text-orange-800'
     }
     return statusMap[status as keyof typeof statusMap] || 'bg-gray-100 text-gray-800'
   }
@@ -163,19 +169,21 @@ export function TransactionHistory({
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200">
       {/* Header */}
-      <div className="p-6 border-b border-gray-200">
-        <div className="flex items-center justify-between mb-4">
+      <div className="p-4 sm:p-6 border-b border-gray-200">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
           <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 justify-between sm:justify-end">
             {/* View Mode Toggle */}
             <div className="flex bg-gray-100 rounded-lg p-1">
               <button
+                type="button"
                 onClick={() => setViewMode('list')}
                 className={`p-2 rounded ${viewMode === 'list' ? 'bg-white shadow-sm' : 'text-gray-600'}`}
               >
                 <List className="w-4 h-4" />
               </button>
               <button
+                type="button"
                 onClick={() => setViewMode('card')}
                 className={`p-2 rounded ${viewMode === 'card' ? 'bg-white shadow-sm' : 'text-gray-600'}`}
               >
@@ -185,8 +193,9 @@ export function TransactionHistory({
 
             {/* Filter Toggle */}
             <button
+              type="button"
               onClick={() => setShowFilters(!showFilters)}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+              className="flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
             >
               <Filter className="w-4 h-4" />
               <span className="text-sm font-medium">Filter</span>
@@ -195,7 +204,7 @@ export function TransactionHistory({
         </div>
 
         {/* Search & Bulk Actions */}
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input
@@ -209,8 +218,9 @@ export function TransactionHistory({
 
           {selectedIds.size > 0 && (
             <button
+              type="button"
               onClick={handleBulkDelete}
-              className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
+              className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
             >
               <Trash2 className="w-4 h-4" />
               <span className="text-sm font-medium">Hapus ({selectedIds.size})</span>
@@ -258,6 +268,13 @@ export function TransactionHistory({
                     <option value="product_sales">Penjualan Produk</option>
                     <option value="service_income">Jasa/Layanan</option>
                     <option value="other_income">Lainnya</option>
+                    <option value="asset_sale">Jual Aset</option>
+                    <option value="investment_return">Return Investasi</option>
+                    <option value="other_investing">Investasi Lainnya</option>
+                    <option value="capital_injection">Modal Masuk Pribadi</option>
+                    <option value="loan_received">Pinjaman Diterima</option>
+                    <option value="investor_funding">Dana Investor</option>
+                    <option value="other_financing">Pendanaan Lainnya</option>
                   </>
                 ) : (
                   <>
@@ -279,7 +296,6 @@ export function TransactionHistory({
                 <option value="">Semua Status</option>
                 <option value="Lunas">Lunas</option>
                 <option value="Tempo">Tempo</option>
-                <option value="Pending">Pending</option>
               </select>
             </div>
           </div>
@@ -287,7 +303,7 @@ export function TransactionHistory({
       </div>
 
       {/* Content */}
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         {loading ? (
           <div className="text-center py-12">
             <div className="inline-block w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
@@ -333,7 +349,16 @@ export function TransactionHistory({
                       />
                     </td>
                     <td className="py-3 px-4 text-sm text-gray-900">{formatDate(transaction.date)}</td>
-                    <td className="py-3 px-4 text-sm text-gray-600">{transaction.category}</td>
+                    <td className="py-3 px-4 text-sm text-gray-900">
+                      <div className="font-medium text-gray-900">
+                        {transaction.category_label || transaction.category}
+                      </div>
+                      {transaction.description && (
+                        <div className="text-xs text-gray-500 mt-0.5 line-clamp-1">
+                          {transaction.description}
+                        </div>
+                      )}
+                    </td>
                     <td className="py-3 px-4 text-sm text-gray-600">
                       {transaction.customer_or_supplier || '-'}
                     </td>
@@ -344,10 +369,16 @@ export function TransactionHistory({
                       <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getStatusBadge(transaction.status)}`}>
                         {transaction.status}
                       </span>
+                      {(transaction.status === 'Tempo' || transaction.status === 'Sebagian') && transaction.due_date && (
+                        <div className="text-xs text-red-600 mt-1">
+                          Jatuh tempo: {formatDate(transaction.due_date)}
+                        </div>
+                      )}
                     </td>
                     <td className="py-3 px-4">
                       <div className="flex items-center justify-center gap-2">
                         <button
+                          type="button"
                           onClick={() => onPreview(transaction.id)}
                           className="p-1 hover:bg-gray-100 rounded"
                           title="Lihat"
@@ -355,6 +386,7 @@ export function TransactionHistory({
                           <Eye className="w-4 h-4 text-gray-600" />
                         </button>
                         <button
+                          type="button"
                           onClick={() => onEdit(transaction.id)}
                           className="p-1 hover:bg-gray-100 rounded"
                           title="Edit"
@@ -362,6 +394,7 @@ export function TransactionHistory({
                           <Edit className="w-4 h-4 text-blue-600" />
                         </button>
                         <button
+                          type="button"
                           onClick={() => onDelete(transaction.id)}
                           className="p-1 hover:bg-gray-100 rounded"
                           title="Hapus"
@@ -397,7 +430,18 @@ export function TransactionHistory({
                     <Calendar className="w-4 h-4" />
                     <span>{formatDate(transaction.date)}</span>
                   </div>
-                  <div className="text-sm font-medium text-gray-900">{transaction.category}</div>
+                  {(transaction.status === 'Tempo' || transaction.status === 'Sebagian') && transaction.due_date && (
+                    <div className="flex items-center gap-2 text-sm text-red-600">
+                      <Calendar className="w-4 h-4" />
+                      <span>Jatuh tempo: {formatDate(transaction.due_date)}</span>
+                    </div>
+                  )}
+                  <div className="text-sm font-medium text-gray-900">{transaction.category_label || transaction.category}</div>
+                  {transaction.description && (
+                    <div className="text-xs text-gray-500 line-clamp-2">
+                      {transaction.description}
+                    </div>
+                  )}
                   {transaction.customer_or_supplier && (
                     <div className="text-sm text-gray-600">{transaction.customer_or_supplier}</div>
                   )}
@@ -406,6 +450,7 @@ export function TransactionHistory({
 
                 <div className="flex items-center gap-2 pt-3 border-t border-gray-200">
                   <button
+                    type="button"
                     onClick={() => onPreview(transaction.id)}
                     className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
                   >
@@ -413,6 +458,7 @@ export function TransactionHistory({
                     <span className="text-sm">Lihat</span>
                   </button>
                   <button
+                    type="button"
                     onClick={() => onEdit(transaction.id)}
                     className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg transition-colors"
                   >
@@ -420,6 +466,7 @@ export function TransactionHistory({
                     <span className="text-sm">Edit</span>
                   </button>
                   <button
+                    type="button"
                     onClick={() => onDelete(transaction.id)}
                     className="p-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg transition-colors"
                   >
@@ -439,6 +486,7 @@ export function TransactionHistory({
             </div>
             <div className="flex gap-2">
               <button
+                type="button"
                 onClick={() => onPageChange(currentPage - 1)}
                 disabled={currentPage === 1}
                 className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -450,6 +498,7 @@ export function TransactionHistory({
                 if (page > calculatedTotalPages) return null
                 return (
                   <button
+                    type="button"
                     key={page}
                     onClick={() => onPageChange(page)}
                     className={`px-4 py-2 rounded-lg font-medium ${
@@ -463,6 +512,7 @@ export function TransactionHistory({
                 )
               })}
               <button
+                type="button"
                 onClick={() => onPageChange(currentPage + 1)}
                 disabled={currentPage === calculatedTotalPages}
                 className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"

@@ -292,7 +292,19 @@ const expenseFormReducer = (
     case 'SET_EXPENSE_TYPE':
       return {
         ...state,
-        category: { ...state.category, expenseType: action.payload }
+        category: { expenseType: action.payload, category: '' },
+        // Reset items when expense type changes (category options differ)
+        items: {
+          lineItems: [],
+          currentItem: {
+            product_id: '',
+            product_name: '',
+            quantity: '',
+            unit: 'pcs',
+            price_per_unit: '',
+            notes: ''
+          }
+        }
       }
     
     // Items

@@ -4,6 +4,83 @@ import { NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
 
+async function getProductStockField(
+  supabase: any,
+  productId: string
+): Promise<{ field: 'stock_quantity' | 'stock'; value: number } | null> {
+  // Prefer stock_quantity, fallback to stock
+  const first = await supabase
+    .from('products')
+    .select('stock_quantity')
+    .eq('id', productId)
+    .single()
+
+  if (!first.error) {
+    const v = Number(first.data?.stock_quantity ?? 0)
+    return { field: 'stock_quantity', value: Number.isFinite(v) ? v : 0 }
+  }
+
+  const msg = (first.error as any)?.message?.toString()?.toLowerCase?.() || ''
+  const code = (first.error as any)?.code || ''
+  const isMissing = code === '42703' || msg.includes('column') || msg.includes('stock_quantity')
+  if (!isMissing) return null
+
+  const second = await supabase
+    .from('products')
+    .select('stock')
+    .eq('id', productId)
+    .single()
+
+  if (second.error) return null
+
+  const v = Number(second.data?.stock ?? 0)
+  return { field: 'stock', value: Number.isFinite(v) ? v : 0 }
+}
+
+async function rollbackProductStocksFromExpenseItems(
+  supabase: any,
+  expenseId: string
+) {
+  const { data: expenseItems, error: itemsError } = await supabase
+    .from('expense_items')
+    .select('product_id, qty')
+    .eq('expense_id', expenseId)
+
+  if (itemsError || !expenseItems || expenseItems.length === 0) return
+
+  // Sum quantities per product to minimize queries
+  const qtyByProduct = new Map<string, number>()
+  for (const item of expenseItems) {
+    const productId = item?.product_id
+    if (!productId) continue
+    const qty = Number(item?.qty ?? 0)
+    if (!Number.isFinite(qty) || qty <= 0) continue
+    qtyByProduct.set(productId, (qtyByProduct.get(productId) || 0) + qty)
+  }
+
+  for (const [productId, qty] of qtyByProduct.entries()) {
+    const stockInfo = await getProductStockField(supabase, productId)
+    if (!stockInfo) continue
+
+    const newStock = Math.max(0, stockInfo.value - qty)
+    await supabase
+      .from('products')
+      .update({ [stockInfo.field]: newStock })
+      .eq('id', productId)
+
+    // Best-effort: keep both legacy and newer stock columns in sync.
+    const otherField = stockInfo.field === 'stock_quantity' ? 'stock' : 'stock_quantity'
+    try {
+      await supabase
+        .from('products')
+        .update({ [otherField]: newStock })
+        .eq('id', productId)
+    } catch {
+      // ignore
+    }
+  }
+}
+
 // PATCH: Update an expense
 export async function PATCH(
   request: Request,
@@ -126,27 +203,22 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // First, get the expense details to restore stock if needed
+    // Ensure expense exists (and user has access via RLS)
     const { data: expense, error: fetchError } = await supabase
       .from('expenses')
-      .select('*')
+      .select('id')
       .eq('id', id)
       .single()
 
     if (fetchError || !expense) {
-      return NextResponse.json(
-        { error: 'Expense not found' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'Expense not found' }, { status: 404 })
     }
 
-    // 🔄 RESTORE STOCK: If this is a product purchase, restore the stock
-    if (expense.product_id && expense.quantity) {
-      // ⚠️ STOCK MANAGEMENT: stock_quantity does NOT exist in products table
-      // Stock is managed separately (future implementation with stock_movements table)
-      console.log(`📦 Stock restoration pending for expense ${id} (product: ${expense.product_id})`)
-      // TODO: Implement proper inventory tracking with stock_movements
-    }
+    // Restore stock based on expense_items
+    await rollbackProductStocksFromExpenseItems(supabase, id)
+
+    // Delete items first (avoid FK issues)
+    await supabase.from('expense_items').delete().eq('expense_id', id)
 
     // Delete the expense transaction
     const { error: deleteError } = await supabase
@@ -161,7 +233,7 @@ export async function DELETE(
 
     return NextResponse.json({ 
       success: true, 
-      message: 'Expense deleted successfully' 
+      message: 'Expense deleted successfully (stock restored when applicable)'
     })
 
   } catch (error: any) {

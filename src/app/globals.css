@@ -26,17 +26,17 @@ body {
   overflow-x: hidden;
 }
 
-/* FORCE TEXT COLOR - Emergency fix for gray text issue */
-* {
-  color: inherit !important;
-}
+/* Note:
+   Avoid global `* { color: ... !important }` rules because they override Tailwind utility classes
+   (e.g., sidebar text colors). If you need to fix a specific page/component, scope the CSS.
+*/
 
 input, textarea, select {
-  color: #171717 !important;
+  color: #171717;
 }
 
 input::placeholder, textarea::placeholder {
-  color: #9ca3af !important;
+  color: #9ca3af;
 }
 
 /* Prevent background scroll/overscroll when modal is open */
