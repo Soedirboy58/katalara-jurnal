@@ -16,6 +16,10 @@ import type { Income, IncomeItem, IncomeFormData } from '../types/financeTypes'
 const isTransactionsSchemaMismatch = (message: string) => {
   const m = (message || '').toLowerCase()
   if (!m) return false
+  // RLS policy missing / denies insert on unified transactions table
+  if (m.includes('row-level security') && m.includes('transactions')) return true
+  if (m.includes('violates row-level security policy') && m.includes('transactions')) return true
+  if (m.includes('code') && m.includes('42501') && m.includes('transactions')) return true
   // Postgres undefined column
   if (m.includes('column transactions.owner_id does not exist')) return true
   if (m.includes('column transactions.user_id does not exist')) return true
@@ -296,6 +300,11 @@ export function useIncomes(options: UseIncomesOptions = {}): UseIncomesReturn {
         return { success: false, error: (txErrMsg || 'Failed to create transaction') + meta }
       }
 
+      const fallbackWarning =
+        txErrMsg.toLowerCase().includes('row-level security') || txErrMsg.toLowerCase().includes('42501')
+          ? '⚠️ Transaksi disimpan via mode kompatibilitas (incomes lama) karena policy RLS untuk tabel transactions belum aktif.'
+          : '⚠️ Transaksi disimpan via mode kompatibilitas (incomes lama) karena schema transactions belum sesuai.'
+
       // Fallback to legacy incomes endpoint
       const totals = computeTotals(formData)
       const dp = totals.downPayment
@@ -345,7 +354,7 @@ export function useIncomes(options: UseIncomesOptions = {}): UseIncomesReturn {
       }
 
       await fetchIncomes()
-      return { success: true, data: (incJson.data || null) as any }
+      return { success: true, data: (incJson.data || null) as any, warning: fallbackWarning }
       
     } catch (err: any) {
       console.error('Error creating income:', err)

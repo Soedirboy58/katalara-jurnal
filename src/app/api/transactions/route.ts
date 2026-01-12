@@ -78,6 +78,82 @@ function buildInvoiceUniqFixSql(constraintOrIndexName?: string) {
   return lines.join('\n')
 }
 
+function buildTransactionsRlsFixSql() {
+  return [
+    '-- Fix RLS policies for unified transactions system',
+    '-- Run this in Supabase SQL editor',
+    '',
+    'ALTER TABLE public.transactions ENABLE ROW LEVEL SECURITY;',
+    'ALTER TABLE public.transaction_items ENABLE ROW LEVEL SECURITY;',
+    '',
+    'DROP POLICY IF EXISTS "transactions_select_own" ON public.transactions;',
+    'DROP POLICY IF EXISTS "transactions_insert_own" ON public.transactions;',
+    'DROP POLICY IF EXISTS "transactions_update_own" ON public.transactions;',
+    'DROP POLICY IF EXISTS "transactions_delete_own" ON public.transactions;',
+    '',
+    'CREATE POLICY "transactions_select_own" ON public.transactions',
+    'FOR SELECT USING (COALESCE(user_id, owner_id) = auth.uid());',
+    '',
+    'CREATE POLICY "transactions_insert_own" ON public.transactions',
+    'FOR INSERT WITH CHECK (COALESCE(user_id, owner_id) = auth.uid());',
+    '',
+    'CREATE POLICY "transactions_update_own" ON public.transactions',
+    'FOR UPDATE USING (COALESCE(user_id, owner_id) = auth.uid())',
+    'WITH CHECK (COALESCE(user_id, owner_id) = auth.uid());',
+    '',
+    'CREATE POLICY "transactions_delete_own" ON public.transactions',
+    'FOR DELETE USING (COALESCE(user_id, owner_id) = auth.uid());',
+    '',
+    'DROP POLICY IF EXISTS "transaction_items_select_own" ON public.transaction_items;',
+    'DROP POLICY IF EXISTS "transaction_items_insert_own" ON public.transaction_items;',
+    'DROP POLICY IF EXISTS "transaction_items_update_own" ON public.transaction_items;',
+    'DROP POLICY IF EXISTS "transaction_items_delete_own" ON public.transaction_items;',
+    '',
+    'CREATE POLICY "transaction_items_select_own" ON public.transaction_items',
+    'FOR SELECT USING (',
+    '  EXISTS (',
+    '    SELECT 1 FROM public.transactions t',
+    '    WHERE t.id = transaction_items.transaction_id',
+    '      AND COALESCE(t.user_id, t.owner_id) = auth.uid()',
+    '  )',
+    ');',
+    '',
+    'CREATE POLICY "transaction_items_insert_own" ON public.transaction_items',
+    'FOR INSERT WITH CHECK (',
+    '  EXISTS (',
+    '    SELECT 1 FROM public.transactions t',
+    '    WHERE t.id = transaction_items.transaction_id',
+    '      AND COALESCE(t.user_id, t.owner_id) = auth.uid()',
+    '  )',
+    ');',
+    '',
+    'CREATE POLICY "transaction_items_update_own" ON public.transaction_items',
+    'FOR UPDATE USING (',
+    '  EXISTS (',
+    '    SELECT 1 FROM public.transactions t',
+    '    WHERE t.id = transaction_items.transaction_id',
+    '      AND COALESCE(t.user_id, t.owner_id) = auth.uid()',
+    '  )',
+    ')',
+    'WITH CHECK (',
+    '  EXISTS (',
+    '    SELECT 1 FROM public.transactions t',
+    '    WHERE t.id = transaction_items.transaction_id',
+    '      AND COALESCE(t.user_id, t.owner_id) = auth.uid()',
+    '  )',
+    ');',
+    '',
+    'CREATE POLICY "transaction_items_delete_own" ON public.transaction_items',
+    'FOR DELETE USING (',
+    '  EXISTS (',
+    '    SELECT 1 FROM public.transactions t',
+    '    WHERE t.id = transaction_items.transaction_id',
+    '      AND COALESCE(t.user_id, t.owner_id) = auth.uid()',
+    '  )',
+    ');'
+  ].join('\n')
+}
+
 function computeDiscountAmount(subtotal: number, mode: 'percent' | 'nominal', value: number) {
   if (mode === 'percent') return Math.max(0, (subtotal * Math.max(0, value)) / 100)
   return Math.max(0, value)
@@ -587,6 +663,19 @@ export async function POST(request: NextRequest) {
 
         if (tErr) {
           lastErr = tErr
+          const isRls = tErr?.code === '42501' || tErrMsg.includes('row-level security')
+          if (isRls) {
+            return NextResponse.json(
+              {
+                success: false,
+                error:
+                  'Akses ditolak oleh Row Level Security (RLS) untuk tabel transactions. Jalankan SQL di meta.recommendedSql untuk menambahkan policy yang benar.',
+                meta: { ...errorPayload(tErr), recommendedSql: buildTransactionsRlsFixSql() }
+              },
+              { status: 403 }
+            )
+          }
+
           const missing = extractMissingColumn(tErr)
           if (missing?.table === 'transactions' && missing.column) {
             // If the user-binding column is wrong, swap owner_id <-> user_id.
