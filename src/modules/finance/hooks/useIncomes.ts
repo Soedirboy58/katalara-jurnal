@@ -295,13 +295,19 @@ export function useIncomes(options: UseIncomesOptions = {}): UseIncomesReturn {
       })
 
       const txErrMsg = (json?.error || `HTTP ${res.status}` || '').toString()
-      if (!isTransactionsSchemaMismatch(txErrMsg)) {
+      const txErrCode = (json?.meta?.code || json?.code || '').toString()
+      const shouldFallback =
+        res.status === 403 ||
+        txErrCode === '42501' ||
+        isTransactionsSchemaMismatch(txErrMsg)
+
+      if (!shouldFallback) {
         const meta = json?.meta ? `\n${JSON.stringify(json.meta)}` : ''
         return { success: false, error: (txErrMsg || 'Failed to create transaction') + meta }
       }
 
       const fallbackWarning =
-        txErrMsg.toLowerCase().includes('row-level security') || txErrMsg.toLowerCase().includes('42501')
+        res.status === 403 || txErrCode === '42501' || txErrMsg.toLowerCase().includes('row-level security') || txErrMsg.toLowerCase().includes('42501')
           ? '⚠️ Transaksi disimpan via mode kompatibilitas (incomes lama) karena policy RLS untuk tabel transactions belum aktif.'
           : '⚠️ Transaksi disimpan via mode kompatibilitas (incomes lama) karena schema transactions belum sesuai.'
 
