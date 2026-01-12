@@ -1,12 +1,92 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
+import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
 
+type TransactionsUserColumn = 'owner_id' | 'user_id'
+type CustomersUserColumn = 'owner_id' | 'user_id'
+
+async function getTransactionsUserColumn(
+  supabase: any,
+  userId: string
+): Promise<TransactionsUserColumn> {
+  const isMissingColumn = (err: any, col: string) => {
+    const code = (err?.code || err?.error_code || '').toString().toUpperCase()
+    if (code === '42703') return true
+
+    const msg = (err?.message || err?.details || '').toString().toLowerCase()
+    const c = col.toLowerCase()
+
+    if (code.startsWith('PGRST')) {
+      if (msg.includes('schema cache') && msg.includes(c)) return true
+      if (msg.includes('could not find') && msg.includes(c) && (msg.includes('column') || msg.includes('field'))) return true
+      if (msg.includes('unknown field') && msg.includes(c)) return true
+    }
+
+    if (!msg.includes('does not exist')) return false
+    return (
+      msg.includes(`transactions.${c}`) ||
+      msg.includes(`column transactions.${c}`) ||
+      msg.includes(`column \"${c}\"`) ||
+      msg.includes(`\"${c}\" of relation \"transactions\"`) ||
+      msg.includes(` ${c} `)
+    )
+  }
+
+  const hasColumn = async (col: TransactionsUserColumn) => {
+    const { error } = await supabase.from('transactions').select(col).limit(1)
+    if (!error) return true
+    if (isMissingColumn(error, col)) return false
+    return true
+  }
+
+  if (await hasColumn('owner_id')) return 'owner_id'
+  if (await hasColumn('user_id')) return 'user_id'
+  return 'owner_id'
+}
+
+async function getCustomersUserColumn(
+  supabase: any,
+  userId: string
+): Promise<CustomersUserColumn> {
+  const isMissingColumn = (err: any, col: string) => {
+    const code = (err?.code || err?.error_code || '').toString().toUpperCase()
+    if (code === '42703') return true
+
+    const msg = (err?.message || err?.details || '').toString().toLowerCase()
+    const c = col.toLowerCase()
+
+    if (code.startsWith('PGRST')) {
+      if (msg.includes('schema cache') && msg.includes(c)) return true
+      if (msg.includes('could not find') && msg.includes(c) && (msg.includes('column') || msg.includes('field'))) return true
+      if (msg.includes('unknown field') && msg.includes(c)) return true
+    }
+
+    if (!msg.includes('does not exist')) return false
+    return (
+      msg.includes(`customers.${c}`) ||
+      msg.includes(`column customers.${c}`) ||
+      msg.includes(`column \"${c}\"`) ||
+      msg.includes(`\"${c}\" of relation \"customers\"`) ||
+      msg.includes(` ${c} `)
+    )
+  }
+
+  const hasColumn = async (col: CustomersUserColumn) => {
+    const { error } = await supabase.from('customers').select(col).limit(1)
+    if (!error) return true
+    if (isMissingColumn(error, col)) return false
+    return true
+  }
+
+  if (await hasColumn('owner_id')) return 'owner_id'
+  if (await hasColumn('user_id')) return 'user_id'
+  return 'owner_id'
+}
+
 export async function POST(request: Request) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
+    const supabase = await createClient()
     
     // Get current user
     const { data: { user }, error: userError } = await supabase.auth.getUser()
@@ -14,185 +94,190 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
 
-    // ============================================
-    // STEP 1: Extract Customers from Incomes
-    // ============================================
-    const { data: incomesWithCustomers, error: incomesError } = await supabase
-      .from('incomes')
-      .select('customer_name, customer_phone, customer_email')
-      .eq('user_id', user.id)
-      .not('customer_name', 'is', null)
+    const normalizePhone = (v: any) => (v ?? '').toString().replace(/\D/g, '').trim()
+    const normalizeName = (v: any) => (v ?? '').toString().trim().toLowerCase()
 
-    if (incomesError) {
-      console.error('Error fetching incomes:', incomesError)
-      return NextResponse.json({ success: false, error: incomesError.message }, { status: 500 })
+    const txUserCol = await getTransactionsUserColumn(supabase, user.id)
+    const customersUserCol = await getCustomersUserColumn(supabase, user.id)
+
+    // Load existing customers
+    const { data: existingCustomers, error: existingCustomersError } = await supabase
+      .from('customers')
+      .select('id, name, phone')
+      .eq(customersUserCol, user.id)
+
+    if (existingCustomersError) {
+      return NextResponse.json({ success: false, error: existingCustomersError.message }, { status: 500 })
     }
 
-    // Deduplicate customers by phone or name
-    const customerMap = new Map<string, any>()
-    incomesWithCustomers?.forEach((income: any) => {
-      const key = income.customer_phone || income.customer_name
-      if (!customerMap.has(key)) {
-        customerMap.set(key, {
-          name: income.customer_name,
-          phone: income.customer_phone || null,
-          email: income.customer_email || null
-        })
-      }
-    })
+    const customerByPhone = new Map<string, any>()
+    const customerByName = new Map<string, any>()
+    for (const c of existingCustomers || []) {
+      const p = normalizePhone((c as any).phone)
+      const n = normalizeName((c as any).name)
+      if (p) customerByPhone.set(p, c)
+      if (n) customerByName.set(n, c)
+    }
 
-    // Get existing customers to avoid duplicates
-    const { data: existingCustomers } = await supabase
-      .from('customers')
-      .select('phone, name')
-      .eq('user_id', user.id)
+    // Load transactions (source of truth for income/sales)
+    const { data: transactions, error: txError } = await supabase
+      .from('transactions')
+      .select('id, customer_id, customer_name, customer_phone, customer_address')
+      .eq(txUserCol, user.id)
 
-    const existingPhones = new Set(existingCustomers?.map(c => c.phone).filter(Boolean))
-    const existingNames = new Set(existingCustomers?.map(c => c.name).filter(Boolean))
+    if (txError) {
+      return NextResponse.json({ success: false, error: txError.message }, { status: 500 })
+    }
 
-    // Insert new customers
     let customersInserted = 0
-    let customersSkipped = 0
+    let customersLinked = 0
     const customerErrors: string[] = []
 
-    for (const [key, customer] of customerMap.entries()) {
-      // Skip if already exists
-      if (existingPhones.has(customer.phone) || existingNames.has(customer.name)) {
-        customersSkipped++
-        continue
-      }
+    for (const t of transactions || []) {
+      const customerNameRaw = (t as any).customer_name
+      const customerName = (customerNameRaw ?? '').toString().trim()
+      if (!customerName || customerName.toLowerCase() === 'umum / walk-in') continue
 
-      // Get next customer number
-      const { count } = await supabase
-        .from('customers')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id)
+      const phoneNorm = normalizePhone((t as any).customer_phone)
+      const nameNorm = normalizeName(customerName)
 
-      const customerNumber = `CUST-${String((count || 0) + 1).padStart(3, '0')}`
+      let customer = phoneNorm ? customerByPhone.get(phoneNorm) : undefined
+      if (!customer && nameNorm) customer = customerByName.get(nameNorm)
 
-      const { error: insertError } = await supabase
-        .from('customers')
-        .insert({
-          user_id: user.id,
-          customer_number: customerNumber,
-          name: customer.name,
-          phone: customer.phone,
-          email: customer.email,
-          total_transactions: 0,
-          total_spent: 0
-        })
-
-      if (insertError) {
-        customerErrors.push(`${customer.name}: ${insertError.message}`)
-      } else {
-        customersInserted++
-      }
-    }
-
-    // ============================================
-    // STEP 2: Extract Products from Line Items
-    // ============================================
-    const { data: incomesWithProducts, error: productsError } = await supabase
-      .from('incomes')
-      .select('line_items, product_name')
-      .eq('user_id', user.id)
-
-    if (productsError) {
-      console.error('Error fetching products:', productsError)
-      return NextResponse.json({ success: false, error: productsError.message }, { status: 500 })
-    }
-
-    // Extract products from line_items JSON
-    const productMap = new Map<string, any>()
-    
-    incomesWithProducts?.forEach((income: any) => {
-      // Parse line_items if it's a JSON string
-      let lineItems: any[] = []
-      try {
-        if (typeof income.line_items === 'string') {
-          lineItems = JSON.parse(income.line_items)
-        } else if (Array.isArray(income.line_items)) {
-          lineItems = income.line_items
-        }
-      } catch (e) {
-        console.error('Error parsing line_items:', e)
-      }
-
-      // Extract from line_items array
-      lineItems.forEach((item: any) => {
-        if (item.product_name && !productMap.has(item.product_name)) {
-          productMap.set(item.product_name, {
-            name: item.product_name,
-            price: item.price_per_unit || item.price || 0,
-            unit: item.unit || 'pcs'
+      // Ensure customer exists
+      if (!customer) {
+        const { data: inserted, error: insertError } = await supabase
+          .from('customers')
+          .insert({
+            [customersUserCol]: user.id,
+            name: customerName,
+            phone: (t as any).customer_phone || null,
+            address: (t as any).customer_address || null,
+            is_active: true
           })
+          .select('id, name, phone')
+          .single()
+
+        if (insertError || !inserted) {
+          customerErrors.push(`${customerName}: ${insertError?.message || 'Failed to insert customer'}`)
+          continue
         }
-      })
 
-      // Also check single product_name field (for simple transactions)
-      if (income.product_name && !productMap.has(income.product_name)) {
-        productMap.set(income.product_name, {
-          name: income.product_name,
-          price: 0,
-          unit: 'pcs'
-        })
-      }
-    })
+        customer = inserted
+        customersInserted++
 
-    // Get existing products to avoid duplicates
-    const { data: existingProducts } = await supabase
-      .from('products')
-      .select('name')
-      .eq('user_id', user.id)
-
-    const existingProductNames = new Set(existingProducts?.map(p => p.name).filter(Boolean))
-
-    // Insert new products
-    let productsInserted = 0
-    let productsSkipped = 0
-    const productErrors: string[] = []
-
-    for (const [name, product] of productMap.entries()) {
-      // Skip if already exists
-      if (existingProductNames.has(name)) {
-        productsSkipped++
-        continue
+        const p = normalizePhone((inserted as any).phone)
+        const n = normalizeName((inserted as any).name)
+        if (p) customerByPhone.set(p, inserted)
+        if (n) customerByName.set(n, inserted)
       }
 
-      // ⚠️ Field names MUST match database schema (see types/product-schema.ts)
-      const { error: insertError } = await supabase
-        .from('products')
-        .insert({
-          user_id: user.id,
-          name: product.name,
-          selling_price: product.price,
-          cost_price: 0, // Will need to be filled manually
-          unit: product.unit,
-          min_stock_alert: 0,
-          track_inventory: true,
-          is_active: true
-        })
+      // Backfill customer_id on transactions
+      if (!(t as any).customer_id && (customer as any).id) {
+        const { error: linkError } = await supabase
+          .from('transactions')
+          .update({ customer_id: (customer as any).id })
+          .eq('id', (t as any).id)
+          .eq(txUserCol, user.id)
 
-      if (insertError) {
-        productErrors.push(`${name}: ${insertError.message}`)
-      } else {
-        productsInserted++
+        if (!linkError) customersLinked++
       }
     }
 
-    // Return sync report
+    // Load existing products
+    const { data: existingProducts, error: existingProductsError } = await supabase
+      .from('products')
+      .select('id, name')
+      .eq('user_id', user.id)
+
+    if (existingProductsError) {
+      return NextResponse.json({ success: false, error: existingProductsError.message }, { status: 500 })
+    }
+
+    const productByName = new Map<string, any>()
+    for (const p of existingProducts || []) {
+      const n = normalizeName((p as any).name)
+      if (n) productByName.set(n, p)
+    }
+
+    // Load transaction items for this owner's transactions
+    const txIds = (transactions || []).map((t: any) => t.id)
+    const productErrors: string[] = []
+    let productsInserted = 0
+    let productsLinked = 0
+
+    const chunkSize = 100
+    for (let i = 0; i < txIds.length; i += chunkSize) {
+      const chunk = txIds.slice(i, i + chunkSize)
+      const { data: items, error: itemsError } = await supabase
+        .from('transaction_items')
+        .select('id, transaction_id, product_id, product_name, unit, price')
+        .in('transaction_id', chunk)
+
+      if (itemsError) {
+        productErrors.push(itemsError.message)
+        continue
+      }
+
+      for (const it of items || []) {
+        if ((it as any).product_id) continue
+        const productName = ((it as any).product_name ?? '').toString().trim()
+        if (!productName) continue
+
+        const nameNorm = normalizeName(productName)
+        let product = nameNorm ? productByName.get(nameNorm) : undefined
+
+        if (!product) {
+          const { data: inserted, error: insertError } = await supabase
+            .from('products')
+            .insert({
+              user_id: user.id,
+              name: productName,
+              unit: (it as any).unit || 'pcs',
+              selling_price: Number((it as any).price || 0),
+              cost_price: 0,
+              min_stock_alert: 0,
+              track_inventory: true,
+              is_active: true
+            })
+            .select('id, name')
+            .single()
+
+          if (insertError || !inserted) {
+            productErrors.push(`${productName}: ${insertError?.message || 'Failed to insert product'}`)
+            continue
+          }
+
+          product = inserted
+          productsInserted++
+          const n = normalizeName((inserted as any).name)
+          if (n) productByName.set(n, inserted)
+        }
+
+        const { error: linkError } = await supabase
+          .from('transaction_items')
+          .update({ product_id: (product as any).id })
+          .eq('id', (it as any).id)
+
+        if (!linkError) productsLinked++
+      }
+    }
+
     return NextResponse.json({
       success: true,
       report: {
         customers: {
-          synced: customersInserted,
-          skipped: customersSkipped,
+          inserted: customersInserted,
+          linked: customersLinked,
           errors: customerErrors
         },
         products: {
-          synced: productsInserted,
-          skipped: productsSkipped,
+          inserted: productsInserted,
+          linked: productsLinked,
           errors: productErrors
+        },
+        transactions: {
+          scanned: (transactions || []).length
         }
       }
     })

@@ -99,46 +99,63 @@ export const useExpensesList = (options: UseExpensesListOptions = {}) => {
         return
       }
       
-      // Start query with user filter
-      let query = supabase
-        .from('expenses')
-        .select('*')
-        .eq('user_id', user.id)
-      
-      // Apply filters
-      if (filters.searchQuery) {
-        const searchTerm = filters.searchQuery.trim()
-        query = query.or(`description.ilike.%${searchTerm}%,po_number.ilike.%${searchTerm}%,notes.ilike.%${searchTerm}%`)
+      // Build query (rebuilt per attempt to avoid stacking filters)
+      const categoryFilter = (filters.category || '').toString().trim()
+
+      const buildQuery = () => {
+        let query = supabase
+          .from('expenses')
+          .select('*')
+          .eq('user_id', user.id)
+
+        if (filters.searchQuery) {
+          const searchTerm = filters.searchQuery.trim()
+          query = query.or(
+            `description.ilike.%${searchTerm}%,po_number.ilike.%${searchTerm}%,notes.ilike.%${searchTerm}%`
+          )
+        }
+
+        if (filters.dateRange) {
+          query = query
+            .gte('expense_date', filters.dateRange.start)
+            .lte('expense_date', filters.dateRange.end)
+        }
+
+        if (filters.expenseType) {
+          query = query.eq('expense_type', filters.expenseType)
+        }
+
+        if (filters.paymentStatus) {
+          query = query.eq('payment_status', filters.paymentStatus)
+        }
+
+        if (filters.supplierId) {
+          query = query.eq('supplier_id', filters.supplierId)
+        }
+
+        return query
+          .order(orderBy.column, { ascending: orderBy.ascending })
+          .limit(limit)
       }
-      
-      if (filters.dateRange) {
-        query = query
-          .gte('expense_date', filters.dateRange.start)
-          .lte('expense_date', filters.dateRange.end)
+
+      // Fetch with schema-drift safe category filtering.
+      let data: any[] | null = null
+      let fetchError: any = null
+
+      if (categoryFilter) {
+        // Prefer expense_category; fallback to category if older schema.
+        ;({ data, error: fetchError } = await buildQuery().eq('expense_category', categoryFilter))
+
+        const msg = ((fetchError as any)?.message || '').toString().toLowerCase()
+        const code = (fetchError as any)?.code || ''
+        const isMissingColumn = fetchError && (code === '42703' || msg.includes('could not find') || msg.includes('column'))
+
+        if (isMissingColumn) {
+          ;({ data, error: fetchError } = await buildQuery().eq('category', categoryFilter))
+        }
+      } else {
+        ;({ data, error: fetchError } = await buildQuery())
       }
-      
-      if (filters.category) {
-        query = query.eq('category', filters.category)
-      }
-      
-      if (filters.expenseType) {
-        query = query.eq('expense_type', filters.expenseType)
-      }
-      
-      if (filters.paymentStatus) {
-        query = query.eq('payment_status', filters.paymentStatus)
-      }
-      
-      if (filters.supplierId) {
-        query = query.eq('supplier_id', filters.supplierId)
-      }
-      
-      // Apply ordering and limit
-      query = query
-        .order(orderBy.column, { ascending: orderBy.ascending })
-        .limit(limit)
-      
-      const { data, error: fetchError } = await query
       
       if (fetchError) throw fetchError
       
@@ -150,7 +167,8 @@ export const useExpensesList = (options: UseExpensesListOptions = {}) => {
         description: exp.description || exp.notes || 'Pengeluaran',
         supplier_id: exp.supplier_id || null,
         supplier_name: exp.supplier_name || null,
-        category: exp.category || 'operational',
+        expense_category: exp.expense_category || exp.category || '',
+        category: exp.expense_category || exp.category || '',
         expense_type: exp.expense_type || 'operating',
         payment_status: exp.payment_status || 'Lunas',
         payment_method: exp.payment_method || 'cash',

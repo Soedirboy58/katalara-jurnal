@@ -67,7 +67,10 @@ export function EditTransactionModal({
         if (data) {
           setFormData({
             date: data[transactionType === 'income' ? 'income_date' : 'expense_date'] || '',
-            category: data[transactionType === 'income' ? 'income_category' : 'expense_category'] || '',
+            category:
+              transactionType === 'income'
+                ? (data.income_category || data.category || '')
+                : (data.expense_category || data.category || ''),
             customer_or_supplier: data[transactionType === 'income' ? 'customer_name' : 'supplier_name'] || '',
             amount: data.grand_total || data.total_amount || 0,
             payment_method: data.payment_method || 'cash',
@@ -97,9 +100,11 @@ export function EditTransactionModal({
       const categoryField = transactionType === 'income' ? 'income_category' : 'expense_category'
       const customerSupplierField = transactionType === 'income' ? 'customer_name' : 'supplier_name'
 
-      const updateData: any = {
+      let updateData: any = {
         [dateField]: formData.date,
+        // schema drift safe: try both specific and generic columns
         [categoryField]: formData.category,
+        category: formData.category,
         [customerSupplierField]: formData.customer_or_supplier,
         grand_total: formData.amount,
         payment_method: formData.payment_method,
@@ -108,12 +113,54 @@ export function EditTransactionModal({
         updated_at: new Date().toISOString()
       }
 
-      const { error } = await supabase
-        .from(tableName)
-        .update(updateData)
-        .eq('id', transactionId)
+      const extractMissingColumn = (err: any) => {
+        const msg = ((err as any)?.message || (err as any)?.details || '').toString()
+        let m = msg.match(/Could not find the '([^']+)' column/i)
+        if (m?.[1]) return m[1]
+        m = msg.match(/column\s+[^.]+\.([^\s]+)\s+does not exist/i)
+        if (m?.[1]) return m[1].replace(/"/g, '')
+        m = msg.match(/column\s+"([^"]+)"\s+does not exist/i)
+        if (m?.[1]) return m[1]
+        return ''
+      }
 
-      if (error) throw error
+      const isSchemaMismatch = (err: any) => {
+        const msg = ((err as any)?.message || '').toString().toLowerCase()
+        const code = (err as any)?.code || ''
+        return code === '42703' || msg.includes('column') || msg.includes('could not find')
+      }
+
+      let lastError: any = null
+      for (let i = 0; i < 8; i++) {
+        const { error } = await supabase.from(tableName).update(updateData).eq('id', transactionId)
+        if (!error) {
+          lastError = null
+          break
+        }
+
+        lastError = error
+        if (!isSchemaMismatch(error)) break
+
+        const missing = extractMissingColumn(error)
+        if (missing && Object.prototype.hasOwnProperty.call(updateData, missing)) {
+          delete updateData[missing]
+          continue
+        }
+
+        // If we couldn't detect the missing key, drop one of the category keys as a safe fallback.
+        if (Object.prototype.hasOwnProperty.call(updateData, categoryField)) {
+          delete updateData[categoryField]
+          continue
+        }
+        if (Object.prototype.hasOwnProperty.call(updateData, 'category')) {
+          delete updateData.category
+          continue
+        }
+
+        break
+      }
+
+      if (lastError) throw lastError
 
       alert('✅ Transaksi berhasil diperbarui')
       onSuccess?.()
@@ -234,11 +281,11 @@ export function EditTransactionModal({
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   required
                 >
-                  <option value="cash">💵 Cash</option>
+                  <option value="cash">💵 Tunai</option>
                   <option value="transfer">🏦 Transfer</option>
                   <option value="tempo">📅 Tempo</option>
                   <option value="qris">📱 QRIS</option>
-                  <option value="e-wallet">💳 E-Wallet</option>
+                  <option value="e-wallet">💳 Dompet Digital</option>
                 </select>
               </div>
 
@@ -254,7 +301,7 @@ export function EditTransactionModal({
                   required
                 >
                   <option value="Lunas">✅ Lunas</option>
-                  <option value="Pending">⏳ Pending</option>
+                  <option value="Pending">⏳ Menunggu</option>
                   <option value="Tempo">📅 Tempo</option>
                 </select>
               </div>

@@ -3,6 +3,47 @@ import { createClient } from '@/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
 
+type CustomersUserColumn = 'owner_id' | 'user_id'
+
+async function getCustomersUserColumn(supabase: any, userId: string): Promise<CustomersUserColumn> {
+  const isMissingColumn = (err: any, col: string) => {
+    const code = (err?.code || err?.error_code || '').toString().toUpperCase()
+    if (code === '42703') return true
+
+    const msg = (err?.message || err?.details || '').toString().toLowerCase()
+    const c = col.toLowerCase()
+
+    // PostgREST schema-cache / column missing variants
+    // e.g. "Could not find the 'owner_id' column of 'customers' in the schema cache"
+    if (code.startsWith('PGRST')) {
+      if (msg.includes('schema cache') && msg.includes(c)) return true
+      if (msg.includes('could not find') && msg.includes(c) && (msg.includes('column') || msg.includes('field'))) return true
+      if (msg.includes('unknown field') && msg.includes(c)) return true
+    }
+
+    return (
+      msg.includes('does not exist') &&
+      (msg.includes(`customers.${c}`) ||
+        msg.includes(`column customers.${c}`) ||
+        msg.includes(`column \"${c}\"`) ||
+        msg.includes(`\"${c}\" of relation \"customers\"`) ||
+        msg.includes(` ${c} `))
+    )
+  }
+
+  {
+    const { error } = await supabase.from('customers').select('owner_id').limit(1)
+    if (!error) return 'owner_id'
+    if (!isMissingColumn(error, 'owner_id')) return 'owner_id'
+  }
+
+  {
+    const { error } = await supabase.from('customers').select('user_id').limit(1)
+    if (!error) return 'user_id'
+    return 'user_id'
+  }
+}
+
 // GET - Fetch customer by ID or list all
 export async function GET(request: NextRequest) {
   try {
@@ -18,6 +59,8 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    const userCol = await getCustomersUserColumn(supabase, user.id)
+
     const { searchParams } = new URL(request.url)
     const customerId = searchParams.get('id')
     const active = searchParams.get('active') !== 'false' // Default true
@@ -28,7 +71,7 @@ export async function GET(request: NextRequest) {
         .from('customers')
         .select('*')
         .eq('id', customerId)
-        .eq('owner_id', user.id)
+        .eq(userCol, user.id)
         .single()
 
       if (error) {
@@ -48,7 +91,7 @@ export async function GET(request: NextRequest) {
       let query = supabase
         .from('customers')
         .select('*')
-        .eq('owner_id', user.id)
+        .eq(userCol, user.id)
         .order('created_at', { ascending: false })
 
       if (active) {
@@ -93,6 +136,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const userCol = await getCustomersUserColumn(supabase, user.id)
+
     const body = await request.json()
     
     // Validation
@@ -107,7 +152,7 @@ export async function POST(request: NextRequest) {
     const { data: existing } = await supabase
       .from('customers')
       .select('id')
-      .eq('owner_id', user.id)
+      .eq(userCol, user.id)
       .ilike('name', body.name.trim())
       .maybeSingle()
 
@@ -119,7 +164,7 @@ export async function POST(request: NextRequest) {
     }
 
     const customerData = {
-      owner_id: user.id,
+      [userCol]: user.id,
       name: body.name.trim(),
       phone: body.phone || null,
       email: body.email || null,
@@ -169,6 +214,8 @@ export async function PATCH(request: NextRequest) {
       )
     }
 
+    const userCol = await getCustomersUserColumn(supabase, user.id)
+
     const body = await request.json()
     
     if (!body.id) {
@@ -193,7 +240,7 @@ export async function PATCH(request: NextRequest) {
       .from('customers')
       .update(updateData)
       .eq('id', body.id)
-      .eq('owner_id', user.id)
+      .eq(userCol, user.id)
       .select()
       .single()
 
@@ -232,6 +279,8 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
+    const userCol = await getCustomersUserColumn(supabase, user.id)
+
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')
     
@@ -247,7 +296,7 @@ export async function DELETE(request: NextRequest) {
       .from('customers')
       .update({ is_active: false, updated_at: new Date().toISOString() })
       .eq('id', id)
-      .eq('owner_id', user.id)
+      .eq(userCol, user.id)
 
     if (error) {
       console.error('Error deleting customer:', error)

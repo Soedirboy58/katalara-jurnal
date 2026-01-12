@@ -8,11 +8,13 @@ import { createClient } from '@/lib/supabase/client'
 import { Bars3Icon, ChevronDoubleLeftIcon, ChevronDoubleRightIcon, BellIcon, UserCircleIcon, Cog6ToothIcon } from '@heroicons/react/24/outline'
 import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard'
 import WhatsAppGroupButton from '@/components/WhatsAppGroupButton'
+import { MobileBottomNav } from '@/components/navigation/MobileBottomNav'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
   const router = useRouter()
   const supabase = createClient()
+  const onboardingWizardEnabled = process.env.NEXT_PUBLIC_ENABLE_ONBOARDING_WIZARD === 'true'
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [userEmail, setUserEmail] = useState('')
@@ -30,6 +32,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       router.push('/login')
     } else if (user) {
       setUserEmail(user.email || '')
+
+      // If onboarding wizard is disabled, do not block the dashboard.
+      if (!onboardingWizardEnabled) {
+        setShowOnboarding(false)
+        setCheckingOnboarding(false)
+        return
+      }
+
       // Fetch user profile for full name
       const fetchProfile = async () => {
         const { data } = await supabase
@@ -77,7 +87,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       // Load storefront slug for quick action button
       loadStorefrontSlug()
     }
-  }, [user, loading, router, supabase])
+  }, [user, loading, router, supabase, onboardingWizardEnabled])
   
   const loadStorefrontSlug = async () => {
     if (!user) return
@@ -175,7 +185,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <>
       {/* Onboarding Wizard */}
-      {showOnboarding && (
+      {onboardingWizardEnabled && showOnboarding && (
         <OnboardingWizard 
           userId={user.id}
           onComplete={() => {
@@ -197,7 +207,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       
       <div className="flex-1 flex flex-col min-h-screen">
         {/* Top Bar */}
-        <header className="bg-white border-b border-gray-200 sticky top-0 z-30">
+        <header className="hidden lg:block bg-white border-b border-gray-200 sticky top-0 z-30">
           <div className="w-full max-w-6xl mx-auto flex items-center justify-between h-16 px-4 lg:px-6">
             <div className="flex items-center space-x-4">
               <MobileMenuButton onClick={() => setSidebarOpen(true)} />
@@ -557,11 +567,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </header>
 
         {/* Main Content */}
-        <main className="flex-1 p-4 lg:p-6">
+        <main className="flex-1 p-4 lg:p-6 pb-24 lg:pb-6">
           <div className="w-full max-w-6xl mx-auto">
             {children}
           </div>
         </main>
+
+        <MobileBottomNav
+          sidebarOpen={sidebarOpen}
+          setSidebarOpen={setSidebarOpen}
+          storefrontSlug={storefrontSlug}
+        />
       </div>
 
       {/* WhatsApp Community Floating Button */}

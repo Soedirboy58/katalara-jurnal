@@ -24,6 +24,7 @@ export async function GET(request: NextRequest) {
     const endDate = searchParams.get('end_date')
     const incomeType = searchParams.get('income_type')
     const category = searchParams.get('category')
+    const paymentStatus = searchParams.get('payment_status')
     const limit = parseInt(searchParams.get('limit') || '50')
     const offset = parseInt(searchParams.get('offset') || '0')
 
@@ -47,6 +48,9 @@ export async function GET(request: NextRequest) {
     }
     if (category) {
       query = query.eq('category', category)
+    }
+    if (paymentStatus) {
+      query = query.eq('payment_status', paymentStatus)
     }
 
     // Apply pagination

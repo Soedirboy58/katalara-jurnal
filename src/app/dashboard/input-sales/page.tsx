@@ -358,7 +358,7 @@ export default function InputSalesPage() {
             >
               <option>Tunai</option>
               <option>Transfer Bank</option>
-              <option>E-Wallet</option>
+              <option>Dompet Digital</option>
               <option>QRIS</option>
               <option>Kredit/Tempo</option>
             </select>

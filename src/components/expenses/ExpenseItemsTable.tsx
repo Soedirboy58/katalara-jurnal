@@ -13,10 +13,13 @@
 import { useState, useEffect, useRef } from 'react'
 import { Trash2, Plus, Package, Search, ChevronDown, AlertTriangle } from 'lucide-react'
 import type { LineItem } from '@/hooks/expenses/useExpenseForm'
-import { useProductsWithStock } from '@/hooks/useProductsWithStock'
+import type { Product } from '@/types'
+import { createClient } from '@/lib/supabase/client'
 
 interface ExpenseItemsTableProps {
   lineItems: LineItem[]
+  products: Product[]
+  loadingProducts?: boolean
   currentItem: {
     product_id?: string
     product_name?: string
@@ -29,34 +32,35 @@ interface ExpenseItemsTableProps {
   onRemoveItem: (id: string) => void
   onCurrentItemChange: (updates: any) => void
   onShowProductModal: () => void
-  onProductCreated?: () => void
-  categoryType: 'raw_materials' | 'finished_goods' | 'services' | ''
+  mode: 'inventory' | 'general'
+  title?: string
+  nameLabel?: string
+  namePlaceholder?: string
+  enableQuickCreateProduct?: boolean
 }
 
 export const ExpenseItemsTable: React.FC<ExpenseItemsTableProps> = ({
   lineItems,
+  products,
+  loadingProducts = false,
   currentItem,
   onAddItem,
   onRemoveItem,
   onCurrentItemChange,
   onShowProductModal,
-  onProductCreated,
-  categoryType
+  mode,
+  title,
+  nameLabel,
+  namePlaceholder,
+  enableQuickCreateProduct = true
 }) => {
-  // Use products with stock hook
-  const { products, loading: loadingProducts, refresh: refreshProducts } = useProductsWithStock()
-  
-  // Trigger refresh when product is created
-  useEffect(() => {
-    if (onProductCreated) {
-      refreshProducts()
-    }
-  }, [onProductCreated])
-  
+  const supabase = createClient()
   // Product autocomplete state
   const [filteredProducts, setFilteredProducts] = useState<typeof products>([])
   const [showDropdown, setShowDropdown] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const [unitOptions, setUnitOptions] = useState<{ value: string; label: string; isFavorite: boolean }[]>([])
+  const [unitLoading, setUnitLoading] = useState(false)
   
   // Calculate current item subtotal
   const currentSubtotal = 
@@ -71,24 +75,108 @@ export const ExpenseItemsTable: React.FC<ExpenseItemsTableProps> = ({
       minimumFractionDigits: 0
     }).format(amount)
   }
+
+  const categoryToBusinessType = (category?: string | null): 'dagang' | 'jasa' | 'produksi' => {
+    const c = (category || '').toString().toLowerCase()
+    if (c.includes('jasa')) return 'jasa'
+    if (c.includes('trading') || c.includes('reseller')) return 'dagang'
+    if (c.includes('produk') || c.includes('stok') || c.includes('hybrid')) return 'produksi'
+    return 'dagang'
+  }
+
+  const matchesBusinessType = (types: string[] | null | undefined, type: 'dagang' | 'jasa' | 'produksi') => {
+    if (!types || types.length === 0) return true
+    return types.map((t) => t.toLowerCase()).includes(type)
+  }
   
   // Update filtered products when products change
   useEffect(() => {
+    if (mode === 'inventory') {
+      // Inventory purchase should only show physical/stock-tracked items (exclude services).
+      setFilteredProducts(products.filter((p) => (p as any).track_inventory !== false))
+      return
+    }
     setFilteredProducts(products)
   }, [products])
+
+  useEffect(() => {
+    const loadUnits = async () => {
+      try {
+        setUnitLoading(true)
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return
+
+        const { data: config } = await supabase
+          .from('business_configurations')
+          .select('business_category')
+          .eq('user_id', user.id)
+          .single()
+
+        const businessType = categoryToBusinessType(config?.business_category)
+
+        const { data: catalog, error: catalogError } = await supabase
+          .from('unit_catalog')
+          .select('id,name,symbol,business_types,is_default,is_active')
+          .eq('is_active', true)
+
+        if (catalogError) throw catalogError
+
+        const { data: prefs, error: prefsError } = await supabase
+          .from('business_unit_preferences')
+          .select('unit_id,is_active,is_favorite')
+          .eq('user_id', user.id)
+
+        if (prefsError) throw prefsError
+
+        const filtered = (catalog || []).filter((unit) => matchesBusinessType(unit.business_types, businessType))
+        const options = filtered
+          .filter((unit) => {
+            const pref = (prefs || []).find((p) => p.unit_id === unit.id)
+            if (pref && pref.is_active === false) return false
+            return unit.is_active !== false
+          })
+          .map((unit) => {
+            const pref = (prefs || []).find((p) => p.unit_id === unit.id)
+            const value = (unit.symbol || unit.name || '').toString()
+            return {
+              value,
+              label: `${unit.name}${unit.symbol ? ` (${unit.symbol})` : ''}`,
+              isFavorite: pref?.is_favorite ?? false
+            }
+          })
+          .filter((unit) => unit.value)
+          .sort((a, b) => {
+            if (a.isFavorite !== b.isFavorite) return a.isFavorite ? -1 : 1
+            return a.label.localeCompare(b.label)
+          })
+
+        setUnitOptions(options)
+      } catch (error) {
+        console.error('Error loading unit options:', error)
+      } finally {
+        setUnitLoading(false)
+      }
+    }
+
+    loadUnits()
+  }, [supabase])
   
   // Filter products based on input
   useEffect(() => {
+    const baseProducts = mode === 'inventory'
+      ? products.filter((p) => (p as any).track_inventory !== false)
+      : products
+
     if (currentItem.product_name) {
       const query = currentItem.product_name.toLowerCase()
-      const filtered = products.filter(p => 
+      const filtered = baseProducts.filter(p => 
         p.name.toLowerCase().includes(query)
       )
       setFilteredProducts(filtered)
     } else {
-      setFilteredProducts(products)
+      setFilteredProducts(baseProducts)
     }
-  }, [currentItem.product_name, products])
+  }, [currentItem.product_name, products, mode])
   
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -101,9 +189,23 @@ export const ExpenseItemsTable: React.FC<ExpenseItemsTableProps> = ({
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
+
+  useEffect(() => {
+    if (unitOptions.length === 0) return
+    const currentUnit = currentItem.unit || ''
+    const hasUnit = unitOptions.some((opt) => opt.value === currentUnit)
+    if (!currentUnit || !hasUnit) {
+      onCurrentItemChange({ unit: unitOptions[0].value })
+    }
+  }, [unitOptions])
+
+  // Ensure dropdown is closed for non-inventory mode
+  useEffect(() => {
+    if (mode !== 'inventory') setShowDropdown(false)
+  }, [mode])
   
   // Handle product selection
-  const handleProductSelect = (product: typeof products[0]) => {
+  const handleProductSelect = (product: Product) => {
     onCurrentItemChange({
       product_id: product.id,
       product_name: product.name,
@@ -125,15 +227,16 @@ export const ExpenseItemsTable: React.FC<ExpenseItemsTableProps> = ({
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold text-gray-800">
           <Package className="inline-block w-5 h-5 mr-2" />
-          Item Pembelian
+          {title || (mode === 'inventory' ? 'Daftar Item Pembelian' : 'Daftar Item Pengeluaran')}
         </h3>
-        {categoryType && (
+        {mode === 'inventory' && enableQuickCreateProduct && (
           <button
             type="button"
             onClick={onShowProductModal}
-            className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:border-blue-300 font-semibold text-sm transition-colors"
           >
-            + Buat Produk Baru
+            <Plus className="w-4 h-4" />
+            Buat Produk Baru
           </button>
         )}
       </div>
@@ -191,28 +294,42 @@ export const ExpenseItemsTable: React.FC<ExpenseItemsTableProps> = ({
       {/* Add Item Form */}
       <div className="border-t pt-4 space-y-3">
         <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
-          {/* Product Name with Autocomplete */}
+          {/* Item / Deskripsi */}
           <div className="md:col-span-2 relative" ref={dropdownRef}>
-            <div className="relative">
+            <label className="block text-xs font-medium text-gray-700 mb-1">
+              {nameLabel || (mode === 'inventory' ? 'Produk' : 'Item / Deskripsi')}
+            </label>
+
+            {mode === 'inventory' ? (
+              <div className="relative">
+                <input
+                  type="text"
+                  value={currentItem.product_name || ''}
+                  onChange={(e) => handleProductInputChange(e.target.value)}
+                  onFocus={() => setShowDropdown(true)}
+                  placeholder={namePlaceholder || 'Ketik nama produk atau pilih dari daftar'}
+                  className="w-full h-10 px-3 py-2 pr-8 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowDropdown(!showDropdown)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <ChevronDown className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
               <input
                 type="text"
                 value={currentItem.product_name || ''}
-                onChange={(e) => handleProductInputChange(e.target.value)}
-                onFocus={() => setShowDropdown(true)}
-                placeholder="Ketik nama produk atau pilih dari daftar"
-                className="w-full px-3 py-2 pr-8 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                onChange={(e) => onCurrentItemChange({ product_id: '', product_name: e.target.value })}
+                placeholder={namePlaceholder || 'Contoh: Gaji Karyawan, Biaya Iklan, dll'}
+                className="w-full h-10 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
               />
-              <button
-                type="button"
-                onClick={() => setShowDropdown(!showDropdown)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-              >
-                <ChevronDown className="w-4 h-4" />
-              </button>
-            </div>
+            )}
             
             {/* Dropdown List */}
-            {showDropdown && (
+            {mode === 'inventory' && showDropdown && (
               <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
                 {loadingProducts ? (
                   <div className="p-3 text-center text-sm text-gray-500">
@@ -274,16 +391,19 @@ export const ExpenseItemsTable: React.FC<ExpenseItemsTableProps> = ({
                   <div className="p-4 text-center text-sm text-gray-500">
                     <Package className="w-8 h-8 mx-auto mb-2 opacity-30" />
                     <p>Tidak ada produk yang cocok</p>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onShowProductModal()
-                        setShowDropdown(false)
-                      }}
-                      className="mt-2 text-blue-600 hover:text-blue-700 font-medium"
-                    >
-                      + Buat Produk Baru
-                    </button>
+                    {enableQuickCreateProduct && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onShowProductModal()
+                          setShowDropdown(false)
+                        }}
+                        className="mt-3 inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:border-blue-300 font-semibold text-sm transition-colors"
+                      >
+                        <Plus className="w-4 h-4" />
+                        Buat Produk Baru
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -292,6 +412,7 @@ export const ExpenseItemsTable: React.FC<ExpenseItemsTableProps> = ({
           
           {/* Quantity */}
           <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Qty</label>
             <input
               type="number"
               value={currentItem.quantity || ''}
@@ -299,32 +420,32 @@ export const ExpenseItemsTable: React.FC<ExpenseItemsTableProps> = ({
               placeholder="Qty"
               min="0"
               step="0.01"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+              className="w-full h-10 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
             />
           </div>
           
           {/* Unit */}
           <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Satuan</label>
             <select
               value={currentItem.unit || 'pcs'}
               onChange={(e) => onCurrentItemChange({ unit: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+              className="w-full h-10 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
             >
-              <option value="pcs">Pcs</option>
-              <option value="kg">Kg</option>
-              <option value="gram">Gram</option>
-              <option value="liter">Liter</option>
-              <option value="ml">ML</option>
-              <option value="meter">Meter</option>
-              <option value="box">Box</option>
-              <option value="karton">Karton</option>
-              <option value="lusin">Lusin</option>
-              <option value="pack">Pack</option>
+              {unitLoading && <option value={currentItem.unit || 'pcs'}>Memuat satuan...</option>}
+              {!unitLoading && unitOptions.length === 0 && <option value={currentItem.unit || 'pcs'}>Satuan default</option>}
+              {!unitLoading &&
+                unitOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
             </select>
           </div>
           
           {/* Price */}
           <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Harga/Unit</label>
             <input
               type="number"
               value={currentItem.price_per_unit || ''}
@@ -332,16 +453,17 @@ export const ExpenseItemsTable: React.FC<ExpenseItemsTableProps> = ({
               placeholder="Harga satuan"
               min="0"
               step="1"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+              className="w-full h-10 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
             />
           </div>
           
           {/* Add Button */}
           <div>
+            <div className="h-[1.25rem] mb-1" aria-hidden="true" />
             <button
               type="button"
               onClick={onAddItem}
-              className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium flex items-center justify-center gap-2 transition-colors text-sm"
+              className="w-full h-10 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium flex items-center justify-center gap-2 transition-colors text-sm"
               disabled={
                 !currentItem.product_name ||
                 !currentItem.quantity ||
@@ -377,7 +499,9 @@ export const ExpenseItemsTable: React.FC<ExpenseItemsTableProps> = ({
       {lineItems.length === 0 && (
         <div className="text-center py-8 text-gray-400">
           <Package className="w-12 h-12 mx-auto mb-2 opacity-50" />
-          <p className="text-sm">Belum ada item. Tambahkan item pembelian di atas.</p>
+          <p className="text-sm">
+            Belum ada item. Tambahkan item {mode === 'inventory' ? 'pembelian' : 'pengeluaran'} di atas.
+          </p>
         </div>
       )}
     </div>
