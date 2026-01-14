@@ -164,6 +164,55 @@ function buildTransactionsRlsFixSql() {
   ].join('\n')
 }
 
+function buildTransactionsGrantFixSql() {
+  return [
+    '-- Fix Postgres privileges (GRANT) for unified transactions system',
+    '-- Run this in Supabase SQL editor',
+    '',
+    '-- Ensure authenticated role can access your tables (RLS still applies separately)',
+    'GRANT USAGE ON SCHEMA public TO authenticated;',
+    'GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.customers TO authenticated;',
+    'GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.products TO authenticated;',
+    'GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.transactions TO authenticated;',
+    'GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.transaction_items TO authenticated;',
+    'GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.payments TO authenticated;',
+    'GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.stock_movements TO authenticated;',
+    '',
+    '-- Safe defaults for future tables/sequences in public schema',
+    'GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO authenticated;',
+    'ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO authenticated;',
+    'ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO authenticated;'
+  ].join('\n')
+}
+
+function errorText(err: any) {
+  return `${err?.message ?? ''}\n${err?.details ?? ''}\n${err?.hint ?? ''}`.toLowerCase()
+}
+
+function isRlsDeniedError(err: any) {
+  const t = errorText(err)
+  return (
+    t.includes('row level security') ||
+    t.includes('row-level security') ||
+    t.includes('violates row-level security policy') ||
+    t.includes('new row violates row-level security policy')
+  )
+}
+
+function isPermissionDeniedError(err: any) {
+  const t = errorText(err)
+  // Common Postgres patterns:
+  // - permission denied for table <tbl>
+  // - permission denied for relation <tbl>
+  // - must be owner of relation <tbl>
+  // - insufficient privilege
+  return (
+    t.includes('permission denied') ||
+    t.includes('must be owner of relation') ||
+    t.includes('insufficient privilege')
+  )
+}
+
 function computeDiscountAmount(subtotal: number, mode: 'percent' | 'nominal', value: number) {
   if (mode === 'percent') return Math.max(0, (subtotal * Math.max(0, value)) / 100)
   return Math.max(0, value)
@@ -675,14 +724,37 @@ export async function POST(request: NextRequest) {
           lastErr = tErr
           const isRls = tErr?.code === '42501' || tErrMsg.includes('row-level security')
           if (isRls) {
+            const classifiedAs = isPermissionDeniedError(tErr)
+              ? 'permission'
+              : isRlsDeniedError(tErr)
+                ? 'rls'
+                : 'unknown'
+
             return NextResponse.json(
               {
                 success: false,
                 error:
-                  'Akses ditolak oleh Row Level Security (RLS) untuk tabel transactions. Jalankan SQL di meta.recommendedSql untuk menambahkan policy yang benar.',
+                  classifiedAs === 'permission'
+                    ? 'Akses ditolak oleh Postgres (permission denied). Jalankan SQL di meta.recommendedSql untuk melakukan GRANT pada role authenticated.'
+                    : classifiedAs === 'rls'
+                      ? 'Akses ditolak oleh Row Level Security (RLS) untuk tabel transactions. Jalankan SQL di meta.recommendedSql untuk menambahkan policy yang benar.'
+                      : 'Akses ditolak (42501). Bisa karena RLS atau permission (GRANT). Lihat meta.dbError dan jalankan SQL yang sesuai di meta.recommendedSql.',
                 meta: {
                   ...errorPayload(tErr),
-                  recommendedSql: buildTransactionsRlsFixSql(),
+                  errorClass: classifiedAs,
+                  recommendedSql:
+                    classifiedAs === 'permission'
+                      ? buildTransactionsGrantFixSql()
+                      : classifiedAs === 'rls'
+                        ? buildTransactionsRlsFixSql()
+                        : [
+                            '-- 42501 can be caused by missing RLS policies OR missing GRANT privileges.',
+                            '-- Try ONE of the following depending on meta.dbError.message/details:',
+                            '',
+                            buildTransactionsGrantFixSql(),
+                            '',
+                            buildTransactionsRlsFixSql()
+                          ].join('\n'),
                   debug: {
                     supabaseHost: safeSupabaseHost(),
                     authUserId: user.id,
@@ -690,6 +762,12 @@ export async function POST(request: NextRequest) {
                     insertUserId: transactionInsert?.user_id ?? null,
                     insertOwnerId: transactionInsert?.owner_id ?? null,
                     insertUserColValue: transactionInsert?.[userCol] ?? null
+                  },
+                  dbError: {
+                    code: tErr?.code,
+                    message: tErr?.message,
+                    details: tErr?.details,
+                    hint: tErr?.hint
                   }
                 }
               },
