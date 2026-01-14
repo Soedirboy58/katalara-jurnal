@@ -493,10 +493,17 @@ export async function POST(request: NextRequest) {
     // - If cookie header is missing, auth bridging might be broken.
     const { data: { session } } = await supabase.auth.getSession()
 
+    // IMPORTANT: Force Authorization header for DB operations.
+    // In some prod setups, auth.getUser() succeeds but PostgREST calls may still run without the bearer token.
+    // This makes RLS policies see auth.uid() properly.
+    const supabaseDb = session?.access_token
+      ? await createClient({ accessToken: session.access_token })
+      : supabase
+
     const body = await request.json()
 
-    const userCol = await getTransactionsUserColumn(supabase, user.id)
-    const customersUserCol = await getCustomersUserColumn(supabase, user.id)
+    const userCol = await getTransactionsUserColumn(supabaseDb, user.id)
+    const customersUserCol = await getCustomersUserColumn(supabaseDb, user.id)
 
     const transactionDate = (body.transaction_date || body.income_date || '').toString()
     if (!transactionDate) {
@@ -539,7 +546,7 @@ export async function POST(request: NextRequest) {
     if (!customerName) customerName = 'Umum / Walk-in'
 
     if (!customerId && customerName && customerName !== 'Umum / Walk-in') {
-      const { data: existingCustomer } = await supabase
+      const { data: existingCustomer } = await supabaseDb
         .from('customers')
         .select('id, name')
         .eq(customersUserCol, user.id)
@@ -564,7 +571,7 @@ export async function POST(request: NextRequest) {
           is_active: true
         }
         for (let attempt = 0; attempt < 4; attempt++) {
-          const res = await supabase
+          const res = await supabaseDb
             .from('customers')
             .insert(insertPayload)
             .select('id, name')
@@ -627,7 +634,7 @@ export async function POST(request: NextRequest) {
     const paymentTypeStored = paymentType
 
     // Invoice (MUST be sequential)
-    const inv1 = await generateInvoiceNumber(supabase, user.id, userCol)
+    const inv1 = await generateInvoiceNumber(supabaseDb, user.id, userCol)
     if (!inv1.ok || !inv1.invoice) {
       return NextResponse.json(
         { success: false, error: `Gagal generate invoice number: ${inv1.error || 'unknown'}` },
@@ -681,7 +688,7 @@ export async function POST(request: NextRequest) {
       const attemptedInvoices: string[] = []
       for (let attempt = 0; attempt < 10; attempt++) {
         if (transactionInsert?.invoice_number) attemptedInvoices.push(transactionInsert.invoice_number)
-        let { data: t, error: tErr } = await supabase
+        let { data: t, error: tErr } = await supabaseDb
           .from('transactions')
           .insert([transactionInsert])
           .select('*')
@@ -694,7 +701,7 @@ export async function POST(request: NextRequest) {
 
         if (tErr && isInvoiceUniqueViolation) {
           lastErr = tErr
-          const inv2 = await generateInvoiceNumber(supabase, user.id, userCol)
+          const inv2 = await generateInvoiceNumber(supabaseDb, user.id, userCol)
           if (!inv2.ok || !inv2.invoice) {
             return NextResponse.json({ success: false, error: 'Gagal generate invoice number', meta: inv2 }, { status: 500 })
           }
@@ -875,7 +882,7 @@ export async function POST(request: NextRequest) {
           }
 
           // Rollback main transaction if items fail
-          await supabase.from('transactions').delete().eq('id', transactionRow.id)
+          await supabaseDb.from('transactions').delete().eq('id', transactionRow.id)
           return NextResponse.json(
             { success: false, error: res.error.message, meta: errorPayload(res.error) },
             { status: 500 }
@@ -887,7 +894,7 @@ export async function POST(request: NextRequest) {
       }
 
       if (!insertedItems.length) {
-        await supabase.from('transactions').delete().eq('id', transactionRow.id)
+        await supabaseDb.from('transactions').delete().eq('id', transactionRow.id)
         return NextResponse.json({ success: false, error: 'Gagal menyimpan item transaksi' }, { status: 500 })
       }
     }
@@ -908,7 +915,7 @@ export async function POST(request: NextRequest) {
     const nameMap = new Map<string, string>()
 
     if (productIds.length) {
-      const { data: products, error: prodErr } = await supabase
+      const { data: products, error: prodErr } = await supabaseDb
         .from('products')
         .select('id, name, track_inventory, stock, stock_quantity')
         .in('id', productIds)
@@ -970,8 +977,8 @@ export async function POST(request: NextRequest) {
 
     if (insufficient.length) {
       // Rollback created rows
-      await supabase.from('transaction_items').delete().eq('transaction_id', transactionRow.id)
-      await supabase.from('transactions').delete().eq('id', transactionRow.id)
+      await supabaseDb.from('transaction_items').delete().eq('transaction_id', transactionRow.id)
+      await supabaseDb.from('transactions').delete().eq('id', transactionRow.id)
       return NextResponse.json(
         {
           success: false,
@@ -987,15 +994,15 @@ export async function POST(request: NextRequest) {
     for (const [pid, qty] of qtyNeededByProduct.entries()) {
       if (!trackMap.get(pid)) continue
       const note = `Sale ${transactionRow.invoice_number} (${transactionRow.id})`
-      const res = await adjustStockSafe(supabase, pid, -qty, note)
+      const res = await adjustStockSafe(supabaseDb, pid, -qty, note)
       if (!res.ok) {
         const msg = (res.error || '').toString().toLowerCase()
         // Rollback any prior deductions
         for (const d of deductedProducts) {
-          await adjustStockSafe(supabase, d.product_id, +d.qty, `Rollback failed sale ${transactionRow.invoice_number}`)
+          await adjustStockSafe(supabaseDb, d.product_id, +d.qty, `Rollback failed sale ${transactionRow.invoice_number}`)
         }
-        await supabase.from('transaction_items').delete().eq('transaction_id', transactionRow.id)
-        await supabase.from('transactions').delete().eq('id', transactionRow.id)
+        await supabaseDb.from('transaction_items').delete().eq('transaction_id', transactionRow.id)
+        await supabaseDb.from('transactions').delete().eq('id', transactionRow.id)
 
         if (msg.includes('insufficient stock') || msg.includes('stok') || msg.includes('insufficient')) {
           return NextResponse.json(
@@ -1027,7 +1034,7 @@ export async function POST(request: NextRequest) {
 
     // Mark all items as deducted (best-effort; ignore missing-column schemas)
     if (deductedProducts.length) {
-      const upd = await supabase
+      const upd = await supabaseDb
         .from('transaction_items')
         .update({ stock_deducted: true })
         .eq('transaction_id', transactionRow.id)
