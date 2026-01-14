@@ -320,9 +320,13 @@ export function useIncomes(options: UseIncomesOptions = {}): UseIncomesReturn {
       }
 
       const fallbackWarning =
-        res.status === 403 || txErrCode === '42501' || txErrMsg.toLowerCase().includes('row-level security') || txErrMsg.toLowerCase().includes('42501')
-          ? '⚠️ Transaksi disimpan via mode kompatibilitas (incomes lama) karena policy RLS untuk tabel transactions belum aktif.'
-          : '⚠️ Transaksi disimpan via mode kompatibilitas (incomes lama) karena schema transactions belum sesuai.'
+        (json?.meta?.errorClass || '').toString() === 'permission'
+          ? '⚠️ Mode kompatibilitas aktif: akses DB (GRANT) untuk tabel transactions masih ditolak, jadi disimpan ke incomes lama. Lihat Console untuk detail.'
+          : (json?.meta?.errorClass || '').toString() === 'rls'
+            ? '⚠️ Mode kompatibilitas aktif: insert ke tabel transactions ditolak RLS, jadi disimpan ke incomes lama. Lihat Console untuk detail.'
+            : res.status === 403 || txErrCode === '42501' || txErrMsg.toLowerCase().includes('row-level security') || txErrMsg.toLowerCase().includes('42501')
+              ? '⚠️ Mode kompatibilitas aktif: insert ke tabel transactions ditolak (42501), jadi disimpan ke incomes lama. Lihat Console untuk detail.'
+              : '⚠️ Mode kompatibilitas aktif: schema transactions belum sesuai, jadi disimpan ke incomes lama.'
 
       // Fallback to legacy incomes endpoint
       const totals = computeTotals(formData)

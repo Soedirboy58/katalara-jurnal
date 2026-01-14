@@ -488,6 +488,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
 
+    // Helpful in diagnosing prod-only RLS issues:
+    // - If session/access_token is missing, DB queries may run as anon (auth.uid() = null) => RLS will deny.
+    // - If cookie header is missing, auth bridging might be broken.
+    const { data: { session } } = await supabase.auth.getSession()
+
     const body = await request.json()
 
     const userCol = await getTransactionsUserColumn(supabase, user.id)
@@ -758,6 +763,10 @@ export async function POST(request: NextRequest) {
                   debug: {
                     supabaseHost: safeSupabaseHost(),
                     authUserId: user.id,
+                    sessionUserId: session?.user?.id ?? null,
+                    hasAccessToken: Boolean(session?.access_token),
+                    sessionExpiresAt: session?.expires_at ?? null,
+                    hasCookieHeader: Boolean(request.headers.get('cookie')),
                     userCol,
                     insertUserId: transactionInsert?.user_id ?? null,
                     insertOwnerId: transactionInsert?.owner_id ?? null,
