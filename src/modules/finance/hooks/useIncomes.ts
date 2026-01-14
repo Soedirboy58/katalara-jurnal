@@ -299,6 +299,8 @@ export function useIncomes(options: UseIncomesOptions = {}): UseIncomesReturn {
           status: res.status,
           code: txErrCode,
           error: json?.error,
+          errorClass: json?.meta?.errorClass,
+          dbError: json?.meta?.dbError,
           debug: json?.meta?.debug,
           recommendedSql: json?.meta?.recommendedSql
         })
