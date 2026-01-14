@@ -32,13 +32,23 @@ interface KPICard {
   color: string
 }
 
+type RecentActivity = {
+  id: string
+  kind: 'income' | 'expense'
+  date: string
+  category: string
+  description: string
+  payment: string
+  amount: number
+}
+
 export function DashboardHome() {
   const supabase = createClient()
   const [loading, setLoading] = useState(true)
   const [businessName, setBusinessName] = useState('')
   const [businessConfig, setBusinessConfig] = useState<any>(null)
   const [kpiData, setKpiData] = useState<any>(null)
-  const [recentTransactions, setRecentTransactions] = useState<any[]>([])
+  const [recentTransactions, setRecentTransactions] = useState<RecentActivity[]>([])
   const [showAllTransactions, setShowAllTransactions] = useState(false)
   const [currentTrxPage, setCurrentTrxPage] = useState(1)
   const trxPerPage = 10
@@ -169,26 +179,93 @@ export function DashboardHome() {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
-      
-      // Fetch all expenses (will paginate in UI)
-      const { data: expenses } = await supabase
-        .from('expenses')
-        .select('*')
-        .or(`owner_id.eq.${user.id},user_id.eq.${user.id}`)
-        .order('expense_date', { ascending: false })
-        .limit(100) // Get last 100 transactions
-      
-      if (expenses) {
-        // ✅ Map grand_total ke amount untuk backward compatibility dengan UI
-        const mappedExpenses = expenses.map(e => {
-          const record = e as ExpenseRecord
-          return {
-            ...e,
-            amount: record.grand_total || e.amount || 0
-          }
-        })
-        setRecentTransactions(mappedExpenses)
+
+      const toNumber = (v: unknown): number => {
+        if (typeof v === 'number') return Number.isFinite(v) ? v : 0
+        const n = Number((v ?? '').toString().replace(/[^0-9.-]/g, ''))
+        return Number.isFinite(n) ? n : 0
       }
+
+      const isSchemaMismatch = (err: any) => {
+        const msg = ((err?.message || err?.details || '') as string).toLowerCase()
+        const code = (err?.code || err?.error_code || '').toString()
+        return (
+          code === '42703' ||
+          msg.includes('does not exist') ||
+          msg.includes('could not find') ||
+          msg.includes('schema cache') ||
+          msg.includes('unknown field')
+        )
+      }
+
+      // Income activities from unified `transactions`
+      let incomeRows: any[] = []
+      {
+        const makeQuery = () =>
+          supabase
+            .from('transactions')
+            .select('id, transaction_date, category, customer_name, payment_type, payment_status, total, invoice_number')
+            .order('transaction_date', { ascending: false })
+            .limit(100)
+
+        const r1 = await makeQuery().or(`owner_id.eq.${user.id},user_id.eq.${user.id}`)
+        if (!r1.error) {
+          incomeRows = r1.data || []
+        } else if (isSchemaMismatch(r1.error)) {
+          const r2 = await makeQuery().eq('user_id', user.id)
+          if (!r2.error) incomeRows = r2.data || []
+        }
+      }
+
+      // Expense activities from legacy `expenses`
+      let expenseRows: any[] = []
+      {
+        const makeQuery = () =>
+          supabase
+            .from('expenses')
+            .select('*')
+            .order('expense_date', { ascending: false })
+            .limit(100)
+
+        const r1 = await makeQuery().or(`owner_id.eq.${user.id},user_id.eq.${user.id}`)
+        if (!r1.error) {
+          expenseRows = r1.data || []
+        } else if (isSchemaMismatch(r1.error)) {
+          const r2 = await makeQuery().eq('user_id', user.id)
+          if (!r2.error) expenseRows = r2.data || []
+        }
+      }
+
+      const incomes: RecentActivity[] = (incomeRows || []).map((t) => ({
+        id: `income-${t.id}`,
+        kind: 'income',
+        date: (t.transaction_date || t.created_at || '').toString() || new Date().toISOString(),
+        category: (t.category || 'Pendapatan').toString(),
+        description: (t.customer_name || t.invoice_number || 'Penjualan').toString(),
+        payment: (t.payment_type || t.payment_status || '-').toString(),
+        amount: toNumber(t.total)
+      }))
+
+      const expenses: RecentActivity[] = (expenseRows || []).map((e) => {
+        const record = e as ExpenseRecord
+        const amount = toNumber(record.grand_total ?? (e as any).amount ?? (e as any).total)
+        return {
+          id: `expense-${(e as any).id}`,
+          kind: 'expense',
+          date: ((e as any).expense_date || (e as any).created_at || '').toString() || new Date().toISOString(),
+          category: ((e as any).category || 'Pengeluaran').toString(),
+          description: ((e as any).expense_name || (e as any).description || (e as any).notes || 'Pengeluaran').toString(),
+          payment: ((e as any).payment_method || (e as any).payment_status || '-').toString(),
+          amount
+        }
+      })
+
+      const combined = [...incomes, ...expenses]
+        .filter((r) => r.date)
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+        .slice(0, 100)
+
+      setRecentTransactions(combined)
     } catch (error) {
       console.error('Error fetching recent transactions:', error)
     }
@@ -384,8 +461,8 @@ export function DashboardHome() {
       {settings && kpiData && (
         <div className="space-y-3">
           {/* Expense Limit Warning */}
-          {settings.daily_expense_limit && kpiData.today?.expenses && (() => {
-            const percentage = (kpiData.today.expenses / settings.daily_expense_limit) * 100
+          {settings.daily_expense_limit && kpiData.today?.expense !== undefined && (() => {
+            const percentage = (kpiData.today.expense / settings.daily_expense_limit) * 100
             const threshold = settings.notification_threshold || 80
             
             if (percentage >= threshold) {
@@ -412,7 +489,7 @@ export function DashboardHome() {
                       <p className={`text-sm mt-1 ${
                         percentage >= 100 ? 'text-red-800' : 'text-amber-800'
                       }`}>
-                        Pengeluaran hari ini: <strong>{formatCurrency(kpiData.today.expenses)}</strong> ({percentage.toFixed(0)}% dari limit {formatCurrency(settings.daily_expense_limit)})
+                        Pengeluaran hari ini: <strong>{formatCurrency(kpiData.today.expense)}</strong> ({percentage.toFixed(0)}% dari limit {formatCurrency(settings.daily_expense_limit)})
                       </p>
                       <a 
                         href="/dashboard/settings" 
@@ -648,15 +725,21 @@ export function DashboardHome() {
       )}
 
       {/* AI Insights Panel */}
+      {kpiData && (
       <InsightsPanel 
         businessCategory={businessConfig?.business_category}
-        monthlyRevenue={45000000}
+        monthlyRevenue={kpiData?.month?.income || 0}
         monthlyTarget={businessConfig?.monthly_revenue_target || 50000000}
-        profitMargin={22}
+        profitMargin={(() => {
+          const income = Number(kpiData?.month?.income || 0)
+          const netProfit = Number(kpiData?.month?.netProfit || 0)
+          return income > 0 ? (netProfit / income) * 100 : 0
+        })()}
         targetMargin={businessConfig?.profit_margin_target || 25}
-        cashBalance={15000000}
+        cashBalance={kpiData?.operations?.cashPosition || 0}
         minCashAlert={businessConfig?.minimum_cash_alert || 10000000}
       />
+      )}
 
       {/* Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
@@ -691,7 +774,7 @@ export function DashboardHome() {
         </div>
         {recentTransactions.length === 0 ? (
           <div className="text-center py-8 sm:py-12 text-xs sm:text-sm text-gray-500">
-            Belum ada transaksi. Mulai tambahkan pengeluaran pertama Anda!
+            Belum ada transaksi. Mulai tambahkan transaksi pertama Anda!
           </div>
         ) : (
           <>
@@ -714,7 +797,7 @@ export function DashboardHome() {
                   ).map((transaction) => (
                     <tr key={transaction.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">
-                        {new Date(transaction.expense_date).toLocaleDateString('id-ID', {
+                        {new Date(transaction.date).toLocaleDateString('id-ID', {
                           day: 'numeric',
                           month: 'short',
                           year: 'numeric'
@@ -726,13 +809,15 @@ export function DashboardHome() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-600 max-w-xs truncate">
-                        {transaction.expense_name || transaction.description || '-'}
+                        {transaction.description || '-'}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-600">
-                        {transaction.payment_method}
+                        {transaction.payment}
                       </td>
-                      <td className="px-4 py-3 text-sm font-semibold text-red-600 text-right whitespace-nowrap">
-                        {formatCurrency(parseFloat(transaction.amount))}
+                      <td className={`px-4 py-3 text-sm font-semibold text-right whitespace-nowrap ${
+                        transaction.kind === 'income' ? 'text-green-600' : 'text-red-600'
+                      }`}>
+                        {transaction.kind === 'income' ? '+' : '-'}{formatCurrency(transaction.amount)}
                       </td>
                     </tr>
                   ))}
@@ -750,25 +835,25 @@ export function DashboardHome() {
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <p className="font-medium text-gray-900">
-                        {transaction.expense_name || transaction.description || 'Pengeluaran'}
+                        {transaction.description || (transaction.kind === 'income' ? 'Pendapatan' : 'Pengeluaran')}
                       </p>
                       <p className="text-xs text-gray-500 mt-1">
-                        {new Date(transaction.expense_date).toLocaleDateString('id-ID', {
+                        {new Date(transaction.date).toLocaleDateString('id-ID', {
                           day: 'numeric',
                           month: 'short',
                           year: 'numeric'
                         })}
                       </p>
                     </div>
-                    <p className="text-sm font-bold text-red-600">
-                      {formatCurrency(parseFloat(transaction.amount))}
+                    <p className={`text-sm font-bold ${transaction.kind === 'income' ? 'text-green-600' : 'text-red-600'}`}>
+                      {transaction.kind === 'income' ? '+' : '-'}{formatCurrency(transaction.amount)}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                       {transaction.category}
                     </span>
-                    <span className="text-xs text-gray-500">{transaction.payment_method}</span>
+                    <span className="text-xs text-gray-500">{transaction.payment}</span>
                   </div>
                 </div>
               ))}

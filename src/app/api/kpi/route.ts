@@ -1,9 +1,78 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
-import type { ExpenseRecord } from '@/types/legacy'
 
 export const dynamic = 'force-dynamic'
+
+const toNumber = (v: unknown): number => {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : 0
+  const n = Number((v ?? '').toString().replace(/[^0-9.-]/g, ''))
+  return Number.isFinite(n) ? n : 0
+}
+
+const isSchemaMismatchError = (err: any) => {
+  const msg = ((err?.message || err?.details || '') as string).toLowerCase()
+  const code = (err?.code || err?.error_code || '').toString()
+  return (
+    code === '42703' ||
+    msg.includes('does not exist') ||
+    msg.includes('could not find') ||
+    msg.includes('schema cache') ||
+    msg.includes('unknown field')
+  )
+}
+
+async function tableHasColumn(supabase: any, table: string, column: string) {
+  const { error } = await supabase.from(table).select(column).limit(1)
+  if (!error) return true
+  return !isSchemaMismatchError(error)
+}
+
+async function getOwnershipFilter(supabase: any, table: string, userId: string) {
+  const hasUserId = await tableHasColumn(supabase, table, 'user_id')
+  const hasOwnerId = await tableHasColumn(supabase, table, 'owner_id')
+
+  if (hasUserId && hasOwnerId) {
+    return {
+      apply(q: any) {
+        return q.or(`user_id.eq.${userId},owner_id.eq.${userId}`)
+      }
+    }
+  }
+
+  if (hasUserId) {
+    return {
+      apply(q: any) {
+        return q.eq('user_id', userId)
+      }
+    }
+  }
+
+  if (hasOwnerId) {
+    return {
+      apply(q: any) {
+        return q.eq('owner_id', userId)
+      }
+    }
+  }
+
+  // Unknown schema; return a no-op filter (RLS should still protect data)
+  return {
+    apply(q: any) {
+      return q
+    }
+  }
+}
+
+async function pickAmountColumn(supabase: any, table: string, candidates: string[]) {
+  for (const col of candidates) {
+    const ok = await tableHasColumn(supabase, table, col)
+    if (ok) return col
+  }
+  return candidates[0]
+}
+
+const paidLabels = ['paid', 'lunas', 'Lunas']
 
 export async function GET(request: Request) {
   const cookieStore = await cookies()
@@ -67,20 +136,18 @@ export async function GET(request: Request) {
     // Parallel queries for performance with individual error handling
     const fetchExpensesToday = async () => {
       try {
-        const { data, error } = await supabase
-          .from('expenses')
-          .select('grand_total')
-          .eq('user_id', user.id)
-          .eq('expense_date', todayStr)
+        const ownership = await getOwnershipFilter(supabase, 'expenses', user.id)
+        const amountCol = await pickAmountColumn(supabase, 'expenses', ['grand_total', 'amount', 'total'])
+        let q: any = supabase.from('expenses').select(amountCol)
+        q = ownership.apply(q)
+        const { data, error } = await q.eq('expense_date', todayStr)
         
         if (error) {
           console.error('[KPI API] Error fetching expenses today:', error)
           return 0
         }
-        const total = data?.reduce((sum, e) => {
-          const record = e as ExpenseRecord
-          return sum + parseFloat(record.grand_total?.toString() || '0')
-        }, 0) || 0
+        const total =
+          data?.reduce((sum, e: any) => sum + toNumber(e?.[amountCol]), 0) || 0
         console.log('[KPI API] Expenses today:', total)
         return total
       } catch (err) {
@@ -91,20 +158,18 @@ export async function GET(request: Request) {
 
     const fetchExpensesMonth = async () => {
       try {
-        const { data, error } = await supabase
-          .from('expenses')
-          .select('grand_total')
-          .eq('user_id', user.id)
-          .gte('expense_date', monthStr)
+        const ownership = await getOwnershipFilter(supabase, 'expenses', user.id)
+        const amountCol = await pickAmountColumn(supabase, 'expenses', ['grand_total', 'amount', 'total'])
+        let q: any = supabase.from('expenses').select(amountCol)
+        q = ownership.apply(q)
+        const { data, error } = await q.gte('expense_date', monthStr)
         
         if (error) {
           console.error('[KPI API] Error fetching expenses this month:', error)
           return 0
         }
-        const total = data?.reduce((sum, e) => {
-          const record = e as ExpenseRecord
-          return sum + parseFloat(record.grand_total?.toString() || '0')
-        }, 0) || 0
+        const total =
+          data?.reduce((sum, e: any) => sum + toNumber(e?.[amountCol]), 0) || 0
         console.log('[KPI API] Expenses month:', total)
         return total
       } catch (err) {
@@ -115,21 +180,18 @@ export async function GET(request: Request) {
 
     const fetchExpensesPreviousMonth = async () => {
       try {
-        const { data, error } = await supabase
-          .from('expenses')
-          .select('grand_total')
-          .eq('user_id', user.id)
-          .gte('expense_date', prevMonthStartStr)
-          .lte('expense_date', prevMonthEndStr)
+        const ownership = await getOwnershipFilter(supabase, 'expenses', user.id)
+        const amountCol = await pickAmountColumn(supabase, 'expenses', ['grand_total', 'amount', 'total'])
+        let q: any = supabase.from('expenses').select(amountCol)
+        q = ownership.apply(q)
+        const { data, error } = await q.gte('expense_date', prevMonthStartStr).lte('expense_date', prevMonthEndStr)
         
         if (error) {
           console.error('[KPI API] Error fetching expenses last month:', error)
           return 0
         }
-        const total = data?.reduce((sum, e) => {
-          const record = e as ExpenseRecord
-          return sum + parseFloat(record.grand_total?.toString() || '0')
-        }, 0) || 0
+        const total =
+          data?.reduce((sum, e: any) => sum + toNumber(e?.[amountCol]), 0) || 0
         console.log('[KPI API] Expenses previous month:', total)
         return total
       } catch (err) {
@@ -140,10 +202,10 @@ export async function GET(request: Request) {
 
     const fetchTotalProducts = async () => {
       try {
-        const { count, error } = await supabase
-          .from('products')
-          .select('id', { count: 'exact', head: true })
-          .eq('user_id', user.id)
+        const ownership = await getOwnershipFilter(supabase, 'products', user.id)
+        let q: any = supabase.from('products').select('id', { count: 'exact', head: true })
+        q = ownership.apply(q)
+        const { count, error } = await q
         
         if (error) {
           console.error('[KPI API] Error fetching products:', error)
@@ -165,24 +227,62 @@ export async function GET(request: Request) {
     }
 
     // === NEW UMKM-RELEVANT KPIs ===
-    
-    // 1. PIUTANG JATUH TEMPO (Overdue Receivables)
+
+    const fetchIncomeAmountColumn = async () => {
+      return pickAmountColumn(supabase, 'transactions', ['total', 'amount', 'grand_total', 'total_amount'])
+    }
+
+    const fetchIncomeOwnership = async () => {
+      return getOwnershipFilter(supabase, 'transactions', user.id)
+    }
+
+    const fetchIncomeDateColumn = async () => {
+      // unified table uses transaction_date; legacy incomes uses income_date
+      const hasTransactionDate = await tableHasColumn(supabase, 'transactions', 'transaction_date')
+      return hasTransactionDate ? 'transaction_date' : 'income_date'
+    }
+
+    // 1. PIUTANG JATUH TEMPO (Overdue Receivables) - from unified `transactions` when available
     const fetchOverdueReceivables = async () => {
       try {
-        const { data, error } = await supabase
-          .from('incomes')
-          .select('amount, customer_name, due_date')
-          .eq('user_id', user.id)
-          .eq('payment_status', 'Pending')
-          .not('due_date', 'is', null)
-          .lt('due_date', todayStr)
-        
-        if (error) {
-          console.error('[KPI API] Error fetching overdue receivables:', error)
+        const ownership = await fetchIncomeOwnership()
+        const amountCol = await fetchIncomeAmountColumn()
+
+        // Prefer unified transactions
+        const txRes = await ownership
+          .apply(
+            supabase
+              .from('transactions')
+              .select(`${amountCol}, due_date`)
+              .not('due_date', 'is', null)
+              .lt('due_date', todayStr)
+              .neq('payment_status', 'paid')
+          )
+
+        if (!txRes.error) {
+          const total = txRes.data?.reduce((sum: number, row: any) => sum + toNumber(row?.[amountCol]), 0) || 0
+          return { count: txRes.data?.length || 0, amount: total }
+        }
+
+        // Fallback to legacy incomes if unified schema isn't available
+        if (!isSchemaMismatchError(txRes.error)) {
+          console.error('[KPI API] Error fetching overdue receivables (transactions):', txRes.error)
           return { count: 0, amount: 0 }
         }
-        
-        const total = data?.reduce((sum, i) => sum + parseFloat(i.amount.toString()), 0) || 0
+
+        const { data, error } = await supabase
+          .from('incomes')
+          .select('amount, due_date')
+          .eq('user_id', user.id)
+          .not('due_date', 'is', null)
+          .lt('due_date', todayStr)
+
+        if (error) {
+          console.error('[KPI API] Error fetching overdue receivables (incomes):', error)
+          return { count: 0, amount: 0 }
+        }
+
+        const total = data?.reduce((sum, i: any) => sum + toNumber(i.amount), 0) || 0
         console.log('[KPI API] Overdue receivables:', data?.length, 'items, Rp', total)
         return { count: data?.length || 0, amount: total }
       } catch (err) {
@@ -194,21 +294,26 @@ export async function GET(request: Request) {
     // 2. UTANG JATUH TEMPO (Overdue Payables)
     const fetchOverduePayables = async () => {
       try {
-        const { data, error } = await supabase
+        const ownership = await getOwnershipFilter(supabase, 'expenses', user.id)
+        const amountCol = await pickAmountColumn(supabase, 'expenses', ['grand_total', 'amount', 'total'])
+        const hasDueDate = await tableHasColumn(supabase, 'expenses', 'due_date')
+
+        let q: any = supabase
           .from('expenses')
-          .select('grand_total, notes')
-          .eq('user_id', user.id)
-          .eq('payment_status', 'Pending')
+          .select(`${amountCol}${hasDueDate ? ',due_date' : ''}`)
+        q = ownership.apply(q)
+        if (hasDueDate) q = q.not('due_date', 'is', null).lt('due_date', todayStr)
+        // Exclude paid statuses (best-effort across old/new labels)
+        q = q.not('payment_status', 'in', `(${paidLabels.map((v) => `"${v}"`).join(',')})`)
+
+        const { data, error } = await q
         
         if (error) {
           console.error('[KPI API] Error fetching overdue payables:', error)
           return { count: 0, amount: 0 }
         }
         
-        const total = data?.reduce((sum, e) => {
-          const record = e as ExpenseRecord
-          return sum + parseFloat(record.grand_total?.toString() || '0')
-        }, 0) || 0
+        const total = data?.reduce((sum: number, e: any) => sum + toNumber(e?.[amountCol]), 0) || 0
         console.log('[KPI API] Overdue payables:', data?.length, 'items, Rp', total)
         return { count: data?.length || 0, amount: total }
       } catch (err) {
@@ -220,18 +325,47 @@ export async function GET(request: Request) {
     // 3. TODAY'S INCOME (for target tracking - ALL incomes)
     const fetchIncomesToday = async () => {
       try {
+        const ownership = await fetchIncomeOwnership()
+        const amountCol = await fetchIncomeAmountColumn()
+        const dateCol = await fetchIncomeDateColumn()
+
+        const startIso = `${todayStr}T00:00:00`
+        const endIso = `${todayStr}T23:59:59`
+
+        const txRes = await ownership
+          .apply(
+            supabase
+              .from('transactions')
+              .select(amountCol)
+              .gte(dateCol, startIso)
+              .lte(dateCol, endIso)
+          )
+
+        if (!txRes.error) {
+          const total = txRes.data?.reduce((sum: number, row: any) => sum + toNumber(row?.[amountCol]), 0) || 0
+          console.log('[KPI API] Incomes today (transactions):', total)
+          return total
+        }
+
+        if (!isSchemaMismatchError(txRes.error)) {
+          console.error('[KPI API] Error fetching incomes today (transactions):', txRes.error)
+          return 0
+        }
+
+        // Fallback legacy
         const { data, error } = await supabase
           .from('incomes')
           .select('amount')
           .eq('user_id', user.id)
           .eq('income_date', todayStr)
-        
+
         if (error) {
-          console.error('[KPI API] Error fetching incomes today:', error)
+          console.error('[KPI API] Error fetching incomes today (incomes):', error)
           return 0
         }
-        const total = data?.reduce((sum, i) => sum + parseFloat(i.amount.toString()), 0) || 0
-        console.log('[KPI API] Incomes today:', total)
+
+        const total = data?.reduce((sum, i: any) => sum + toNumber(i.amount), 0) || 0
+        console.log('[KPI API] Incomes today (incomes):', total)
         return total
       } catch (err) {
         console.error('[KPI API] Exception in incomes today:', err)
@@ -242,18 +376,39 @@ export async function GET(request: Request) {
     // 4. MONTH INCOME (for reporting - ALL incomes)
     const fetchIncomesMonth = async () => {
       try {
+        const ownership = await fetchIncomeOwnership()
+        const amountCol = await fetchIncomeAmountColumn()
+        const dateCol = await fetchIncomeDateColumn()
+
+        const startIso = `${monthStr}T00:00:00`
+
+        const txRes = await ownership
+          .apply(supabase.from('transactions').select(amountCol).gte(dateCol, startIso))
+
+        if (!txRes.error) {
+          const total = txRes.data?.reduce((sum: number, row: any) => sum + toNumber(row?.[amountCol]), 0) || 0
+          console.log('[KPI API] Incomes month (transactions):', total)
+          return total
+        }
+
+        if (!isSchemaMismatchError(txRes.error)) {
+          console.error('[KPI API] Error fetching incomes month (transactions):', txRes.error)
+          return 0
+        }
+
         const { data, error } = await supabase
           .from('incomes')
           .select('amount')
           .eq('user_id', user.id)
           .gte('income_date', monthStr)
-        
+
         if (error) {
-          console.error('[KPI API] Error fetching incomes month:', error)
+          console.error('[KPI API] Error fetching incomes month (incomes):', error)
           return 0
         }
-        const total = data?.reduce((sum, i) => sum + parseFloat(i.amount.toString()), 0) || 0
-        console.log('[KPI API] Incomes month:', total)
+
+        const total = data?.reduce((sum, i: any) => sum + toNumber(i.amount), 0) || 0
+        console.log('[KPI API] Incomes month (incomes):', total)
         return total
       } catch (err) {
         console.error('[KPI API] Exception in incomes month:', err)
@@ -261,22 +416,49 @@ export async function GET(request: Request) {
       }
     }
 
-    // 5. MONTH INCOME PAID (for cash position - LUNAS only)
+    // 5. MONTH INCOME PAID (for cash position - paid only)
     const fetchIncomesMonthPaid = async () => {
       try {
+        const ownership = await fetchIncomeOwnership()
+        const amountCol = await fetchIncomeAmountColumn()
+        const dateCol = await fetchIncomeDateColumn()
+
+        const startIso = `${monthStr}T00:00:00`
+
+        const txRes = await ownership
+          .apply(
+            supabase
+              .from('transactions')
+              .select(amountCol)
+              .eq('payment_status', 'paid')
+              .gte(dateCol, startIso)
+          )
+
+        if (!txRes.error) {
+          const total = txRes.data?.reduce((sum: number, row: any) => sum + toNumber(row?.[amountCol]), 0) || 0
+          console.log('[KPI API] Paid incomes month (transactions):', total)
+          return total
+        }
+
+        if (!isSchemaMismatchError(txRes.error)) {
+          console.error('[KPI API] Error fetching paid incomes month (transactions):', txRes.error)
+          return 0
+        }
+
         const { data, error } = await supabase
           .from('incomes')
           .select('amount')
           .eq('user_id', user.id)
-          .eq('payment_status', 'Lunas')
+          .in('payment_status', paidLabels)
           .gte('income_date', monthStr)
-        
+
         if (error) {
-          console.error('[KPI API] Error fetching paid incomes month:', error)
+          console.error('[KPI API] Error fetching paid incomes month (incomes):', error)
           return 0
         }
-        const total = data?.reduce((sum, i) => sum + parseFloat(i.amount.toString()), 0) || 0
-        console.log('[KPI API] Paid incomes month:', total)
+
+        const total = data?.reduce((sum, i: any) => sum + toNumber(i.amount), 0) || 0
+        console.log('[KPI API] Paid incomes month (incomes):', total)
         return total
       } catch (err) {
         console.error('[KPI API] Exception in paid incomes month:', err)
@@ -284,21 +466,21 @@ export async function GET(request: Request) {
       }
     }
 
-    // 6. MONTH EXPENSES PAID (for cash position - LUNAS only)
+    // 6. MONTH EXPENSES PAID (for cash position - paid only)
     const fetchExpensesMonthPaid = async () => {
       try {
-        const { data, error } = await supabase
-          .from('expenses')
-          .select('amount')
-          .or(`owner_id.eq.${user.id},user_id.eq.${user.id}`)
-          .eq('payment_status', 'Lunas')
-          .gte('expense_date', monthStr)
+        const ownership = await getOwnershipFilter(supabase, 'expenses', user.id)
+        const amountCol = await pickAmountColumn(supabase, 'expenses', ['grand_total', 'amount', 'total'])
+        let q: any = supabase.from('expenses').select(amountCol)
+        q = ownership.apply(q)
+        const { data, error } = await q.in('payment_status', paidLabels).gte('expense_date', monthStr)
         
         if (error) {
           console.error('[KPI API] Error fetching paid expenses month:', error)
           return 0
         }
-        const total = data?.reduce((sum, e) => sum + parseFloat(e.amount.toString()), 0) || 0
+
+        const total = data?.reduce((sum: number, e: any) => sum + toNumber(e?.[amountCol]), 0) || 0
         console.log('[KPI API] Paid expenses month:', total)
         return total
       } catch (err) {
@@ -342,11 +524,15 @@ export async function GET(request: Request) {
     // 9. REPEAT CUSTOMER RATE (customers with 2+ transactions)
     const fetchRepeatCustomerRate = async () => {
       try {
-        // Get all customers with their transaction count
-        const { data: customers, error: customerError } = await supabase
-          .from('customers')
-          .select('id, name, total_transactions')
-          .eq('owner_id', user.id)
+        const ownership = await getOwnershipFilter(supabase, 'customers', user.id)
+        const hasTotalTransactions = await tableHasColumn(supabase, 'customers', 'total_transactions')
+
+        // If `total_transactions` exists, use it (fast).
+        const { data: customers, error: customerError } = await ownership.apply(
+          supabase
+            .from('customers')
+            .select(hasTotalTransactions ? 'id, name, total_transactions' : 'id, name')
+        )
         
         if (customerError) {
           console.error('[KPI API] Error fetching customers:', customerError)
@@ -360,7 +546,30 @@ export async function GET(request: Request) {
         }
 
         // Count customers with 2+ transactions (repeat customers)
-        const repeatCount = customers?.filter(c => (c.total_transactions || 0) >= 2).length || 0
+        let repeatCount = 0
+        if (hasTotalTransactions) {
+          repeatCount = customers?.filter((c: any) => (c.total_transactions || 0) >= 2).length || 0
+        } else {
+          // Fallback: estimate using unified transactions (all-time, capped)
+          const txOwnership = await fetchIncomeOwnership()
+          const { data: txRows, error: txErr } = await txOwnership.apply(
+            supabase
+              .from('transactions')
+              .select('customer_id')
+              .not('customer_id', 'is', null)
+              .limit(5000)
+          )
+
+          if (!txErr && txRows?.length) {
+            const counts = new Map<string, number>()
+            for (const r of txRows) {
+              const id = (r as any)?.customer_id
+              if (!id) continue
+              counts.set(id, (counts.get(id) || 0) + 1)
+            }
+            repeatCount = Array.from(counts.values()).filter((n) => n >= 2).length
+          }
+        }
         const repeatRate = (repeatCount / totalCustomers) * 100
         
         console.log('[KPI API] Repeat customers:', repeatCount, '/', totalCustomers, '=', repeatRate.toFixed(1), '%')
