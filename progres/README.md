@@ -62,6 +62,12 @@ progres/
 - Customers & suppliers
 - Stock movements tracking
 
+#### [03. Transactions System Unified Patch](./01-FOUNDATION/03_transactions_system_unified_patch.md)
+**Status:** ✅ Applied  
+- Patch schema kompatibel `user_id` / `owner_id`
+- RLS policies berbasis `COALESCE(user_id, owner_id)`
+- Update sesi ini: RLS `payments` (inherit dari `transactions`)
+
 #### [03. Authentication System](./01-FOUNDATION/03_authentication_system.md)
 **Status:** ✅ Complete  
 - Supabase Auth integration
@@ -256,6 +262,18 @@ progres/
 - `src/components/products/ProductTable.tsx`
 - `src/components/products/ProductsView.tsx`
 
+#### [06. Fix Cetak Dokumen (PDF Preview Struk/Invoice)](./04-BUGFIXES/06_cetak_dokumen_pdf_preview_fix.md)
+**Date:** 14 January 2026  
+**Status:** ✅ Fixed  
+
+**Issues:**
+- Preview PDF blank karena `pdf.js worker` version mismatch
+
+**Solution:**
+- Generate PDF via `@react-pdf/renderer`
+- Preview via `iframe` + `blob:` URL (tanpa worker)
+- Download & Kirim WA jadi lebih reliable
+
 ---
 
 ### Phase 5: Refactoring & Code Quality
@@ -281,6 +299,11 @@ progres/
 - Consistent button/form styling
 
 ---
+
+## 📌 Rangkuman Sesi Terbaru
+
+#### [2026-01-14: Rangkuman Aktivitas](./2026-01-14_rangkuman_aktivitas.md)
+Mencakup: Fix Cetak Dokumen PDF, update patch transaksi + RLS payments, dan analisa status PWA.
 
 ## 🔑 Key Patterns & Decisions
 

@@ -718,6 +718,7 @@ ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.transaction_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.payments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.stock_movements ENABLE ROW LEVEL SECURITY;
 
 -- Customers
@@ -822,6 +823,55 @@ FOR DELETE USING (
   EXISTS (
     SELECT 1 FROM public.transactions t
     WHERE t.id = transaction_items.transaction_id
+      AND COALESCE(t.user_id, t.owner_id) = auth.uid()
+  )
+);
+
+-- Payments (inherit ownership via parent transaction)
+DROP POLICY IF EXISTS "payments_select_own" ON public.payments;
+DROP POLICY IF EXISTS "payments_insert_own" ON public.payments;
+DROP POLICY IF EXISTS "payments_update_own" ON public.payments;
+DROP POLICY IF EXISTS "payments_delete_own" ON public.payments;
+
+CREATE POLICY "payments_select_own" ON public.payments
+FOR SELECT USING (
+  EXISTS (
+    SELECT 1 FROM public.transactions t
+    WHERE t.id = payments.transaction_id
+      AND COALESCE(t.user_id, t.owner_id) = auth.uid()
+  )
+);
+
+CREATE POLICY "payments_insert_own" ON public.payments
+FOR INSERT WITH CHECK (
+  EXISTS (
+    SELECT 1 FROM public.transactions t
+    WHERE t.id = payments.transaction_id
+      AND COALESCE(t.user_id, t.owner_id) = auth.uid()
+  )
+);
+
+CREATE POLICY "payments_update_own" ON public.payments
+FOR UPDATE USING (
+  EXISTS (
+    SELECT 1 FROM public.transactions t
+    WHERE t.id = payments.transaction_id
+      AND COALESCE(t.user_id, t.owner_id) = auth.uid()
+  )
+)
+WITH CHECK (
+  EXISTS (
+    SELECT 1 FROM public.transactions t
+    WHERE t.id = payments.transaction_id
+      AND COALESCE(t.user_id, t.owner_id) = auth.uid()
+  )
+);
+
+CREATE POLICY "payments_delete_own" ON public.payments
+FOR DELETE USING (
+  EXISTS (
+    SELECT 1 FROM public.transactions t
+    WHERE t.id = payments.transaction_id
       AND COALESCE(t.user_id, t.owner_id) = auth.uid()
   )
 );
