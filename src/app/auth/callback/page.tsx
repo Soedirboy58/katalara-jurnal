@@ -8,11 +8,11 @@ import { createClient } from '@/lib/supabase/client'
 
 export default function AuthCallbackPage() {
   const router = useRouter()
-  const supabase = createClient()
 
   useEffect(() => {
     const handleCallback = async () => {
       try {
+        const supabase = createClient()
         // Exchange the code for a session
         const code = new URLSearchParams(window.location.search).get('code')
         const next = new URLSearchParams(window.location.search).get('next') || '/login'
@@ -54,7 +54,7 @@ export default function AuthCallbackPage() {
     }
 
     handleCallback()
-  }, [router, supabase.auth])
+  }, [router])
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
