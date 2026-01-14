@@ -7,22 +7,23 @@ import { Button } from '@/components/ui/Button'
 
 export default function VerifyEmailPage() {
   const router = useRouter()
-  const supabase = createClient()
   const [email, setEmail] = useState('')
   const [resending, setResending] = useState(false)
 
   useEffect(() => {
     // Get current user email
+    const supabase = createClient()
     supabase.auth.getUser().then(({ data }) => {
       if (data.user) {
         setEmail(data.user.email || '')
       }
     })
-  }, [supabase])
+  }, [])
 
   const handleResend = async () => {
     setResending(true)
     try {
+      const supabase = createClient()
       const { error } = await supabase.auth.resend({
         type: 'signup',
         email: email
