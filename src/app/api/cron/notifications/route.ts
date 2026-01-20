@@ -194,26 +194,60 @@ export async function GET(req: Request) {
       const enableExpenseNotifications = settings?.enable_expense_notifications !== false
       const thresholdPct = toNumber(settings?.notification_threshold) || 80
 
-      // Compute today's expense
+      // Compute today's expense (cash-out only for limit)
       const expenseOwnership = await getOwnershipFilter(supabase, 'expenses', userId)
       const expenseAmountCol = await pickAmountColumn(supabase, 'expenses', ['grand_total', 'amount', 'total'])
 
-      let expQ: any = supabase.from('expenses').select(expenseAmountCol)
+      const hasPaymentStatus = await tableHasColumn(supabase, 'expenses', 'payment_status')
+      const hasPaidAmount = await tableHasColumn(supabase, 'expenses', 'paid_amount')
+      const hasDownPayment = await tableHasColumn(supabase, 'expenses', 'down_payment')
+
+      const extraCols = [
+        hasPaymentStatus ? 'payment_status' : null,
+        hasPaidAmount ? 'paid_amount' : null,
+        hasDownPayment ? 'down_payment' : null,
+      ].filter(Boolean)
+
+      const selectCols = [expenseAmountCol, ...extraCols]
+        .filter((v, i, a) => a.indexOf(v) === i)
+        .join(',')
+
+      let expQ: any = supabase.from('expenses').select(selectCols)
       expQ = expenseOwnership.apply(expQ)
       const { data: expRows, error: expErr } = await expQ.eq('expense_date', todayStr)
       if (expErr && !isSchemaMismatchError(expErr)) {
         throw new Error(`expenses: ${expErr.message}`)
       }
 
-      const expenseTotal = (expRows || []).reduce((sum: number, row: any) => sum + toNumber(row?.[expenseAmountCol]), 0)
+      const isPaid = (status: unknown) => {
+        const s = (status ?? '').toString().trim().toLowerCase()
+        return paidLabels.some((p) => (p ?? '').toString().trim().toLowerCase() === s)
+      }
+
+      const cashSplit = (expRows || []).reduce(
+        (acc: { all: number; cash: number; unpaid: number }, row: any) => {
+          const total = Math.max(0, toNumber(row?.[expenseAmountCol]))
+          acc.all += total
+
+          const paid = Math.max(toNumber(row?.paid_amount), toNumber(row?.down_payment))
+          const rowCash = isPaid(row?.payment_status) ? total : Math.min(total, Math.max(0, paid))
+          acc.cash += rowCash
+          acc.unpaid += Math.max(0, total - rowCash)
+          return acc
+        },
+        { all: 0, cash: 0, unpaid: 0 }
+      )
+
+      const expenseTotalCash = cashSplit.cash
+      const expenseTempo = cashSplit.unpaid
 
       if (dailyExpenseLimit > 0 && enableExpenseNotifications) {
-        const pct = (expenseTotal / dailyExpenseLimit) * 100
+        const pct = (expenseTotalCash / dailyExpenseLimit) * 100
         if (pct >= thresholdPct) {
           const over = pct >= 100
           const key = `expense_limit_${over ? 'over' : 'near'}_${todayStr}`
           const title = over ? '🚨 Limit Pengeluaran Terlampaui' : '⚠️ Mendekati Limit Pengeluaran'
-          const message = `Pengeluaran hari ini Rp ${expenseTotal.toLocaleString('id-ID')} (${pct.toFixed(0)}% dari limit Rp ${dailyExpenseLimit.toLocaleString('id-ID')}).`
+          const message = `Kas keluar hari ini Rp ${expenseTotalCash.toLocaleString('id-ID')} (${pct.toFixed(0)}% dari limit Rp ${dailyExpenseLimit.toLocaleString('id-ID')}).${expenseTempo > 0 ? ` Belanja tempo Rp ${expenseTempo.toLocaleString('id-ID')} (belum mengurangi kas).` : ''}`
 
           const res = await upsertNotification(supabase, {
             user_id: userId,

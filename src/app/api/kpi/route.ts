@@ -74,6 +74,41 @@ async function pickAmountColumn(supabase: any, table: string, candidates: string
 
 const paidLabels = ['paid', 'lunas', 'Lunas', 'selesai', 'done']
 
+const normalizeStatus = (v: unknown): string => (v ?? '').toString().trim().toLowerCase()
+
+const isPaidStatus = (status: unknown): boolean => {
+  const s = normalizeStatus(status)
+  if (!s) return false
+  return paidLabels.some((p) => normalizeStatus(p) === s)
+}
+
+type CashSplit = { all: number; cash: number; unpaid: number }
+
+const splitCash = (rows: any[], totalCol: string): CashSplit => {
+  let all = 0
+  let cash = 0
+  let unpaid = 0
+
+  for (const row of rows || []) {
+    const total = Math.max(0, toNumber(row?.[totalCol]))
+    all += total
+
+    const paidAmount = Math.max(
+      toNumber(row?.paid_amount),
+      toNumber(row?.down_payment)
+    )
+
+    const rowCash = isPaidStatus(row?.payment_status)
+      ? total
+      : Math.min(total, Math.max(0, paidAmount))
+
+    cash += rowCash
+    unpaid += Math.max(0, total - rowCash)
+  }
+
+  return { all, cash, unpaid }
+}
+
 export async function GET(request: Request) {
   const cookieStore = await cookies()
   
@@ -134,11 +169,25 @@ export async function GET(request: Request) {
     console.log('[KPI API] Date filters - Today:', todayStr, 'Month:', monthStr, 'PrevMonth:', prevMonthStartStr, '-', prevMonthEndStr)
 
     // Parallel queries for performance with individual error handling
-    const fetchExpensesToday = async () => {
+    const fetchExpensesToday = async (): Promise<CashSplit> => {
       try {
         const ownership = await getOwnershipFilter(supabase, 'expenses', user.id)
         const amountCol = await pickAmountColumn(supabase, 'expenses', ['grand_total', 'amount', 'total'])
-        let q: any = supabase.from('expenses').select(amountCol)
+
+        // Select payment fields only when present (schema-drift safe)
+        const hasPaymentStatus = await tableHasColumn(supabase, 'expenses', 'payment_status')
+        const hasPaidAmount = await tableHasColumn(supabase, 'expenses', 'paid_amount')
+        const hasDownPayment = await tableHasColumn(supabase, 'expenses', 'down_payment')
+
+        const extraCols = [
+          hasPaymentStatus ? 'payment_status' : null,
+          hasPaidAmount ? 'paid_amount' : null,
+          hasDownPayment ? 'down_payment' : null,
+        ].filter(Boolean)
+
+        const selectCols = [amountCol, ...extraCols].filter((v, i, a) => a.indexOf(v) === i).join(',')
+
+        let q: any = supabase.from('expenses').select(selectCols)
         q = ownership.apply(q)
         const { data, error } = await q.eq('expense_date', todayStr)
         
@@ -146,13 +195,12 @@ export async function GET(request: Request) {
           console.error('[KPI API] Error fetching expenses today:', error)
           return 0
         }
-        const total =
-          data?.reduce((sum, e: any) => sum + toNumber(e?.[amountCol]), 0) || 0
-        console.log('[KPI API] Expenses today:', total)
-        return total
+        const split = splitCash(data || [], amountCol)
+        console.log('[KPI API] Expenses today - all:', split.all, 'cash:', split.cash, 'unpaid:', split.unpaid)
+        return split
       } catch (err) {
         console.error('[KPI API] Exception in expenses today:', err)
-        return 0
+        return { all: 0, cash: 0, unpaid: 0 }
       }
     }
 
@@ -618,7 +666,7 @@ export async function GET(request: Request) {
       : 0
     
     const expenseVsLimit = userTarget.dailyExpenseLimit > 0
-      ? (expensesToday / userTarget.dailyExpenseLimit) * 100
+      ? (expensesToday.cash / userTarget.dailyExpenseLimit) * 100
       : 0
 
     // Calculate expense growth (Nov vs Okt)
@@ -647,7 +695,12 @@ export async function GET(request: Request) {
         // TODAY: Target tracking
         today: {
           income: incomesToday,
-          expense: expensesToday,
+          // IMPORTANT: daily expense limit is a *cash-out* guardrail.
+          // Tempo/credit purchases don't reduce cash until paid.
+          expense: expensesToday.cash,
+          expenseCash: expensesToday.cash,
+          expenseAll: expensesToday.all,
+          expenseCommitment: expensesToday.unpaid,
           target: userTarget.dailyTarget,
           targetProgress: Math.round(targetProgress),
           expenseLimit: userTarget.dailyExpenseLimit,

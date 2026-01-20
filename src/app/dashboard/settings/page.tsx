@@ -217,7 +217,8 @@ export default function SettingsPage() {
             <div className="flex-1">
               <h2 className="text-lg font-semibold text-gray-900">Limit Pengeluaran Harian</h2>
               <p className="text-sm text-gray-600 mt-1">
-                Tetapkan batas maksimal pengeluaran per hari. Notifikasi akan muncul saat mendekati limit.
+                Tetapkan batas maksimal <strong>kas keluar</strong> per hari. Transaksi <strong>tempo</strong> tidak mengurangi kas sampai Anda benar-benar membayar.
+                Notifikasi akan muncul saat kas keluar mendekati limit.
               </p>
             </div>
           </div>

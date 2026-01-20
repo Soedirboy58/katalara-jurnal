@@ -122,13 +122,32 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         .order('created_at', { ascending: false })
         .limit(10)
       
+      const normalizeStatus = (v: any) => (v ?? '').toString().trim().toLowerCase()
+      const isPaidStatus = (v: any) => ['paid', 'lunas', 'selesai', 'done'].includes(normalizeStatus(v))
+      const toNumber = (v: any) => {
+        const n = Number((v ?? '').toString().replace(/[^0-9.-]/g, ''))
+        return Number.isFinite(n) ? n : 0
+      }
+      const expenseTotalValue = (exp: any) =>
+        Math.max(0, toNumber(exp?.grand_total ?? exp?.amount ?? exp?.total ?? 0))
+      const expenseCashValue = (exp: any) => {
+        const total = expenseTotalValue(exp)
+        if (isPaidStatus(exp?.payment_status)) return total
+        const paid = Math.max(toNumber(exp?.paid_amount), toNumber(exp?.down_payment))
+        return Math.min(total, Math.max(0, paid))
+      }
+
       if (expenses) {
         expenses.forEach(exp => {
+          const total = expenseTotalValue(exp)
+          const cash = expenseCashValue(exp)
+          const isTempo = cash < total && !isPaidStatus(exp?.payment_status)
+
           notifs.push({
             id: `expense-${exp.id}`,
             type: 'expense',
             title: 'Pengeluaran Baru',
-            message: `${exp.expense_name || exp.category} - Rp ${parseFloat(exp.amount).toLocaleString('id-ID')}`,
+            message: `${exp.expense_name || exp.expense_category || exp.category} - Rp ${total.toLocaleString('id-ID')}${isTempo ? ` (Tempo, kas keluar Rp ${cash.toLocaleString('id-ID')})` : ''}`,
             time: exp.created_at,
             icon: '💰',
             color: 'red'
@@ -144,15 +163,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         .single()
       
       if (settings?.daily_expense_limit && settings.enable_expense_notifications && expenses) {
-        const totalExpenses = expenses.reduce((sum, exp) => sum + parseFloat(exp.amount), 0)
-        const percentage = (totalExpenses / settings.daily_expense_limit) * 100
+        const totalCashOut = expenses.reduce((sum, exp: any) => sum + expenseCashValue(exp), 0)
+        const totalTempo = expenses.reduce((sum, exp: any) => sum + Math.max(0, expenseTotalValue(exp) - expenseCashValue(exp)), 0)
+        const percentage = (totalCashOut / settings.daily_expense_limit) * 100
         
         if (percentage >= (settings.notification_threshold || 80)) {
           notifs.unshift({
             id: 'limit-warning',
             type: 'warning',
             title: percentage >= 100 ? '🚨 Limit Terlampaui!' : '⚠️ Mendekati Limit',
-            message: `Pengeluaran hari ini ${percentage.toFixed(0)}% dari limit (Rp ${totalExpenses.toLocaleString('id-ID')} / Rp ${settings.daily_expense_limit.toLocaleString('id-ID')})`,
+            message: `Kas keluar hari ini ${percentage.toFixed(0)}% dari limit (Rp ${totalCashOut.toLocaleString('id-ID')} / Rp ${settings.daily_expense_limit.toLocaleString('id-ID')})${totalTempo > 0 ? `. Belanja tempo Rp ${totalTempo.toLocaleString('id-ID')} (belum mengurangi kas).` : ''}`,
             time: new Date().toISOString(),
             icon: percentage >= 100 ? '🚨' : '⚠️',
             color: percentage >= 100 ? 'red' : 'amber'
