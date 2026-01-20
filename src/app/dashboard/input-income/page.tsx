@@ -102,7 +102,7 @@ export default function InputIncomePage() {
       const result = await createIncome(data)
 
       if (!result.success) {
-        showToast('error', result.error || '❌ Gagal menyimpan transaksi')
+        showToast('error', result.error || 'Gagal menyimpan transaksi')
         return { success: false, error: result.error || 'Gagal menyimpan transaksi' }
       }
 
@@ -110,13 +110,13 @@ export default function InputIncomePage() {
       setSelectedCustomer(null)
 
       if (result.warning) showToast('warning', result.warning)
-      else showToast('success', '✅ Transaksi berhasil disimpan')
+      else showToast('success', 'Transaksi berhasil disimpan')
 
       return { success: true }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Terjadi kesalahan'
       console.error('Submit error:', err)
-      showToast('error', `❌ Gagal menyimpan: ${message}`)
+      showToast('error', `Gagal menyimpan: ${message}`)
       return { success: false, error: message }
     } finally {
       setSaving(false)
@@ -129,16 +129,16 @@ export default function InputIncomePage() {
   }
 
   const handleDelete = async (incomeId: string) => {
-    const confirmed = confirm('⚠️ Yakin ingin menghapus transaksi ini?\n\nStok produk akan dikembalikan (rollback).')
+    const confirmed = confirm('Yakin ingin menghapus transaksi ini?\n\nStok produk akan dikembalikan (rollback).')
     if (!confirmed) return
 
     const result = await deleteIncome(incomeId)
     if (result.success) {
-      showToast('success', '✅ Transaksi berhasil dihapus')
+      showToast('success', 'Transaksi berhasil dihapus')
       await refreshProducts()
       await fetchIncomes()
     } else {
-      showToast('error', `❌ Gagal menghapus: ${result.error || 'Unknown error'}`)
+      showToast('error', `Gagal menghapus: ${result.error || 'Unknown error'}`)
     }
   }
 
@@ -155,7 +155,7 @@ export default function InputIncomePage() {
 
     const json = res ? await res.json().catch(() => null) : null
     if (res?.ok && json?.success) {
-      showToast('success', `✅ ${ids.length} transaksi berhasil dihapus`)
+      showToast('success', `${ids.length} transaksi berhasil dihapus`)
       await fetchIncomes()
       await refreshProducts()
       return
@@ -165,8 +165,8 @@ export default function InputIncomePage() {
     const results = await Promise.all(ids.map((id) => deleteIncome(id)))
     const failed = results.filter((r) => !r.success)
 
-    if (failed.length) showToast('error', `❌ Gagal menghapus ${failed.length} transaksi. Cek satu per satu.`)
-    else showToast('success', `✅ ${ids.length} transaksi berhasil dihapus`)
+    if (failed.length) showToast('error', `Gagal menghapus ${failed.length} transaksi. Cek satu per satu.`)
+    else showToast('success', `${ids.length} transaksi berhasil dihapus`)
 
     await fetchIncomes()
     await refreshProducts()
@@ -188,7 +188,7 @@ export default function InputIncomePage() {
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
-              <h1 className="text-xl sm:text-2xl font-bold text-gray-900">💰 Input Pendapatan</h1>
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Input Pendapatan</h1>
               <p className="text-xs sm:text-sm text-gray-600 mt-1">
                 Catat transaksi pendapatan dari penjualan produk, jasa, atau sumber lainnya
               </p>
@@ -216,14 +216,14 @@ export default function InputIncomePage() {
 
         <div className="bg-white rounded-lg shadow-sm border border-gray-200">
           <div className="p-4 sm:p-6 border-b border-gray-200 flex items-center justify-between">
-            <h2 className="text-base sm:text-lg font-semibold text-gray-900">📊 Riwayat Transaksi</h2>
+            <h2 className="text-base sm:text-lg font-semibold text-gray-900">Riwayat Transaksi</h2>
             <button
               type="button"
               onClick={handleRefresh}
               disabled={loadingIncomes}
               className="px-3 py-2 text-xs sm:text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-50"
             >
-              🔄 Refresh
+              Refresh
             </button>
           </div>
 
@@ -246,7 +246,7 @@ export default function InputIncomePage() {
 
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-            <p className="text-sm text-red-800">⚠️ Error: {error}</p>
+            <p className="text-sm text-red-800">Error: {error}</p>
           </div>
         )}
       </div>
