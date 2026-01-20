@@ -11,7 +11,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Trash2, Plus, Package, Search, ChevronDown, AlertTriangle } from 'lucide-react'
+import { Trash2, Plus, Package, Search, ChevronDown } from 'lucide-react'
 import type { LineItem } from '@/hooks/expenses/useExpenseForm'
 import type { Product } from '@/types'
 import { createClient } from '@/lib/supabase/client'
@@ -54,7 +54,16 @@ export const ExpenseItemsTable: React.FC<ExpenseItemsTableProps> = ({
   namePlaceholder,
   enableQuickCreateProduct = true
 }) => {
+<<<<<<< HEAD
   const supabase = createClient()
+=======
+  const getProductStock = (p: any): number => {
+    const raw = p?.stock_quantity ?? p?.stock ?? p?.current_stock ?? 0
+    const n = Number(raw)
+    return Number.isFinite(n) ? n : 0
+  }
+
+>>>>>>> d94bef5 (Fix expense product stock display)
   // Product autocomplete state
   const [filteredProducts, setFilteredProducts] = useState<typeof products>([])
   const [showDropdown, setShowDropdown] = useState(false)
@@ -342,37 +351,30 @@ export const ExpenseItemsTable: React.FC<ExpenseItemsTableProps> = ({
                       <Search className="w-3 h-3" />
                       {filteredProducts.length} produk ditemukan
                     </div>
-                    {filteredProducts.map((product) => (
-                      <button
-                        key={product.id}
-                        type="button"
-                        onClick={() => handleProductSelect(product)}
-                        className="w-full px-3 py-2 text-left hover:bg-blue-50 focus:bg-blue-50 transition-colors border-b border-gray-100 last:border-0"
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex-1 min-w-0">
-                            <div className="font-medium text-gray-800 text-sm truncate">
-                              {product.name}
-                            </div>
-                            <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
-                              {product.unit && (
-                                <span className="flex items-center gap-1">
-                                  <Package className="w-3 h-3" />
-                                  {product.unit}
+                    {filteredProducts.map((product) => {
+                      const displayStock = getProductStock(product as any)
+                      return (
+                        <button
+                          key={product.id}
+                          type="button"
+                          onClick={() => handleProductSelect(product)}
+                          className="w-full px-3 py-2 text-left hover:bg-blue-50 focus:bg-blue-50 transition-colors border-b border-gray-100 last:border-0"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium text-gray-800 text-sm truncate">
+                                {product.name}
+                              </div>
+                              <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
+                                {product.unit && (
+                                  <span className="flex items-center gap-1">
+                                    <Package className="w-3 h-3" />
+                                    {product.unit}
+                                  </span>
+                                )}
+                                <span className={displayStock > 0 ? 'text-green-600' : 'text-red-600'}>
+                                  Stok: {displayStock}
                                 </span>
-                              )}
-                              {product.track_inventory && (
-                                <span className={
-                                  product.stock_status === 'out_of_stock' ? 'text-red-600 font-medium' :
-                                  product.stock_status === 'low_stock' ? 'text-yellow-600 font-medium flex items-center gap-1' :
-                                  'text-green-600'
-                                }>
-                                  {product.stock_status === 'low_stock' && <AlertTriangle className="w-3 h-3" />}
-                                  Stok: {product.current_stock} {product.unit}
-                                  {product.stock_status === 'low_stock' && ' (Rendah)'}
-                                  {product.stock_status === 'out_of_stock' && ' (Habis)'}
-                                </span>
-                              )}
                             </div>
                           </div>
                           {product.cost_price && product.cost_price > 0 && (
@@ -384,8 +386,9 @@ export const ExpenseItemsTable: React.FC<ExpenseItemsTableProps> = ({
                             </div>
                           )}
                         </div>
-                      </button>
-                    ))}
+                        </button>
+                      )
+                    })}
                   </>
                 ) : (
                   <div className="p-4 text-center text-sm text-gray-500">
