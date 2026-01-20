@@ -318,6 +318,9 @@ progres/
 
 ## 📌 Rangkuman Sesi Terbaru
 
+#### [2026-01-20: Rangkuman Aktivitas](./2026-01-20_rangkuman_aktivitas.md)
+Mencakup: UI cleanup kategori Income/Expense (tanpa emoji), konsistensi label di preview transaksi, dan deploy produksi.
+
 #### [2026-01-14: Rangkuman Aktivitas](./2026-01-14_rangkuman_aktivitas.md)
 Mencakup: Fix Cetak Dokumen PDF, update patch transaksi + RLS payments, dan analisa status PWA.
 
@@ -500,7 +503,7 @@ When implementing new feature/fix:
 
 ---
 
-**Last Updated:** 8 Januari 2026  
+**Last Updated:** 20 Januari 2026  
 **Platform Version:** 1.0-beta  
-**Total Docs:** 15+ files  
+**Total Docs:** 17+ files  
 **Status:** Active Development
