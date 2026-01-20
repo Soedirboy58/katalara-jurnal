@@ -670,7 +670,7 @@ export default function InputExpensesPage() {
     // Transaction history handlers
   const handleDelete = async (expenseId: string) => {
     const confirmed = confirm(
-      '⚠️ Yakin ingin menghapus transaksi ini?\n\nJika transaksi berisi pembelian produk, stok akan dikembalikan seperti semula.'
+      'Yakin ingin menghapus transaksi ini?\n\nJika transaksi berisi pembelian produk, stok akan dikembalikan seperti semula.'
     )
     if (!confirmed) return
 
@@ -679,19 +679,19 @@ export default function InputExpensesPage() {
       const json = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(json?.error || 'Gagal menghapus transaksi')
       
-      showToast('success', '✅ Transaksi berhasil dihapus (stok dikembalikan bila ada)')
+      showToast('success', 'Transaksi berhasil dihapus (stok dikembalikan bila ada)')
       refreshExpenses()
       refreshProducts()
     } catch (error) {
       console.error('Delete error:', error)
       const msg = (error as any)?.message
-      showToast('error', msg ? `❌ ${msg}` : '❌ Gagal menghapus transaksi')
+      showToast('error', msg ? `${msg}` : 'Gagal menghapus transaksi')
     }
   }
 
   const handleBulkDelete = async (ids: string[]) => {
     const confirmed = confirm(
-      `⚠️ Yakin ingin menghapus ${ids.length} transaksi?\n\nJika transaksi berisi pembelian produk, stok akan dikembalikan seperti semula.`
+      `Yakin ingin menghapus ${ids.length} transaksi?\n\nJika transaksi berisi pembelian produk, stok akan dikembalikan seperti semula.`
     )
     if (!confirmed) return
 
@@ -705,13 +705,13 @@ export default function InputExpensesPage() {
       const json = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(json?.error || 'Gagal menghapus transaksi')
       
-      showToast('success', `✅ ${ids.length} transaksi berhasil dihapus (stok dikembalikan bila ada)`)
+      showToast('success', `${ids.length} transaksi berhasil dihapus (stok dikembalikan bila ada)`)
       refreshExpenses()
       refreshProducts()
     } catch (error) {
       console.error('Bulk delete error:', error)
       const msg = (error as any)?.message
-      showToast('error', msg ? `❌ ${msg}` : '❌ Gagal menghapus transaksi')
+      showToast('error', msg ? `${msg}` : 'Gagal menghapus transaksi')
     }
   }
 
@@ -862,8 +862,8 @@ export default function InputExpensesPage() {
                   <div className="font-semibold mb-2 flex items-center gap-2">
                     <span>
                       {getExpenseEducationContent(formState.category.expenseType, formState.category.category).tone === 'warning'
-                        ? '⚠️'
-                        : 'ℹ️'}
+                        ? 'Perhatian:'
+                        : 'Info:'}
                     </span>
                     <span>{getExpenseEducationContent(formState.category.expenseType, formState.category.category).title}</span>
                   </div>
@@ -910,7 +910,7 @@ export default function InputExpensesPage() {
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-                  🏭 Output Produksi
+                  Output Produksi
                   <span className="text-sm font-normal text-gray-600">(Opsional)</span>
                 </h3>
                 <p className="text-sm text-gray-600 mt-1">
@@ -984,7 +984,7 @@ export default function InputExpensesPage() {
             
             <div className="bg-white rounded-lg p-3 mt-4">
               <p className="text-xs text-gray-600">
-                <strong>💡 Contoh:</strong> Beli 10kg tepung + 5kg gula → Output: 100 pcs kue
+                <strong>Contoh:</strong> Beli 10kg tepung + 5kg gula → Output: 100 pcs kue
               </p>
             </div>
           </div>
@@ -1147,7 +1147,7 @@ export default function InputExpensesPage() {
                 
                 <div className="space-y-3">
                   <div className="bg-white p-4 rounded-lg border-l-4 border-orange-500">
-                    <h4 className="font-bold text-orange-700 mb-2">💼 Aktivitas Operasional</h4>
+                    <h4 className="font-bold text-orange-700 mb-2">Aktivitas Operasional</h4>
                     <p className="text-sm text-gray-700 mb-2">
                       Pengeluaran untuk <strong>menjalankan bisnis</strong> sehari-hari.
                     </p>
@@ -1163,7 +1163,7 @@ export default function InputExpensesPage() {
                   </div>
                   
                   <div className="bg-white p-4 rounded-lg border-l-4 border-blue-500">
-                    <h4 className="font-bold text-blue-700 mb-2">🏭 Aktivitas Investasi</h4>
+                    <h4 className="font-bold text-blue-700 mb-2">Aktivitas Investasi</h4>
                     <p className="text-sm text-gray-700 mb-2">
                       Pengeluaran untuk <strong>membeli aset jangka panjang</strong> yang dipakai berulang.
                     </p>
@@ -1179,7 +1179,7 @@ export default function InputExpensesPage() {
                   </div>
                   
                   <div className="bg-white p-4 rounded-lg border-l-4 border-purple-500">
-                    <h4 className="font-bold text-purple-700 mb-2">💳 Aktivitas Pendanaan</h4>
+                    <h4 className="font-bold text-purple-700 mb-2">Aktivitas Pendanaan</h4>
                     <p className="text-sm text-gray-700 mb-2">
                       Pengeluaran terkait <strong>pembayaran utang atau bagi hasil</strong> modal bisnis.
                     </p>
@@ -1240,12 +1240,10 @@ export default function InputExpensesPage() {
                   <h3 className="text-lg font-semibold text-gray-800 mb-2">5️⃣ Metode Pembayaran</h3>
                   <div className="grid grid-cols-2 gap-3 mt-2">
                     <div className="bg-gray-50 p-3 rounded">
-                      <div className="text-2xl mb-1 text-center">✅</div>
                       <p className="font-semibold text-sm text-center">Lunas</p>
                       <p className="text-xs text-gray-600 text-center">Cash/Transfer penuh</p>
                     </div>
                     <div className="bg-gray-50 p-3 rounded">
-                      <div className="text-2xl mb-1 text-center">📅</div>
                       <p className="font-semibold text-sm text-center">Tempo (Hutang)</p>
                       <p className="text-xs text-gray-600 text-center">Bisa pakai DP + jatuh tempo</p>
                     </div>
@@ -1254,7 +1252,7 @@ export default function InputExpensesPage() {
 
                 <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-200">
                   <h4 className="font-semibold text-blue-800 mb-2 flex items-center gap-2">
-                    <span>💡</span> Fitur Otomatis Katalara:
+                    Fitur Otomatis Katalara:
                   </h4>
                   <ul className="list-disc list-inside text-blue-700 space-y-1 text-sm">
                     <li><strong>Auto-update stok:</strong> Beli bahan baku → stok otomatis bertambah</li>

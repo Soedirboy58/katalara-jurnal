@@ -8,7 +8,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { X, Loader2, Calendar, User, DollarSign, CreditCard, FileText, Package, Printer, Eye, Download } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { getIncomeCategoryLabel, getPaymentMethodLabel } from '@/modules/finance/types/financeTypes'
+import { getExpenseCategoryLabel, getIncomeCategoryLabel, getPaymentMethodLabel } from '@/modules/finance/types/financeTypes'
 import { IncomePrintModal } from '@/modules/finance/components/incomes/IncomePrintModal'
 import { ExpensePrintModal } from '@/modules/finance/components/expenses/ExpensePrintModal'
 
@@ -76,34 +76,6 @@ export function PreviewTransactionModal({
   const openExpensePrint = (opts?: { closePoPreview?: boolean }) => {
     if (opts?.closePoPreview) setIsPoModalOpen(false)
     setIsExpensePrintOpen(true)
-  }
-
-  const getExpenseCategoryLabel = (category: string | null | undefined) => {
-    const c = (category || '').toString().trim()
-    const map: Record<string, string> = {
-      raw_materials: '📦 Pembelian Bahan Baku',
-      finished_goods: '🎁 Pembelian Produk Jadi',
-      office_supplies: '📝 Perlengkapan Kantor',
-      utilities: '💡 Utilitas',
-      marketing: '📢 Marketing & Promosi',
-      employee_expense: '👥 Biaya Karyawan',
-      transportation: '🚗 Transportasi & Logistik',
-      maintenance: '🔧 Maintenance & Perbaikan',
-      other_operating: '📋 Operasional Lainnya',
-      equipment: '🏭 Peralatan Produksi',
-      technology: '💻 Teknologi & Software',
-      property: '🏢 Properti & Bangunan',
-      vehicle: '🚚 Kendaraan',
-      other_investing: '💼 Investasi Lainnya',
-      loan_payment: '🏦 Pembayaran Pinjaman',
-      interest: '💰 Bunga Pinjaman',
-      dividend: '📊 Dividen',
-      other_financing: '💳 Pendanaan Lainnya',
-      operational_expense: '📋 Operasional'
-    }
-    if (map[c]) return map[c]
-    if (!c) return '-'
-    return c.replace(/_/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase())
   }
 
   const normalizePaymentStatus = (raw: string): 'Lunas' | 'Tempo' | 'Sebagian' => {

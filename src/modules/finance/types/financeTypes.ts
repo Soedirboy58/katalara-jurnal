@@ -23,20 +23,20 @@ export type IncomeCategory =
 
 export const INCOME_CATEGORIES_BY_TYPE: Record<IncomeType, Array<{ value: IncomeCategory; label: string }>> = {
   operating: [
-    { value: 'product_sales', label: '🛒 Penjualan Produk' },
-    { value: 'service_income', label: '🧰 Pendapatan Jasa' },
-    { value: 'other_income', label: '🧾 Pendapatan Lain-lain' }
+    { value: 'product_sales', label: 'Penjualan Produk' },
+    { value: 'service_income', label: 'Pendapatan Jasa' },
+    { value: 'other_income', label: 'Pendapatan Lain-lain' }
   ],
   investing: [
-    { value: 'asset_sale', label: '🏷️ Jual Aset' },
-    { value: 'investment_return', label: '📈 Return Investasi' },
-    { value: 'other_investing', label: '💼 Investasi Lainnya' }
+    { value: 'asset_sale', label: 'Jual Aset' },
+    { value: 'investment_return', label: 'Return Investasi' },
+    { value: 'other_investing', label: 'Investasi Lainnya' }
   ],
   financing: [
-    { value: 'capital_injection', label: '💰 Modal Masuk Pribadi' },
-    { value: 'loan_received', label: '🏦 Pinjaman Diterima (Utang Bank)' },
-    { value: 'investor_funding', label: '🤝 Dana Investor' },
-    { value: 'other_financing', label: '💳 Pendanaan Lainnya' }
+    { value: 'capital_injection', label: 'Modal Masuk Pribadi' },
+    { value: 'loan_received', label: 'Pinjaman Diterima (Utang Bank)' },
+    { value: 'investor_funding', label: 'Dana Investor' },
+    { value: 'other_financing', label: 'Pendanaan Lainnya' }
   ]
 }
 
@@ -50,22 +50,22 @@ export const getIncomeCategoryLabel = (category: string): string => {
     .replace(/-/g, '_')
 
   const map: Record<string, string> = {
-    product_sales: '🛒 Penjualan Produk',
-    service_income: '🧰 Pendapatan Jasa',
-    other_income: '🧾 Pendapatan Lain-lain',
-    asset_sale: '🏷️ Jual Aset',
-    assetsales: '🏷️ Jual Aset',
-    aset_sale: '🏷️ Jual Aset',
-    aset: '🏷️ Jual Aset',
-    investment_return: '📈 Return Investasi',
-    dividend_income: '📊 Dividen',
-    interest_income: '💹 Bunga',
-    other_investing: '💼 Investasi Lainnya',
-    capital_injection: '💰 Modal Masuk Pribadi',
-    loan_received: '🏦 Pinjaman Diterima (Utang Bank)',
-    loan_receipt: '🏦 Pinjaman Diterima (Utang Bank)',
-    investor_funding: '🤝 Dana Investor',
-    other_financing: '💳 Pendanaan Lainnya'
+    product_sales: 'Penjualan Produk',
+    service_income: 'Pendapatan Jasa',
+    other_income: 'Pendapatan Lain-lain',
+    asset_sale: 'Jual Aset',
+    assetsales: 'Jual Aset',
+    aset_sale: 'Jual Aset',
+    aset: 'Jual Aset',
+    investment_return: 'Return Investasi',
+    dividend_income: 'Dividen',
+    interest_income: 'Bunga',
+    other_investing: 'Investasi Lainnya',
+    capital_injection: 'Modal Masuk Pribadi',
+    loan_received: 'Pinjaman Diterima (Utang Bank)',
+    loan_receipt: 'Pinjaman Diterima (Utang Bank)',
+    investor_funding: 'Dana Investor',
+    other_financing: 'Pendanaan Lainnya'
   }
 
   return map[raw] || map[key] || raw
@@ -237,28 +237,28 @@ export type ExpenseCategory =
 
 export const EXPENSE_CATEGORIES_BY_TYPE: Record<ExpenseType, Array<{ value: string; label: string }>> = {
   operating: [
-    { value: 'finished_goods', label: '🎁 Pembelian Produk Jadi (Reseller)' },
-    { value: 'raw_materials', label: '📦 Pembelian Bahan Baku (Produksi)' },
-    { value: 'employee_expense', label: '👥 Gaji & Upah' },
-    { value: 'marketing', label: '📢 Marketing & Iklan' },
-    { value: 'office_supplies', label: '🏪 Operasional Toko' },
-    { value: 'transportation', label: '🚚 Transportasi & Logistik' },
-    { value: 'utilities', label: '💡 Utilitas (Listrik, Air, Internet)' },
-    { value: 'maintenance', label: '🔧 Pemeliharaan & Perbaikan' },
-    { value: 'other_operating', label: '📋 Lain-lain' }
+    { value: 'finished_goods', label: 'Pembelian Produk Jadi (Reseller)' },
+    { value: 'raw_materials', label: 'Pembelian Bahan Baku (Produksi)' },
+    { value: 'employee_expense', label: 'Gaji & Upah' },
+    { value: 'marketing', label: 'Marketing & Iklan' },
+    { value: 'office_supplies', label: 'Operasional Toko' },
+    { value: 'transportation', label: 'Transportasi & Logistik' },
+    { value: 'utilities', label: 'Utilitas (Listrik, Air, Internet)' },
+    { value: 'maintenance', label: 'Pemeliharaan & Perbaikan' },
+    { value: 'other_operating', label: 'Lain-lain' }
   ],
   investing: [
-    { value: 'equipment', label: '🏭 Pembelian Peralatan' },
-    { value: 'vehicle', label: '🚗 Pembelian Kendaraan' },
-    { value: 'property', label: '🏢 Pembelian Properti' },
-    { value: 'technology', label: '💻 Software & Teknologi' },
-    { value: 'other_investing', label: '💼 Investasi Lain-lain' }
+    { value: 'equipment', label: 'Pembelian Peralatan' },
+    { value: 'vehicle', label: 'Pembelian Kendaraan' },
+    { value: 'property', label: 'Pembelian Properti' },
+    { value: 'technology', label: 'Software & Teknologi' },
+    { value: 'other_investing', label: 'Investasi Lain-lain' }
   ],
   financing: [
-    { value: 'loan_payment', label: '🏦 Bayar Utang / Cicilan' },
-    { value: 'interest', label: '💰 Bayar Bunga Pinjaman' },
-    { value: 'dividend', label: '📊 Bagi Hasil / Dividen' },
-    { value: 'other_financing', label: '💳 Pendanaan Lain-lain' }
+    { value: 'loan_payment', label: 'Bayar Utang / Cicilan' },
+    { value: 'interest', label: 'Bayar Bunga Pinjaman' },
+    { value: 'dividend', label: 'Bagi Hasil / Dividen' },
+    { value: 'other_financing', label: 'Pendanaan Lain-lain' }
   ]
 }
 
@@ -272,28 +272,28 @@ export const getExpenseCategoryLabel = (category: string | null | undefined): st
     .replace(/-/g, '_')
 
   const map: Record<string, string> = {
-    raw_materials: '📦 Pembelian Bahan Baku (Produksi)',
-    finished_goods: '🎁 Pembelian Produk Jadi (Reseller)',
-    office_supplies: '🏪 Operasional Toko',
-    utilities: '💡 Utilitas (Listrik, Air, Internet)',
-    marketing: '📢 Marketing & Iklan',
-    employee_expense: '👥 Gaji & Upah',
-    transportation: '🚚 Transportasi & Logistik',
-    maintenance: '🔧 Pemeliharaan & Perbaikan',
-    other_operating: '📋 Lain-lain',
-    equipment: '🏭 Pembelian Peralatan',
-    technology: '💻 Software & Teknologi',
-    property: '🏢 Pembelian Properti',
-    vehicle: '🚗 Pembelian Kendaraan',
-    other_investing: '💼 Investasi Lain-lain',
-    loan_payment: '🏦 Bayar Utang / Cicilan',
-    interest: '💰 Bayar Bunga Pinjaman',
-    dividend: '📊 Bagi Hasil / Dividen',
-    other_financing: '💳 Pendanaan Lain-lain',
-    operational_expense: '📋 Operasional',
-    operational: '📋 Operasional',
-    operational_cost: '📋 Operasional',
-    other: '📋 Lainnya'
+    raw_materials: 'Pembelian Bahan Baku (Produksi)',
+    finished_goods: 'Pembelian Produk Jadi (Reseller)',
+    office_supplies: 'Operasional Toko',
+    utilities: 'Utilitas (Listrik, Air, Internet)',
+    marketing: 'Marketing & Iklan',
+    employee_expense: 'Gaji & Upah',
+    transportation: 'Transportasi & Logistik',
+    maintenance: 'Pemeliharaan & Perbaikan',
+    other_operating: 'Lain-lain',
+    equipment: 'Pembelian Peralatan',
+    technology: 'Software & Teknologi',
+    property: 'Pembelian Properti',
+    vehicle: 'Pembelian Kendaraan',
+    other_investing: 'Investasi Lain-lain',
+    loan_payment: 'Bayar Utang / Cicilan',
+    interest: 'Bayar Bunga Pinjaman',
+    dividend: 'Bagi Hasil / Dividen',
+    other_financing: 'Pendanaan Lain-lain',
+    operational_expense: 'Operasional',
+    operational: 'Operasional',
+    operational_cost: 'Operasional',
+    other: 'Lainnya'
   }
 
   if (map[raw]) return map[raw]

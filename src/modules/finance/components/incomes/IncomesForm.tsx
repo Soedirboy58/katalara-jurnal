@@ -319,7 +319,7 @@ export function IncomesForm({
     const n = Number(loanTermMonths || 0)
 
     if (!P || P <= 0 || !n || n <= 0) {
-      alert('⚠️ Isi jumlah pinjaman dan jangka waktu yang valid')
+      alert('Isi jumlah pinjaman dan jangka waktu yang valid')
       return
     }
 
@@ -382,62 +382,62 @@ export function IncomesForm({
     // Validation
     if (isIncomeCategoryNonItemMode(incomeType, category)) {
       if (otherIncomeAmount <= 0) {
-        alert('⚠️ Mohon isi nominal pendapatan')
+        alert('Mohon isi nominal pendapatan')
         return
       }
       if (!resolvedOtherIncomeDescription.trim() && !notes.trim()) {
-        alert('⚠️ Mohon isi keterangan/deskripsi pendapatan')
+        alert('Mohon isi keterangan/deskripsi pendapatan')
         return
       }
 
       if (isLoanCategory) {
         if (!lenderName.trim()) {
-          alert('⚠️ Mohon isi nama pemberi pinjaman (Bank/Orang)')
+          alert('Mohon isi nama pemberi pinjaman (Bank/Orang)')
           return
         }
         if (!firstPaymentDate) {
-          alert('⚠️ Mohon isi tanggal bayar pertama')
+          alert('Mohon isi tanggal bayar pertama')
           return
         }
         if (!loanTermMonths || loanTermMonths <= 0) {
-          alert('⚠️ Mohon isi jangka waktu pinjaman (bulan)')
+          alert('Mohon isi jangka waktu pinjaman (bulan)')
           return
         }
         if (loanInterestRate < 0) {
-          alert('⚠️ Suku bunga tidak boleh negatif')
+          alert('Suku bunga tidak boleh negatif')
           return
         }
       }
 
       if (isInvestorCategory) {
         if (!investorName.trim()) {
-          alert('⚠️ Mohon isi nama investor')
+          alert('Mohon isi nama investor')
           return
         }
         if (profitSharePercent < 0 || profitSharePercent > 100) {
-          alert('⚠️ Persentase bagi hasil harus 0-100')
+          alert('Persentase bagi hasil harus 0-100')
           return
         }
       }
     } else {
       if (lineItems.length === 0) {
-        alert('⚠️ Mohon tambahkan minimal 1 item')
+        alert('Mohon tambahkan minimal 1 item')
         return
       }
     }
 
     if (!isAnonymous && !customerName.trim()) {
-      alert('⚠️ Mohon masukkan nama pelanggan atau centang "Pelanggan Anonim"')
+      alert('Mohon masukkan nama pelanggan atau centang "Pelanggan Anonim"')
       return
     }
 
     if (paymentType === 'tempo') {
       if (!dueDate) {
-        alert('⚠️ Mohon pilih tanggal jatuh tempo')
+        alert('Mohon pilih tanggal jatuh tempo')
         return
       }
       if (!customerPhone) {
-        alert('⚠️ Mohon masukkan nomor WhatsApp pelanggan untuk pengingat tempo')
+        alert('Mohon masukkan nomor WhatsApp pelanggan untuk pengingat tempo')
         return
       }
     }
@@ -595,7 +595,7 @@ export function IncomesForm({
     <form onSubmit={handleSubmit} className="space-y-6">
       {/* Header Section */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">📝 Input Pendapatan</h2>
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Input Pendapatan</h2>
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {/* Transaction Date */}
@@ -666,7 +666,7 @@ export function IncomesForm({
 
           return (
             <div className={wrapClass}>
-              <div className={titleClass}>ℹ️ {edu.title}</div>
+              <div className={titleClass}>{edu.title}</div>
               <ul className={listClass}>
                 {edu.points.map((p) => (
                   <li key={p}>{p}</li>
@@ -680,7 +680,7 @@ export function IncomesForm({
 
       {/* Customer Section */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <h3 className="text-md font-semibold text-gray-900 mb-4">👤 Pelanggan</h3>
+        <h3 className="text-md font-semibold text-gray-900 mb-4">Pelanggan</h3>
         
         <div className="space-y-3">
           <div className="flex items-center gap-2">
@@ -776,8 +776,8 @@ export function IncomesForm({
           {isIncomeCategoryNonItemMode(incomeType, category)
             ? getIncomeCategoryLabel(category)
             : category === 'service_income'
-              ? '🧰 Item Jasa'
-              : '🛒 Item Penjualan'}
+              ? 'Item Jasa'
+              : 'Item Penjualan'}
         </h3>
 
         {isIncomeCategoryNonItemMode(incomeType, category) ? (
@@ -825,7 +825,7 @@ export function IncomesForm({
 
             {isLoanCategory && (
               <div className="border-t pt-4 space-y-3">
-                <div className="text-sm font-semibold text-gray-900">🏦 Simulasi Pinjaman (Preview Cicilan)</div>
+                <div className="text-sm font-semibold text-gray-900">Simulasi Pinjaman (Preview Cicilan)</div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1">Tanggal Pinjaman</label>
@@ -958,7 +958,7 @@ export function IncomesForm({
 
             {isInvestorCategory && (
               <div className="border-t pt-4 space-y-3">
-                <div className="text-sm font-semibold text-gray-900">🤝 Kesepakatan Investor (Ringkas)</div>
+                <div className="text-sm font-semibold text-gray-900">Kesepakatan Investor (Ringkas)</div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1">Nama Investor *</label>
@@ -1048,7 +1048,7 @@ export function IncomesForm({
 
       {/* Summary Section */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
-        <h3 className="text-md font-semibold text-gray-900 mb-4">💰 Ringkasan</h3>
+        <h3 className="text-md font-semibold text-gray-900 mb-4">Ringkasan</h3>
 
         <div className="space-y-3">
           {/* Subtotal */}
@@ -1132,7 +1132,7 @@ export function IncomesForm({
 
       {/* Payment Method */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
-        <h3 className="text-md font-semibold text-gray-900 mb-4">💳 Metode Pembayaran</h3>
+        <h3 className="text-md font-semibold text-gray-900 mb-4">Metode Pembayaran</h3>
         
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3 sm:flex sm:gap-6 sm:justify-start">
