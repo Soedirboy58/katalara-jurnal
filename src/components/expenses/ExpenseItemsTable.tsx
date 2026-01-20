@@ -53,6 +53,12 @@ export const ExpenseItemsTable: React.FC<ExpenseItemsTableProps> = ({
   namePlaceholder,
   enableQuickCreateProduct = true
 }) => {
+  const getProductStock = (p: any): number => {
+    const raw = p?.stock_quantity ?? p?.stock ?? p?.current_stock ?? 0
+    const n = Number(raw)
+    return Number.isFinite(n) ? n : 0
+  }
+
   // Product autocomplete state
   const [filteredProducts, setFilteredProducts] = useState<typeof products>([])
   const [showDropdown, setShowDropdown] = useState(false)
@@ -254,43 +260,44 @@ export const ExpenseItemsTable: React.FC<ExpenseItemsTableProps> = ({
                       <Search className="w-3 h-3" />
                       {filteredProducts.length} produk ditemukan
                     </div>
-                    {filteredProducts.map((product) => (
-                      <button
-                        key={product.id}
-                        type="button"
-                        onClick={() => handleProductSelect(product)}
-                        className="w-full px-3 py-2 text-left hover:bg-blue-50 focus:bg-blue-50 transition-colors border-b border-gray-100 last:border-0"
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex-1 min-w-0">
-                            <div className="font-medium text-gray-800 text-sm truncate">
-                              {product.name}
-                            </div>
-                            <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
-                              {product.unit && (
-                                <span className="flex items-center gap-1">
-                                  <Package className="w-3 h-3" />
-                                  {product.unit}
+                    {filteredProducts.map((product) => {
+                      const displayStock = getProductStock(product as any)
+                      return (
+                        <button
+                          key={product.id}
+                          type="button"
+                          onClick={() => handleProductSelect(product)}
+                          className="w-full px-3 py-2 text-left hover:bg-blue-50 focus:bg-blue-50 transition-colors border-b border-gray-100 last:border-0"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium text-gray-800 text-sm truncate">
+                                {product.name}
+                              </div>
+                              <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
+                                {product.unit && (
+                                  <span className="flex items-center gap-1">
+                                    <Package className="w-3 h-3" />
+                                    {product.unit}
+                                  </span>
+                                )}
+                                <span className={displayStock > 0 ? 'text-green-600' : 'text-red-600'}>
+                                  Stok: {displayStock}
                                 </span>
-                              )}
-                              {product.stock !== undefined && product.stock !== null && (
-                                <span className={product.stock > 0 ? 'text-green-600' : 'text-red-600'}>
-                                  Stok: {product.stock}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                          {product.cost_price && product.cost_price > 0 && (
-                            <div className="ml-3 text-right flex-shrink-0">
-                              <div className="text-xs text-gray-500">Harga beli</div>
-                              <div className="font-semibold text-sm text-blue-600">
-                                {formatRupiah(product.cost_price)}
                               </div>
                             </div>
-                          )}
-                        </div>
-                      </button>
-                    ))}
+                            {product.cost_price && product.cost_price > 0 && (
+                              <div className="ml-3 text-right flex-shrink-0">
+                                <div className="text-xs text-gray-500">Harga beli</div>
+                                <div className="font-semibold text-sm text-blue-600">
+                                  {formatRupiah(product.cost_price)}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </button>
+                      )
+                    })}
                   </>
                 ) : (
                   <div className="p-4 text-center text-sm text-gray-500">
