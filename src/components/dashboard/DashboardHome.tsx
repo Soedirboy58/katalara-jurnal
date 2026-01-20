@@ -462,7 +462,9 @@ export function DashboardHome() {
         <div className="space-y-3">
           {/* Expense Limit Warning */}
           {settings.daily_expense_limit && kpiData.today?.expense !== undefined && (() => {
-            const percentage = (kpiData.today.expense / settings.daily_expense_limit) * 100
+            const cashOutToday = (kpiData.today as any)?.expenseCash ?? kpiData.today.expense
+            const tempoCommitmentToday = (kpiData.today as any)?.expenseCommitment ?? 0
+            const percentage = (cashOutToday / settings.daily_expense_limit) * 100
             const threshold = settings.notification_threshold || 80
             
             if (percentage >= threshold) {
@@ -489,8 +491,16 @@ export function DashboardHome() {
                       <p className={`text-sm mt-1 ${
                         percentage >= 100 ? 'text-red-800' : 'text-amber-800'
                       }`}>
-                        Pengeluaran hari ini: <strong>{formatCurrency(kpiData.today.expense)}</strong> ({percentage.toFixed(0)}% dari limit {formatCurrency(settings.daily_expense_limit)})
+                        Kas keluar hari ini: <strong>{formatCurrency(cashOutToday)}</strong> ({percentage.toFixed(0)}% dari limit {formatCurrency(settings.daily_expense_limit)})
                       </p>
+
+                      {tempoCommitmentToday > 0 && (
+                        <p className={`text-sm mt-1 ${
+                          percentage >= 100 ? 'text-red-800' : 'text-amber-800'
+                        }`}>
+                          Belanja tempo hari ini: <strong>{formatCurrency(tempoCommitmentToday)}</strong> (belum mengurangi kas)
+                        </p>
+                      )}
                       <a 
                         href="/dashboard/settings" 
                         className="inline-flex items-center gap-1 text-sm font-medium mt-2 text-blue-600 hover:text-blue-700"
