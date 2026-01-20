@@ -13,6 +13,32 @@ const toNumber = (v: any): number => {
   return Number.isFinite(n) ? n : 0
 }
 
+const normalize = (v: unknown) => (v ?? '').toString().trim().toLowerCase()
+
+const isPaidStatus = (status: unknown) => {
+  const s = normalize(status)
+  if (!s) return false
+  return ['paid', 'lunas', 'selesai', 'done', 'completed'].includes(s)
+}
+
+const isTempoPayment = (row: any) => {
+  const type = normalize(row?.payment_type)
+  const method = normalize(row?.payment_method)
+  const status = normalize(row?.payment_status)
+
+  // Strong signal: has due date
+  if (row?.due_date) return true
+
+  // Common labels
+  if (['tempo', 'credit', 'kredit', 'hutang', 'piutang'].includes(type)) return true
+  if (['tempo', 'credit', 'kredit'].includes(method)) return true
+
+  // Some UIs store "Pending" for tempo
+  if (status === 'pending') return true
+
+  return false
+}
+
 const isoDate = (d: Date) => d.toISOString().split('T')[0]
 
 function monthRanges(now = new Date()) {
@@ -73,8 +99,23 @@ async function loadRevenueAndCashIn(supabase: any, userId: string, startDate: st
     if (error) throw error
 
     const rows = data || []
-    const revenue = rows.reduce((sum: number, r: any) => sum + toNumber(r?.total ?? r?.total_amount ?? r?.grand_total ?? 0), 0)
-    const cashIn = rows.reduce((sum: number, r: any) => sum + toNumber(r?.paid_amount ?? 0), 0)
+    const revenue = rows.reduce(
+      (sum: number, r: any) => sum + toNumber(r?.total ?? r?.total_amount ?? r?.grand_total ?? 0),
+      0
+    )
+
+    // Cash-in rules:
+    // - If status is paid, treat full total as cash-in (even if paid_amount is missing)
+    // - If tempo, treat cash-in as paid_amount/down_payment (could be 0)
+    // - Else, fallback to total (cash/transfer)
+    const cashIn = rows.reduce((sum: number, r: any) => {
+      const total = toNumber(r?.total ?? r?.total_amount ?? r?.grand_total ?? 0)
+      const paid = Math.max(toNumber(r?.paid_amount ?? 0), toNumber(r?.down_payment ?? 0))
+      if (isPaidStatus(r?.payment_status)) return sum + total
+      if (isTempoPayment(r)) return sum + Math.min(total, Math.max(0, paid))
+      if (paid > 0) return sum + Math.min(total, paid)
+      return sum + total
+    }, 0)
     return { revenue, cashIn, source: 'transactions' as const }
   } catch (e) {
     // Fallback to legacy `incomes`
@@ -122,15 +163,17 @@ async function loadExpensesAndCashOut(supabase: any, userId: string, startDate: 
     const rows = data || []
     const total = rows.reduce((sum: number, r: any) => sum + toNumber(r?.grand_total ?? r?.amount ?? 0), 0)
 
-    // If there is down_payment field (tempo), treat cash out as down_payment, else use total.
+    // Cash-out rules:
+    // - If status is paid, treat full total as cash-out
+    // - If tempo, treat cash-out as down_payment/paid_amount (could be 0)
+    // - Else, fallback to total (cash/transfer)
     const cashOut = rows.reduce((sum: number, r: any) => {
-      const dp = toNumber(r?.down_payment ?? 0)
-      if (dp > 0) return sum + dp
-      // Some schemas may store paid_amount / paid_total
-      const paid = toNumber(r?.paid_amount ?? r?.paid_total ?? 0)
-      if (paid > 0) return sum + paid
-      // Fallback: assume immediate cash out equals total
-      return sum + toNumber(r?.grand_total ?? r?.amount ?? 0)
+      const totalRow = toNumber(r?.grand_total ?? r?.amount ?? 0)
+      const paid = Math.max(toNumber(r?.down_payment ?? 0), toNumber(r?.paid_amount ?? r?.paid_total ?? 0))
+      if (isPaidStatus(r?.payment_status)) return sum + totalRow
+      if (isTempoPayment(r)) return sum + Math.min(totalRow, Math.max(0, paid))
+      if (paid > 0) return sum + Math.min(totalRow, paid)
+      return sum + totalRow
     }, 0)
 
     const operating = rows
