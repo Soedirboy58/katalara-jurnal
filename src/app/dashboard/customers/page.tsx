@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
 
 interface Customer {
   id: string
@@ -11,8 +10,11 @@ interface Customer {
   email: string | null
   address: string | null
   customer_number?: string
-  total_transactions: number
-  total_spent: number
+  total_transactions?: number
+  // API/DB uses total_purchase (singular)
+  total_purchase?: number
+  // Keep legacy alias
+  total_purchases?: number
   created_at: string
 }
 
@@ -21,7 +23,6 @@ export default function CustomersPage() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const router = useRouter()
-  const supabase = createClient()
 
   useEffect(() => {
     fetchCustomers()
@@ -30,28 +31,21 @@ export default function CustomersPage() {
   const fetchCustomers = async () => {
     try {
       setLoading(true)
-      
-      // Check auth first
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session?.user) {
-        console.error('No session found, redirecting to login')
+
+      const res = await fetch('/api/customers?active=true&with_stats=true')
+      if (res.status === 401) {
         router.push('/login')
         return
       }
 
-      const { data, error } = await supabase
-        .from('customers')
-        .select('*')
-        .eq('owner_id', session.user.id)
-        .order('created_at', { ascending: false })
-
-      if (error) {
-        console.error('Error fetching customers:', error)
-        throw error
+      const json = await res.json().catch(() => null)
+      if (!res.ok || !json?.success) {
+        console.error('Error fetching customers:', json?.error || `HTTP ${res.status}`)
+        setCustomers([])
+        return
       }
-      
-      console.log('Customers fetched:', data?.length || 0)
-      setCustomers(data || [])
+
+      setCustomers(json.data || [])
     } catch (error) {
       console.error('Error in fetchCustomers:', error)
     } finally {
@@ -75,7 +69,7 @@ export default function CustomersPage() {
   )
 
   const totalCustomers = customers.length
-  const totalSpent = customers.reduce((sum, c) => sum + (c.total_spent || 0), 0)
+  const totalSpent = customers.reduce((sum, c) => sum + Number(c.total_purchase ?? c.total_purchases ?? 0), 0)
 
   return (
     <div className="p-4 sm:p-6 lg:p-8">
@@ -186,11 +180,13 @@ export default function CustomersPage() {
                 <p className="text-sm text-gray-500 font-medium">Top Customer (Nominal)</p>
               </div>
               {(() => {
-                const top = customers.sort((a, b) => (b.total_spent || 0) - (a.total_spent || 0))[0]
+                const top = [...customers].sort(
+                  (a, b) => Number(b.total_purchase ?? b.total_purchases ?? 0) - Number(a.total_purchase ?? a.total_purchases ?? 0)
+                )[0]
                 return top ? (
                   <>
                     <p className="text-base font-bold text-gray-900 truncate">{top.name}</p>
-                    <p className="text-lg text-amber-600 font-bold mt-1">{formatCurrency(top.total_spent || 0)}</p>
+                    <p className="text-lg text-amber-600 font-bold mt-1">{formatCurrency(Number(top.total_purchase ?? top.total_purchases ?? 0))}</p>
                   </>
                 ) : (
                   <p className="text-sm text-gray-400">Belum ada data</p>
@@ -213,7 +209,7 @@ export default function CustomersPage() {
                 <p className="text-sm text-gray-500 font-medium">Top Repeat Order</p>
               </div>
               {(() => {
-                const top = customers.sort((a, b) => (b.total_transactions || 0) - (a.total_transactions || 0))[0]
+                const top = [...customers].sort((a, b) => (Number(b.total_transactions || 0) - Number(a.total_transactions || 0)))[0]
                 return top ? (
                   <>
                     <p className="text-base font-bold text-gray-900 truncate">{top.name}</p>
@@ -290,7 +286,7 @@ export default function CustomersPage() {
                       {customer.total_transactions || 0}x
                     </td>
                     <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                      {formatCurrency(customer.total_spent || 0)}
+                      {formatCurrency(Number(customer.total_purchase ?? customer.total_purchases ?? 0))}
                     </td>
                   </tr>
                 ))}
@@ -337,7 +333,7 @@ export default function CustomersPage() {
                   </div>
                   <div className="text-right">
                     <div className="text-xs text-gray-500">Total Pembelian</div>
-                    <div className="font-semibold text-green-600">{formatCurrency(customer.total_spent || 0)}</div>
+                    <div className="font-semibold text-green-600">{formatCurrency(Number(customer.total_purchase ?? customer.total_purchases ?? 0))}</div>
                   </div>
                 </div>
               </div>

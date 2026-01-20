@@ -85,14 +85,13 @@ export default function SettingsPage() {
 
       const settings = {
         user_id: userId,
-        business_category: existingConfig?.business_category || 'other', // Preserve or default
+        business_category: existingConfig?.business_category || 'Hybrid', // Preserve or safe default (must satisfy DB CHECK constraint in newer schema)
         daily_expense_limit: dailyExpenseLimit ? parseFloat(dailyExpenseLimit.replace(/\./g, '')) : null,
         daily_revenue_target: dailyRevenueTarget ? parseFloat(dailyRevenueTarget.replace(/\./g, '')) : null,
         enable_expense_notifications: enableNotifications,
         notification_threshold: parseInt(notificationThreshold),
         track_roi: trackROI,
-        roi_period: roiPeriod,
-        updated_at: new Date().toISOString()
+        roi_period: roiPeriod
       }
 
       const { error } = await supabase
@@ -104,7 +103,28 @@ export default function SettingsPage() {
       showToast('success', '✅ Pengaturan berhasil disimpan!')
     } catch (error: any) {
       console.error('Error saving settings:', error)
-      showToast('error', '❌ Gagal menyimpan: ' + error.message)
+      if (error?.code === 'PGRST204') {
+        showToast(
+          'error',
+          '❌ Gagal menyimpan: Database belum ter-update. Jalankan migrasi add_financial_controls.sql lalu refresh schema cache Supabase (Settings → API → Reload schema cache), kemudian coba lagi.'
+        )
+      } else if (error?.code === '23514' && typeof error?.message === 'string') {
+        if (error.message.includes('chk_business_config_updated_after_created')) {
+          showToast(
+            'error',
+            '❌ Gagal menyimpan: timestamp tidak valid (updated_at < created_at). Ini biasanya karena aplikasi mengirim waktu dari device. Refresh halaman lalu coba lagi. Jika tetap, jalankan perbaikan di DB: UPDATE public.business_configurations SET updated_at = GREATEST(updated_at, created_at);'
+          )
+        } else if (error.message.includes('chk_business_config_category')) {
+          showToast(
+            'error',
+            '❌ Gagal menyimpan: nilai kategori bisnis tidak valid untuk schema saat ini. Selesaikan onboarding atau set business_category ke salah satu: Produk dengan Stok / Produk Tanpa Stok / Jasa/Layanan / Trading/Reseller / Hybrid.'
+          )
+        } else {
+          showToast('error', '❌ Gagal menyimpan: ' + error.message)
+        }
+      } else {
+        showToast('error', '❌ Gagal menyimpan: ' + (error?.message || 'Unknown error'))
+      }
     } finally {
       setSaving(false)
     }

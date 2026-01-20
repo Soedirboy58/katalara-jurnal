@@ -82,7 +82,7 @@ export function ProductTable({ products, loading, onEdit, onAdjustStock, onDelet
   }
 
   const getStockQty = (product: Product) => {
-    const qty = (product as any).stock ?? (product as any).stock_quantity ?? (product as any).quantity ?? 0
+    const qty = (product as any).stock_quantity ?? (product as any).stock ?? (product as any).quantity ?? 0
     const asNum = typeof qty === 'string' ? Number(qty) : qty
     return Number.isFinite(asNum) ? asNum : 0
   }

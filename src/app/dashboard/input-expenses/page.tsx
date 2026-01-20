@@ -143,6 +143,8 @@ export default function InputExpensesPage() {
     const optionalKeysOrder = [
       'supplier_id',
       'supplier_name',
+      'payment_type',
+      'payment_term_days',
       'due_date',
       'down_payment',
       'remaining_payment',
@@ -241,18 +243,85 @@ export default function InputExpensesPage() {
     throw lastError
   }, [supabase])
 
+  // Helper function - keep BOTH stock columns in sync whenever possible.
+  // Many UIs prefer reading `stock` first, so leaving it stale causes "stok tidak berubah" symptoms.
   const updateProductStockBestEffort = useCallback(async (productId: string, newStock: number) => {
-    // Prefer stock_quantity, fallback to stock
-    const first = await supabase.from('products').update({ stock_quantity: newStock }).eq('id', productId)
-    if (!first.error) return
+    // First try: update both columns together.
+    const both = await supabase
+      .from('products')
+      .update({ stock: newStock, stock_quantity: newStock })
+      .eq('id', productId)
+    if (!both.error) return
 
-    const msg = (first.error as any)?.message || ''
-    const code = (first.error as any)?.code || ''
-    const isMissingColumn = code === '42703' || msg.toLowerCase().includes('stock_quantity') || msg.toLowerCase().includes('column')
+    // If one of the columns doesn't exist on this deployment, retry individually.
+    const msg = (both.error as any)?.message?.toString()?.toLowerCase?.() || ''
+    const code = ((both.error as any)?.code || '').toString()
+    const isMissingColumn = code === '42703' || msg.includes('column') || msg.includes('stock_quantity') || msg.includes('stock')
     if (!isMissingColumn) return
 
-    await supabase.from('products').update({ stock: newStock }).eq('id', productId)
+    try {
+      await supabase.from('products').update({ stock_quantity: newStock }).eq('id', productId)
+    } catch {
+      // ignore
+    }
+    try {
+      await supabase.from('products').update({ stock: newStock }).eq('id', productId)
+    } catch {
+      // ignore
+    }
   }, [supabase])
+
+  const adjustStockBestEffort = useCallback(
+    async (productId: string, quantityChange: number, notes?: string) => {
+      if (!productId) return
+      const qty = Number(quantityChange)
+      if (!Number.isFinite(qty) || qty === 0) return
+
+      // Prefer stock_movements via RPC when available.
+      const { data, error } = await supabase.rpc('adjust_stock', {
+        p_product_id: productId,
+        p_quantity_change: qty,
+        p_notes: notes || null
+      })
+
+      if (!error) {
+        // Best-effort sync both columns if RPC provides the new stock value.
+        if (data && typeof data === 'object' && (data as any).new_stock !== undefined) {
+          const next = Number((data as any).new_stock)
+          if (Number.isFinite(next)) {
+            await updateProductStockBestEffort(productId, next)
+          }
+        }
+        return
+      }
+
+      const msg = (error as any)?.message?.toString()?.toLowerCase?.() || ''
+      const code = ((error as any)?.code || '').toString()
+      const isMissingRpc =
+        msg.includes('adjust_stock') &&
+        (msg.includes('does not exist') || msg.includes('not found') || msg.includes('function'))
+
+      // Only fall back for the common "RPC not installed" case.
+      if (!isMissingRpc && code && code !== '42883') return
+
+      // Fallback: update product table stock fields directly.
+      const stockRow = await supabase
+        .from('products')
+        .select('stock_quantity, stock, current_stock')
+        .eq('id', productId)
+        .single()
+
+      const currentStockRaw =
+        (stockRow.data as any)?.stock_quantity ??
+        (stockRow.data as any)?.stock ??
+        (stockRow.data as any)?.current_stock ??
+        0
+
+      const nextStock = Math.max(0, (Number(currentStockRaw) || 0) + qty)
+      await updateProductStockBestEffort(productId, nextStock)
+    },
+    [supabase, updateProductStockBestEffort]
+  )
   
   // Toast notifications
   const [toast, setToast] = useState<{
@@ -543,12 +612,15 @@ export default function InputExpensesPage() {
           category: formState.category.category,
           grand_total: calculations.grandTotal,
           payment_method: formState.payment.method,
+          // IMPORTANT: ensure tempo purchases are stored as unpaid (otherwise KPI won't detect overdue payables)
+          payment_type: formState.payment.status === 'Tempo' ? 'tempo' : 'cash',
           // optional/best-effort fields
           supplier_id: formState.supplier?.id || undefined,
           supplier_name: formState.supplier?.name || undefined,
           description: formState.header.description,
           po_number: formState.header.poNumber,
           due_date: tempoDueDate || undefined,
+          payment_term_days: formState.payment.status === 'Tempo' ? (Number(formState.payment.tempoDays) || 0) : 0,
           down_payment: formState.payment.status === 'Tempo' ? (formState.payment.downPayment || 0) : 0,
           remaining_payment: formState.payment.status === 'Tempo' ? Math.max(0, remainingPayment) : 0,
           notes: notesWithMeta || undefined
@@ -574,14 +646,14 @@ export default function InputExpensesPage() {
       if (formState.category.category === 'raw_materials' || formState.category.category === 'finished_goods') {
         for (const item of formState.items.lineItems) {
           if (item.product_id) {
-            // Increase stock
             const product = products.find(p => p.id === item.product_id)
-            if (product && (product as any).track_inventory !== false) {
-              const currentStock = (product as any).stock_quantity ?? (product as any).stock ?? (product as any).current_stock ?? 0
-              const newStock = (Number(currentStock) || 0) + item.quantity
+            if (product && (product as any).track_inventory === false) continue
 
-              await updateProductStockBestEffort(item.product_id, newStock)
-            }
+            await adjustStockBestEffort(
+              item.product_id,
+              item.quantity,
+              `Restock dari pengeluaran ${expense.id}`
+            )
           }
         }
       }

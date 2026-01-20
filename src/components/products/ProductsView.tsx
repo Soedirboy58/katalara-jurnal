@@ -49,7 +49,7 @@ export function ProductsView() {
     const totalProducts = products.length
 
     const getStockQty = (p: Product) => {
-      const qty = (p as any).stock ?? (p as any).stock_quantity ?? (p as any).quantity ?? 0
+      const qty = (p as any).stock_quantity ?? (p as any).stock ?? (p as any).quantity ?? 0
       const asNum = typeof qty === 'string' ? Number(qty) : qty
       return Number.isFinite(asNum) ? asNum : 0
     }
@@ -239,7 +239,7 @@ export function ProductsView() {
     const selectedData = products.filter(p => selectedProducts.includes(p.id))
 
     const getStockQty = (p: Product) => {
-      const qty = (p as any).stock ?? (p as any).stock_quantity ?? (p as any).current_stock ?? (p as any).quantity ?? 0
+      const qty = (p as any).stock_quantity ?? (p as any).current_stock ?? (p as any).stock ?? (p as any).quantity ?? 0
       const asNum = typeof qty === 'string' ? Number(qty) : qty
       return Number.isFinite(asNum) ? asNum : 0
     }

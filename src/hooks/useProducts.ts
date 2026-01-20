@@ -87,7 +87,8 @@ export function useProducts(filters?: ProductFilters & { productType?: 'physical
     if ((product as any).track_inventory === false) return 'HEALTHY'
 
     const minStock = Number((product as any).min_stock_alert ?? (product as any).min_stock ?? 0) || 0
-    const rawStock = (product as any).current_stock ?? (product as any).stock ?? (product as any).stock_quantity ?? 0
+    // Prefer `stock_quantity` because the DB/RPC may update it while legacy `stock` stays stale.
+    const rawStock = (product as any).stock_quantity ?? (product as any).current_stock ?? (product as any).stock ?? 0
     const stockQty = Number(rawStock) || 0
     if (stockQty === 0) return 'OUT_OF_STOCK'
     if (stockQty <= minStock * 0.5) return 'CRITICAL'
