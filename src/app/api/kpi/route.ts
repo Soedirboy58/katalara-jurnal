@@ -72,7 +72,7 @@ async function pickAmountColumn(supabase: any, table: string, candidates: string
   return candidates[0]
 }
 
-const paidLabels = ['paid', 'lunas', 'Lunas']
+const paidLabels = ['paid', 'lunas', 'Lunas', 'selesai', 'done']
 
 export async function GET(request: Request) {
   const cookieStore = await cookies()
@@ -298,13 +298,15 @@ export async function GET(request: Request) {
         const amountCol = await pickAmountColumn(supabase, 'expenses', ['grand_total', 'amount', 'total'])
         const hasDueDate = await tableHasColumn(supabase, 'expenses', 'due_date')
 
+        const paidList = `(${paidLabels.map((v) => `"${v}"`).join(',')})`
+
         let q: any = supabase
           .from('expenses')
           .select(`${amountCol}${hasDueDate ? ',due_date' : ''}`)
         q = ownership.apply(q)
         if (hasDueDate) q = q.not('due_date', 'is', null).lt('due_date', todayStr)
-        // Exclude paid statuses (best-effort across old/new labels)
-        q = q.not('payment_status', 'in', `(${paidLabels.map((v) => `"${v}"`).join(',')})`)
+        // Include NULLs as unpaid, and exclude paid statuses (best-effort across old/new labels)
+        q = q.or(`payment_status.is.null,payment_status.not.in.${paidList}`)
 
         const { data, error } = await q
         

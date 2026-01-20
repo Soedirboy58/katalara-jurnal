@@ -3,6 +3,79 @@ import { createClient } from '@/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
 
+const toNumber = (v: any): number => {
+  const n = typeof v === 'number' ? v : Number((v ?? '').toString().replace(/[^0-9.-]/g, ''))
+  return Number.isFinite(n) ? n : 0
+}
+
+async function updateProductStockBestEffort(supabase: any, productId: string, nextStock: number) {
+  const both = await supabase.from('products').update({ stock: nextStock, stock_quantity: nextStock }).eq('id', productId)
+  if (!both.error) return
+
+  const msg = (both.error as any)?.message?.toString()?.toLowerCase?.() || ''
+  const code = ((both.error as any)?.code || '').toString()
+  const isMissingColumn = code === '42703' || msg.includes('column') || msg.includes('stock_quantity') || msg.includes('stock')
+  if (!isMissingColumn) return
+
+  try {
+    await supabase.from('products').update({ stock_quantity: nextStock }).eq('id', productId)
+  } catch {
+    // ignore
+  }
+  try {
+    await supabase.from('products').update({ stock: nextStock }).eq('id', productId)
+  } catch {
+    // ignore
+  }
+}
+
+async function adjustStockBestEffort(supabase: any, productId: string, quantityChange: number, notes?: string) {
+  const qty = Number(quantityChange)
+  if (!productId || !Number.isFinite(qty) || qty === 0) return
+
+  try {
+    const { data, error } = await supabase.rpc('adjust_stock', {
+      p_product_id: productId,
+      p_quantity_change: qty,
+      p_notes: notes || null
+    })
+
+    if (!error) {
+      if (data && typeof data === 'object' && (data as any).new_stock !== undefined) {
+        const next = Number((data as any).new_stock)
+        if (Number.isFinite(next)) await updateProductStockBestEffort(supabase, productId, next)
+      }
+      return
+    }
+
+    const msg = (error as any)?.message?.toString()?.toLowerCase?.() || ''
+    const code = ((error as any)?.code || '').toString()
+    const isMissingRpc = msg.includes('adjust_stock') && (msg.includes('does not exist') || msg.includes('not found') || msg.includes('function'))
+    if (!isMissingRpc && code && code !== '42883') return
+  } catch {
+    // ignore and fall through to direct update
+  }
+
+  try {
+    const stockRow = await supabase
+      .from('products')
+      .select('stock_quantity, stock, current_stock')
+      .eq('id', productId)
+      .single()
+
+    const currentStockRaw =
+      (stockRow.data as any)?.stock_quantity ??
+      (stockRow.data as any)?.stock ??
+      (stockRow.data as any)?.current_stock ??
+      0
+
+    const nextStock = Math.max(0, (toNumber(currentStockRaw) || 0) + qty)
+    await updateProductStockBestEffort(supabase, productId, nextStock)
+  } catch {
+    // ignore
+  }
+}
+
 // GET - Fetch incomes with filtering
 export async function GET(request: NextRequest) {
   try {
@@ -151,47 +224,35 @@ export async function POST(request: NextRequest) {
     }
 
     // If product sales, update product stock (reduce)
-    if (body.category === 'product_sales') {
-      console.log('🔍 Product sales detected, updating stock...')
-      console.log('📦 Body data:', { 
-        category: body.category, 
-        has_line_items: !!body.line_items,
-        line_items_type: typeof body.line_items,
-        line_items_raw: body.line_items,
-        single_product_id: body.product_id 
-      })
-      
+    {
       // Parse line_items if it's a JSON string
-      let lineItemsArray = body.line_items
-      if (typeof body.line_items === 'string') {
+      let lineItemsArray: any = body.line_items
+      if (typeof lineItemsArray === 'string') {
         try {
-          lineItemsArray = JSON.parse(body.line_items)
-          console.log('📋 Parsed line_items from JSON string:', lineItemsArray)
-        } catch (e) {
-          console.error('❌ Failed to parse line_items JSON:', e)
+          lineItemsArray = JSON.parse(lineItemsArray)
+        } catch {
           lineItemsArray = []
         }
       }
-      
-      // Handle multi-items (line_items)
-      if (lineItemsArray && Array.isArray(lineItemsArray) && lineItemsArray.length > 0) {
-        console.log('📋 Processing multi-items...', lineItemsArray.length, 'items')
-        // ⚠️ STOCK TRACKING DISABLED - stock_quantity column doesn't exist in products table
-        // TODO: Implement proper stock reduction when stock_movements table is ready
-        for (const item of lineItemsArray) {
-          if (item.product_id && item.quantity) {
-            console.log(`  📦 Stock reduction pending for product ${item.product_id}: -${item.quantity}`)
-            // Stock will be tracked in stock_movements table
-          }
+
+      const items: Array<any> = Array.isArray(lineItemsArray) ? lineItemsArray : []
+
+      // Prefer multi-item sales payload (compat mode from useIncomes fallback)
+      if (items.length > 0) {
+        for (const it of items) {
+          const productId = (it?.product_id || '').toString() || null
+          const qty = toNumber(it?.qty ?? it?.quantity ?? 0)
+          if (!productId || qty <= 0) continue
+          // Sales reduce stock
+          await adjustStockBestEffort(supabase, productId, -qty, `Sale (legacy incomes) ${data.id}`)
         }
-      }
-      // Handle single item (legacy)
-      else if (body.product_id && body.quantity) {
-        // ⚠️ STOCK TRACKING DISABLED - stock_quantity column doesn't exist
-        // TODO: Implement with stock_movements table
-        console.log(`📦 Stock reduction pending for product ${body.product_id}: -${body.quantity}`)
       } else {
-        console.log('⚠️ No product_id or line_items found in request')
+        // Legacy single-item payload
+        const productId = (body.product_id || '').toString() || null
+        const qty = toNumber(body.quantity ?? body.qty ?? 0)
+        if (productId && qty > 0) {
+          await adjustStockBestEffort(supabase, productId, -qty, `Sale (legacy incomes) ${data.id}`)
+        }
       }
     }
 

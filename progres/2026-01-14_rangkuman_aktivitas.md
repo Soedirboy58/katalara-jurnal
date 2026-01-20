@@ -46,3 +46,20 @@ Dokumen ini merangkum aktivitas implementasi dan perbaikan yang dilakukan pada s
 - `next.config.ts` belum ada konfigurasi PWA (mis. `next-pwa`)
 
 **Next step yang disepakati:** implement “PWA lengkap” setelah rangkuman & README diperbarui.
+
+---
+
+## 4) Catatan Deploy (Vercel)
+
+**Masalah yang muncul:** perubahan belum terlihat di Vercel karena push dilakukan ke repo/remote yang tidak di-track project Vercel.
+
+**Fakta deploy yang disimpan:**
+- Vercel project: `katalaras-projects/katalara-nextjs`
+- Production URL (tercatat di log deploy): `https://katalara-nextjs-kmt2bynkr-katalaras-projects.vercel.app`
+- Auto-deploy source: GitHub repo `Soedirboy58/katalara-jurnal` branch `main`
+- Repo git lokal ada di folder `katalara-nextjs/`
+
+**Tindakan:** commit dan push dilakukan ke remote `jurnal/main` agar Vercel memicu deployment.
+
+**Dokumen referensi:**
+- `progres/06-DEPLOYMENT/02_vercel_deployment_record.md`

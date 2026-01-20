@@ -56,11 +56,23 @@ async function adjustStockSafe(
   notes: string
 ): Promise<void> {
   try {
-    await supabase.rpc('adjust_stock', {
+    const { data } = await supabase.rpc('adjust_stock', {
       p_product_id: productId,
       p_quantity_change: quantityChange,
       p_notes: notes
     })
+
+    // Best-effort: keep legacy `products.stock` in sync (many UIs prefer stock first).
+    if (data && typeof data === 'object' && (data as any).new_stock !== undefined) {
+      const next = Number((data as any).new_stock)
+      if (Number.isFinite(next)) {
+        try {
+          await supabase.from('products').update({ stock: next, stock_quantity: next }).eq('id', productId)
+        } catch {
+          // ignore
+        }
+      }
+    }
   } catch {
     // best-effort
   }

@@ -3,6 +3,96 @@ import { createClient } from '@/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
 
+const toNumber = (v: any): number => {
+  const n = typeof v === 'number' ? v : Number((v ?? '').toString().replace(/[^0-9.-]/g, ''))
+  return Number.isFinite(n) ? n : 0
+}
+
+async function updateProductStockBothBestEffort(supabase: any, productId: string, newStock: number) {
+  // Try updating both columns together first.
+  const both = await supabase
+    .from('products')
+    .update({ stock: newStock, stock_quantity: newStock, updated_at: new Date().toISOString() })
+    .eq('id', productId)
+
+  if (!both.error) return
+
+  // If schema drift (one of the columns missing), retry individually.
+  const msg = (both.error as any)?.message?.toString()?.toLowerCase?.() || ''
+  const code = ((both.error as any)?.code || '').toString()
+  const isMissingColumn = code === '42703' || msg.includes('column') || msg.includes('stock_quantity') || msg.includes('stock')
+  if (!isMissingColumn) return
+
+  try {
+    await supabase
+      .from('products')
+      .update({ stock_quantity: newStock, updated_at: new Date().toISOString() })
+      .eq('id', productId)
+  } catch {
+    // ignore
+  }
+
+  try {
+    await supabase
+      .from('products')
+      .update({ stock: newStock, updated_at: new Date().toISOString() })
+      .eq('id', productId)
+  } catch {
+    // ignore
+  }
+}
+
+async function restoreStocksFromIncomeTransaction(supabase: any, transaction: any) {
+  if (!transaction || transaction.category !== 'product_sales') return
+
+  // Parse line_items if exists (can be JSON string or array)
+  let lineItems: any[] = []
+  try {
+    const raw = (transaction as any).line_items
+    if (raw) {
+      lineItems = typeof raw === 'string' ? JSON.parse(raw) : raw
+      if (!Array.isArray(lineItems)) lineItems = []
+    }
+  } catch {
+    lineItems = []
+  }
+
+  // If there are no line_items, fallback to legacy single product fields.
+  if (!lineItems.length && (transaction as any).product_id) {
+    lineItems = [
+      {
+        product_id: (transaction as any).product_id,
+        qty: (transaction as any).quantity
+      }
+    ]
+  }
+
+  if (!lineItems.length) return
+
+  for (const item of lineItems) {
+    const productId = (item as any)?.product_id || (item as any)?.productId
+    if (!productId) continue
+
+    const qty = toNumber((item as any)?.quantity ?? (item as any)?.qty ?? 0)
+    if (!qty) continue
+
+    try {
+      const { data: product } = await supabase
+        .from('products')
+        .select('stock, stock_quantity')
+        .eq('id', productId)
+        .single()
+
+      const currentStock = toNumber((product as any)?.stock ?? (product as any)?.stock_quantity ?? 0)
+      const restoredStock = Math.max(0, currentStock + qty)
+
+      await updateProductStockBothBestEffort(supabase, productId, restoredStock)
+    } catch {
+      // Don't block deletion if restore fails
+    }
+  }
+}
+
 // DELETE - Delete single income transaction
 export async function DELETE(
   request: NextRequest,
@@ -46,11 +136,11 @@ export async function DELETE(
       )
     }
 
-    // ⚠️ STOCK TRACKING DISABLED - stock_quantity column doesn't exist in products table
-    // TODO: Implement stock restoration with stock_movements table when deleting income
-    if (transaction.category === 'product_sales' && transaction.product_id) {
-      console.log(`📦 Stock restoration pending for product ${transaction.product_id}`)
-      // Stock movements will be tracked separately
+    // ✅ RESTORE STOCK when deleting income transaction (best-effort; never blocks deletion)
+    try {
+      await restoreStocksFromIncomeTransaction(supabase, transaction)
+    } catch (error) {
+      console.error('Error restoring stock:', error)
     }
 
     // Delete the income transaction (only if it belongs to the user)

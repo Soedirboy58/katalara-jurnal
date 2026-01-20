@@ -10,6 +10,9 @@ interface Customer {
   email?: string
   address?: string
   total_transactions?: number
+  // DB schema uses `total_purchase` (singular) in several deployments.
+  total_purchase?: number
+  // Keep legacy name for backward compatibility.
   total_purchases?: number
   is_active: boolean
 }
@@ -328,7 +331,7 @@ export default function CustomerModal({ isOpen, onClose, onSelect, selectedCusto
                           </div>
                         )}
                       </div>
-                      {(customer.total_transactions || customer.total_purchases) && (
+                      {(customer.total_transactions || customer.total_purchase || customer.total_purchases) && (
                         <div className="mt-2 flex gap-3 text-xs">
                           {customer.total_transactions && customer.total_transactions > 0 && (
                             <span className="text-blue-600 flex items-center gap-1">
@@ -336,9 +339,9 @@ export default function CustomerModal({ isOpen, onClose, onSelect, selectedCusto
                               {customer.total_transactions} transaksi
                             </span>
                           )}
-                          {customer.total_purchases && customer.total_purchases > 0 && (
+                          {(customer.total_purchase ?? customer.total_purchases) && (customer.total_purchase ?? customer.total_purchases)! > 0 && (
                             <span className="text-green-600">
-                              💰 Rp {customer.total_purchases.toLocaleString('id-ID')}
+                              💰 Rp {(customer.total_purchase ?? customer.total_purchases)!.toLocaleString('id-ID')}
                             </span>
                           )}
                         </div>

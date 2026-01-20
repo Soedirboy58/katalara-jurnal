@@ -40,6 +40,10 @@ progres/
 └── 05-REFACTORING/              # Code improvements
     ├── 01_income_module_refactoring.md
     └── 02_ui_consistency_improvements.md
+
+└── 06-DEPLOYMENT/               # Panduan & catatan deploy
+    ├── 01_deployment_guide.md
+    └── 02_vercel_deployment_record.md
 ```
 
 ---
@@ -297,6 +301,18 @@ progres/
 - Consistent autocomplete pattern
 - Unified stock display format
 - Consistent button/form styling
+
+---
+
+### Phase 6: Deployment
+
+#### [01. Deployment Guide](./06-DEPLOYMENT/01_deployment_guide.md)
+**Status:** ✅ Complete  
+- Panduan end-to-end deploy (Supabase + Vercel)
+
+#### [02. Vercel Deployment Record](./06-DEPLOYMENT/02_vercel_deployment_record.md)
+**Status:** ✅ Active  
+- Data deploy faktual (Vercel project, URL production, repo/branch yang di-track)
 
 ---
 

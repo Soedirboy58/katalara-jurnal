@@ -6,6 +6,23 @@
 
 ---
 
+## ✅ Current Production Deploy (Fakta, jangan ditebak)
+
+**Vercel**
+- Team/Workspace: `katalaras-projects`
+- Project: `katalara-nextjs`
+- Production URL (tercatat di log deploy): `https://katalara-nextjs-kmt2bynkr-katalaras-projects.vercel.app`
+
+**GitHub (auto-deploy source)**
+- Repo: `Soedirboy58/katalara-jurnal`
+- Branch: `main`
+
+**Catatan repo lokal:** repository git ada di folder `katalara-nextjs/` (bukan root workspace).
+
+Referensi lengkap: `progres/06-DEPLOYMENT/02_vercel_deployment_record.md`
+
+---
+
 ## 🚀 Deployment Overview
 
 ### Architecture
