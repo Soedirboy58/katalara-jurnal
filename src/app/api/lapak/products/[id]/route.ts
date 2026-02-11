@@ -80,10 +80,20 @@ export async function DELETE(
 
     if (deleteError) {
       console.error('Error deleting product:', deleteError);
-      return NextResponse.json(
-        { error: 'Gagal menghapus produk' },
-        { status: 500 }
-      );
+
+      const { error: hideError } = await supabase
+        .from('storefront_products')
+        .update({ is_visible: false, updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .eq('user_id', user.id);
+
+      if (hideError) {
+        console.error('Error hiding product:', hideError);
+        return NextResponse.json(
+          { error: 'Gagal menghapus produk' },
+          { status: 500 }
+        );
+      }
     }
 
     return NextResponse.json({ success: true });
