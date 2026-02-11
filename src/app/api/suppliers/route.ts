@@ -3,6 +3,45 @@ import { NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
 
+type SuppliersUserColumn = 'owner_id' | 'user_id'
+
+async function getSuppliersUserColumn(supabase: any): Promise<SuppliersUserColumn> {
+  const isMissingColumn = (err: any, col: string) => {
+    const code = (err?.code || err?.error_code || '').toString().toUpperCase()
+    if (code === '42703') return true
+
+    const msg = (err?.message || err?.details || '').toString().toLowerCase()
+    const c = col.toLowerCase()
+
+    if (code.startsWith('PGRST')) {
+      if (msg.includes('schema cache') && msg.includes(c)) return true
+      if (msg.includes('could not find') && msg.includes(c) && (msg.includes('column') || msg.includes('field'))) return true
+      if (msg.includes('unknown field') && msg.includes(c)) return true
+    }
+
+    return (
+      msg.includes('does not exist') &&
+      (msg.includes(`suppliers.${c}`) ||
+        msg.includes(`column suppliers.${c}`) ||
+        msg.includes(`column "${c}"`) ||
+        msg.includes(`"${c}" of relation "suppliers"`) ||
+        msg.includes(` ${c} `))
+    )
+  }
+
+  {
+    const { error } = await supabase.from('suppliers').select('owner_id').limit(1)
+    if (!error) return 'owner_id'
+    if (!isMissingColumn(error, 'owner_id')) return 'owner_id'
+  }
+
+  {
+    const { error } = await supabase.from('suppliers').select('user_id').limit(1)
+    if (!error) return 'user_id'
+    return 'user_id'
+  }
+}
+
 // GET: Fetch all suppliers for logged-in user
 export async function GET(request: Request) {
   try {
@@ -20,10 +59,12 @@ export async function GET(request: Request) {
     const type = searchParams.get('type') // Filter by supplier_type
     const active = searchParams.get('active') !== 'false' // Default true
     
+    const userCol = await getSuppliersUserColumn(supabase)
+
     let query = supabase
       .from('suppliers')
       .select('*')
-      .eq('owner_id', user.id)
+      .eq(userCol, user.id)
       .order('name', { ascending: true })
 
     if (active) {
@@ -82,10 +123,12 @@ export async function POST(request: Request) {
     }
 
     // Check duplicate name
+    const userCol = await getSuppliersUserColumn(supabase)
+
     const { data: existing } = await supabase
       .from('suppliers')
       .select('id')
-      .eq('owner_id', user.id)
+      .eq(userCol, user.id)
       .ilike('name', body.name.trim())
       .single()
 
@@ -97,7 +140,7 @@ export async function POST(request: Request) {
     }
 
     const supplierData = {
-      owner_id: user.id,
+      [userCol]: user.id,
       name: body.name.trim(),
       supplier_type: body.supplier_type || 'finished_goods',
       phone: body.phone || null,
@@ -169,11 +212,13 @@ export async function PATCH(request: Request) {
     if (body.notes !== undefined) updateData.notes = body.notes
     if (body.is_active !== undefined) updateData.is_active = body.is_active
 
+    const userCol = await getSuppliersUserColumn(supabase)
+
     const { data, error } = await supabase
       .from('suppliers')
       .update(updateData)
       .eq('id', body.id)
-      .eq('owner_id', user.id)
+      .eq(userCol, user.id)
       .select()
       .single()
 
@@ -223,11 +268,13 @@ export async function DELETE(request: Request) {
     }
 
     // Soft delete
+    const userCol = await getSuppliersUserColumn(supabase)
+
     const { error } = await supabase
       .from('suppliers')
       .update({ is_active: false, updated_at: new Date().toISOString() })
       .eq('id', id)
-      .eq('owner_id', user.id)
+      .eq(userCol, user.id)
 
     if (error) {
       console.error('Error deleting supplier:', error)

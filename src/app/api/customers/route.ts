@@ -175,6 +175,7 @@ export async function GET(request: NextRequest) {
           }
 
           // 1) Transactions (preferred)
+          let hasTransactions = false
           try {
             const txUserCol = await getTransactionsUserColumn(supabase)
             const { data: txs, error: txErr } = await supabase
@@ -184,6 +185,7 @@ export async function GET(request: NextRequest) {
               .not('customer_id', 'is', null)
 
             if (!txErr && txs) {
+              hasTransactions = txs.length > 0
               for (const t of txs as any[]) {
                 const cid = (t as any).customer_id
                 if (!cid || !byId.has(cid)) continue
@@ -199,27 +201,29 @@ export async function GET(request: NextRequest) {
             console.warn('customers stats: transactions aggregation skipped', e)
           }
 
-          // 2) Legacy incomes fallback
-          try {
-            const { data: incs, error: incErr } = await supabase
-              .from('incomes')
-              .select('customer_id,amount,income_date')
-              .eq('user_id', user.id)
-              .not('customer_id', 'is', null)
+          // 2) Legacy incomes fallback (only when transactions are empty)
+          if (!hasTransactions) {
+            try {
+              const { data: incs, error: incErr } = await supabase
+                .from('incomes')
+                .select('customer_id,amount,income_date')
+                .eq('user_id', user.id)
+                .not('customer_id', 'is', null)
 
-            if (!incErr && incs) {
-              for (const t of incs as any[]) {
-                const cid = (t as any).customer_id
-                if (!cid || !byId.has(cid)) continue
-                const s = byId.get(cid)!
-                s.total_transactions += 1
-                s.total_purchase += toNumber((t as any).amount ?? 0)
-                const d = ((t as any).income_date || '').toString().slice(0, 10) || null
-                s.last_transaction_date = maxIsoDate(s.last_transaction_date, d)
+              if (!incErr && incs) {
+                for (const t of incs as any[]) {
+                  const cid = (t as any).customer_id
+                  if (!cid || !byId.has(cid)) continue
+                  const s = byId.get(cid)!
+                  s.total_transactions += 1
+                  s.total_purchase += toNumber((t as any).amount ?? 0)
+                  const d = ((t as any).income_date || '').toString().slice(0, 10) || null
+                  s.last_transaction_date = maxIsoDate(s.last_transaction_date, d)
+                }
               }
+            } catch (e) {
+              console.warn('customers stats: incomes aggregation skipped', e)
             }
-          } catch (e) {
-            console.warn('customers stats: incomes aggregation skipped', e)
           }
 
           const enriched = rows.map((c) => {
