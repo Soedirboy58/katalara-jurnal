@@ -54,16 +54,12 @@ export const ExpenseItemsTable: React.FC<ExpenseItemsTableProps> = ({
   namePlaceholder,
   enableQuickCreateProduct = true
 }) => {
-<<<<<<< HEAD
   const supabase = createClient()
-=======
   const getProductStock = (p: any): number => {
     const raw = p?.stock_quantity ?? p?.stock ?? p?.current_stock ?? 0
     const n = Number(raw)
     return Number.isFinite(n) ? n : 0
   }
-
->>>>>>> d94bef5 (Fix expense product stock display)
   // Product autocomplete state
   const [filteredProducts, setFilteredProducts] = useState<typeof products>([])
   const [showDropdown, setShowDropdown] = useState(false)

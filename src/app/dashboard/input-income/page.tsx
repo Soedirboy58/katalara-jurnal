@@ -8,127 +8,121 @@
 
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useIncomes } from '@/modules/finance/hooks/useIncomes'
 import { IncomesForm } from '@/modules/finance/components/incomes/IncomesForm'
 import { useProducts } from '@/hooks/useProducts'
 import CustomerModal from '@/components/modals/CustomerModal'
+import { ProductModal } from '@/components/products/ProductModal'
 import type { IncomeFormData } from '@/modules/finance/types/financeTypes'
 import { TransactionHistory, type TransactionHistoryItem, type TransactionFilters } from '@/components/transactions/TransactionHistory'
 import { getIncomeCategoryLabel } from '@/modules/finance/types/financeTypes'
 import { EditTransactionModal } from '@/components/transactions/EditTransactionModal'
-        showToast('error', result.error || 'Gagal menyimpan transaksi')
-        return { success: false, error: result.error || 'Gagal menyimpan transaksi' }
-      }
+import { PreviewTransactionModal } from '@/components/transactions/PreviewTransactionModal'
+import { CheckCircle, HelpCircle, X } from 'lucide-react'
 
-      await refreshProducts()
-      setSelectedCustomer(null)
-      if (result.warning) showToast('warning', result.warning)
-      else showToast('success', 'Transaksi berhasil disimpan')
+export const dynamic = 'force-dynamic'
 
-      return { success: true }
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Terjadi kesalahan'
-      console.error('Submit error:', err)
-      showToast('error', `Gagal menyimpan: ${message}`)
-      return { success: false, error: message }
-        showToast('error', result.error || '❌ Gagal menyimpan transaksi')
-        return {
-          success: false,
-          error: result.error || 'Gagal menyimpan transaksi'
-=======
-      // 1. Insert income record
-      const { data: income, error: incomeError } = await supabase
-        .from('incomes')
-        .insert({
-          income_type: data.income_type,
-          income_category: data.income_category,
-          income_date: data.income_date,
-          customer_name: data.customer_name,
-          payment_method: data.payment_method,
-          payment_type: data.payment_type,
-          notes: data.notes,
-          total_amount: data.lineItems.reduce((sum, item) => 
-            sum + (item.qty * item.price_per_unit), 0
-          )
-        })
-        .select()
-        .single()
+type ToastType = 'success' | 'error' | 'warning'
 
-      if (incomeError) throw incomeError
+export default function InputIncomePage() {
+  const {
+    incomes,
+    loading: loadingIncomes,
+    error,
+    fetchIncomes,
+    createIncome,
+    deleteIncome
+  } = useIncomes({ autoFetch: true })
 
-      // 2. Insert income items
-      const itemsToInsert = data.lineItems.map(item => ({
-        income_id: income.id,
-        product_id: item.product_id,
-        product_name: item.product_name,
-        qty: item.qty,
-        unit: item.unit,
-        price_per_unit: item.price_per_unit,
-        buy_price: item.buy_price
-      }))
+  const {
+    products,
+    loading: loadingProducts,
+    refresh: refreshProducts
+  } = useProducts()
 
-      const { error: itemsError } = await supabase
-        .from('income_items')
-        .insert(itemsToInsert)
+  const [showCustomerModal, setShowCustomerModal] = useState(false)
+  const [showProductModal, setShowProductModal] = useState(false)
+  const [selectedCustomer, setSelectedCustomer] = useState<{
+    id: string
+    name: string
+    phone?: string | null
+    address?: string | null
+  } | null>(null)
+  const [showTutorial, setShowTutorial] = useState(false)
+  const [editModalOpen, setEditModalOpen] = useState(false)
+  const [previewModalOpen, setPreviewModalOpen] = useState(false)
+  const [selectedTransactionId, setSelectedTransactionId] = useState<string>('')
+  const [activeFaq, setActiveFaq] = useState<number | null>(null)
+  const [showFaqForm, setShowFaqForm] = useState(false)
+  const [userQuestion, setUserQuestion] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [toast, setToast] = useState<{ show: boolean; type: ToastType; message: string }>({
+    show: false,
+    type: 'success',
+    message: ''
+  })
 
-      if (itemsError) throw itemsError
+  const [currentPage, setCurrentPage] = useState(1)
+  const [filters, setFilters] = useState<TransactionFilters>({
+    searchQuery: '',
+    dateRange: {
+      start: '',
+      end: ''
+    },
+    category: '',
+    status: ''
+  })
 
-      // 3. Update stock for physical products
-      for (const item of data.lineItems) {
-        if (item.product_id) {
-          // Get product to check if tracking inventory
-          const product = products.find(p => p.id === item.product_id)
-          if (product && product.track_inventory) {
-            // Reduce stock
-            const currentStock = product.stock || 0
-            const newStock = Math.max(0, currentStock - item.qty) // Prevent negative stock
-            
-            const { error: stockError } = await supabase
-              .from('products')
-              .update({ 
-                stock: newStock,
-                updated_at: new Date().toISOString()
-              })
-              .eq('id', item.product_id)
+  useEffect(() => {
+    const hasSeenTutorial = localStorage.getItem('katalara_income_tutorial_seen_v2')
+    if (!hasSeenTutorial) setShowTutorial(true)
+  }, [])
 
-            if (stockError) {
-              console.error('Stock update error:', stockError)
-            }
+  const showToast = (type: ToastType, message: string) => {
+    setToast({ show: true, type, message })
+    setTimeout(() => setToast({ show: false, type, message: '' }), 4000)
+  }
 
-            // Log stock movement
-            await supabase.from('stock_movements').insert({
-              product_id: item.product_id,
-              movement_type: 'out',
-              quantity: item.qty,
-              reference_type: 'income',
-              reference_id: income.id,
-              movement_date: data.income_date,
-              notes: `Penjualan kepada ${data.customer_name}`
-            })
-          }
->>>>>>> 45f7267 (Fix stock synchronization to use stock field instead of stock_quantity)
-        }
-=======
-        showToast('error', result.error || 'Gagal menyimpan transaksi')
-        return { success: false, error: result.error || 'Gagal menyimpan transaksi' }
->>>>>>> 7d3151d (Clean up income/expense category labels (no icons))
-      }
+  const normalizePaymentStatus = (status?: string | null): 'Lunas' | 'Tempo' | 'Sebagian' => {
+    const v = (status || '').toString().toLowerCase().trim()
+    if (v === 'paid' || v === 'lunas') return 'Lunas'
+    if (v === 'partial' || v === 'sebagian') return 'Sebagian'
+    return 'Tempo'
+  }
 
-      await refreshProducts()
-      setSelectedCustomer(null)
-      if (result.warning) showToast('warning', result.warning)
-<<<<<<< HEAD
-      else showToast('success', '✅ Transaksi berhasil disimpan')
-      return { success: true }
-    } catch (error: any) {
-      console.error('Submit error:', error)
-      showToast('error', `❌ Gagal menyimpan: ${error.message || 'Terjadi kesalahan'}`)
+  const historyItems: TransactionHistoryItem[] = useMemo(() => {
+    return incomes.map((income) => {
+      const category = (income.income_category || income.category || 'other_income').toString()
+      const amount = Number(income.grand_total ?? income.total_amount ?? income.amount ?? 0)
       return {
-        success: false,
-        error: error.message || 'Gagal menyimpan transaksi'
+        id: income.id,
+        date: income.income_date,
+        category,
+        category_label: getIncomeCategoryLabel(category as any),
+        customer_or_supplier: income.customer_name || undefined,
+        amount: Number.isFinite(amount) ? amount : 0,
+        status: normalizePaymentStatus(income.payment_status),
+        payment_method: income.payment_method || undefined,
+        description: income.notes || income.description || undefined,
+        due_date: income.due_date || undefined
       }
-=======
+    })
+  }, [incomes])
+
+  const handleSubmit = async (data: IncomeFormData) => {
+    setSaving(true)
+    try {
+      const result = await createIncome(data)
+      if (!result.success) {
+        showToast('error', result.error || 'Gagal menyimpan transaksi')
+        return { success: false, error: result.error || 'Gagal menyimpan transaksi' }
+      }
+
+      await fetchIncomes()
+      await refreshProducts()
+      setSelectedCustomer(null)
+      if (result.warning) showToast('warning', result.warning)
       else showToast('success', 'Transaksi berhasil disimpan')
 
       return { success: true }
@@ -137,76 +131,54 @@ import { EditTransactionModal } from '@/components/transactions/EditTransactionM
       console.error('Submit error:', err)
       showToast('error', `Gagal menyimpan: ${message}`)
       return { success: false, error: message }
->>>>>>> 7d3151d (Clean up income/expense category labels (no icons))
     } finally {
       setSaving(false)
     }
   }
 
-  // Handle delete
   const handleDelete = async (incomeId: string) => {
-    const confirmed = confirm('Yakin ingin menghapus transaksi ini?\n\nStok produk akan dikembalikan (rollback).')
+    const confirmed = confirm('Yakin ingin menghapus transaksi ini?')
     if (!confirmed) return
 
     const result = await deleteIncome(incomeId)
-        if (result.success) {
+    if (result.success) {
       showToast('success', 'Transaksi berhasil dihapus')
-      await refreshProducts()
-        } else {
-      showToast('error', `Gagal menghapus: ${result.error || 'Unknown error'}`)
-        }
-  }
-
-  // Handle bulk delete
-  const handleBulkDelete = async (ids: string[]) => {
-    const confirmed = confirm(`Hapus ${ids.length} transaksi yang dipilih?\n\nStok produk akan dikembalikan (rollback).`)
-    if (!confirmed) return
-
-    // Prefer bulk delete on transactions endpoint; fall back to per-item delete (supports legacy incomes)
-    const res = await fetch('/api/transactions', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ids })
-    }).catch(() => null as any)
-
-    const json = res ? await res.json().catch(() => null) : null
-        if (res?.ok && json?.success) {
-      showToast('success', `${ids.length} transaksi berhasil dihapus`)
       await fetchIncomes()
       await refreshProducts()
-      return
+    } else {
+      showToast('error', `Gagal menghapus: ${result.error || 'Unknown error'}`)
     }
+  }
 
-    // Fallback: delete one-by-one via hook
+  const handleBulkDelete = async (ids: string[]) => {
+    const confirmed = confirm(`Hapus ${ids.length} transaksi yang dipilih?`)
+    if (!confirmed) return
+
     const results = await Promise.all(ids.map((id) => deleteIncome(id)))
     const failed = results.filter((r) => !r.success)
 
     if (failed.length) showToast('error', `Gagal menghapus ${failed.length} transaksi. Cek satu per satu.`)
     else showToast('success', `${ids.length} transaksi berhasil dihapus`)
+
     await fetchIncomes()
     await refreshProducts()
   }
 
-  // Handle edit
   const handleEdit = (incomeId: string) => {
-    alert('⚠️ Edit transaksi pendapatan belum tersedia (sementara).')
+    setSelectedTransactionId(incomeId)
+    setEditModalOpen(true)
   }
 
-  // Handle preview
   const handlePreview = (incomeId: string) => {
     setSelectedTransactionId(incomeId)
+    setPreviewModalOpen(true)
   }
 
-  // Handle refresh
   const handleRefresh = async () => {
     await fetchIncomes()
   }
 
   return (
-<<<<<<< HEAD
-              ⚠️ Error: {error}
-            </p>
-=======
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
@@ -219,7 +191,7 @@ import { EditTransactionModal } from '@/components/transactions/EditTransactionM
             </div>
             <button
               type="button"
-              onClick={() => showToast('warning', 'Tutorial belum diaktifkan di versi ini')}
+              onClick={() => setShowTutorial(true)}
               className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg transition-colors"
             >
               <HelpCircle className="w-5 h-5" />
@@ -271,12 +243,10 @@ import { EditTransactionModal } from '@/components/transactions/EditTransactionM
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4">
             <p className="text-sm text-red-800">Error: {error}</p>
->>>>>>> 7d3151d (Clean up income/expense category labels (no icons))
           </div>
         )}
       </div>
 
-      {/* Floating Tutorial Button */}
       <button
         type="button"
         onClick={() => setShowTutorial(true)}
@@ -287,7 +257,6 @@ import { EditTransactionModal } from '@/components/transactions/EditTransactionM
         <span className="font-medium hidden sm:inline">Tutorial</span>
       </button>
 
-      {/* Modals */}
       {showCustomerModal && (
         <CustomerModal
           isOpen={showCustomerModal}
@@ -300,7 +269,6 @@ import { EditTransactionModal } from '@/components/transactions/EditTransactionM
         />
       )}
 
-      {/* Saving Overlay */}
       {saving && (
         <div className="fixed inset-0 z-[90] bg-black/20 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-2xl border border-gray-200 p-6 w-full max-w-sm">
@@ -315,7 +283,6 @@ import { EditTransactionModal } from '@/components/transactions/EditTransactionM
         </div>
       )}
 
-      {/* Toast Notification (Centered) */}
       {toast.show && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] animate-slide-in">
           <div
@@ -381,7 +348,6 @@ import { EditTransactionModal } from '@/components/transactions/EditTransactionM
         }}
       />
 
-      {/* Tutorial Modal - Enhanced Educational Version */}
       {showTutorial && (
         <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
@@ -399,7 +365,6 @@ import { EditTransactionModal } from '@/components/transactions/EditTransactionM
                 </button>
               </div>
               
-              {/* Educational Section: Understanding Finance Categories */}
               <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-5 rounded-lg mb-6 border border-green-200">
                 <h3 className="text-lg font-bold text-green-800 mb-3 flex items-center gap-2">
                   <span className="text-2xl">🎓</span> Memahami Jenis Pendapatan
@@ -457,7 +422,6 @@ import { EditTransactionModal } from '@/components/transactions/EditTransactionM
                 </div>
               </div>
 
-              {/* Step-by-step Guide */}
               <div className="space-y-5">
                 <div className="border-l-4 border-green-500 pl-4">
                   <h3 className="text-lg font-semibold text-gray-800 mb-2">1️⃣ Informasi Dasar</h3>
@@ -509,7 +473,6 @@ import { EditTransactionModal } from '@/components/transactions/EditTransactionM
                 </div>
               </div>
 
-              {/* FAQ Section */}
               <div className="mt-6 border-t pt-6">
                 <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
                   <HelpCircle className="w-5 h-5 text-green-600" />
@@ -551,7 +514,6 @@ import { EditTransactionModal } from '@/components/transactions/EditTransactionM
                   ))}
                 </div>
 
-                {/* Ask Admin */}
                 <div className="mt-4 bg-gradient-to-r from-green-50 to-emerald-50 p-4 rounded-lg border border-green-200">
                   {!showFaqForm ? (
                     <div className="text-center">
@@ -608,7 +570,6 @@ import { EditTransactionModal } from '@/components/transactions/EditTransactionM
                 </div>
               </div>
               
-              {/* Footer Actions */}
               <div className="mt-6 border-t pt-4 space-y-3">
                 <div className="flex items-center gap-2">
                   <input
@@ -642,7 +603,6 @@ import { EditTransactionModal } from '@/components/transactions/EditTransactionM
         </div>
       )}
 
-      {/* Edit Modal */}
       <EditTransactionModal
         isOpen={editModalOpen}
         onClose={() => setEditModalOpen(false)}
@@ -651,7 +611,6 @@ import { EditTransactionModal } from '@/components/transactions/EditTransactionM
         onSuccess={fetchIncomes}
       />
 
-      {/* Preview Modal */}
       <PreviewTransactionModal
         isOpen={previewModalOpen}
         onClose={() => setPreviewModalOpen(false)}

@@ -17,6 +17,32 @@ export default function SettingsPage() {
   type BusinessType = 'dagang' | 'jasa' | 'produksi'
   const [businessType, setBusinessType] = useState<BusinessType>('dagang')
 
+  type UnitCatalogItem = {
+    id: string
+    name: string
+    symbol: string | null
+    unit_type: string | null
+    business_types: string[] | null
+    is_default: boolean | null
+    is_active: boolean | null
+  }
+
+  type InvoiceTemplateItem = {
+    id: string
+    name: string
+    paper_size: string | null
+    orientation: string | null
+    business_types: string[] | null
+    is_default: boolean | null
+    is_active: boolean | null
+  }
+
+  const [unitCatalog, setUnitCatalog] = useState<UnitCatalogItem[]>([])
+  const [unitPrefs, setUnitPrefs] = useState<Record<string, { is_active: boolean; is_favorite: boolean }>>({})
+  const [invoiceTemplates, setInvoiceTemplates] = useState<InvoiceTemplateItem[]>([])
+  const [defaultTemplateId, setDefaultTemplateId] = useState('')
+  const [operationalLoading, setOperationalLoading] = useState(false)
+
   const categoryToBusinessType = (category?: string | null): BusinessType => {
     const c = (category || '').toString().toLowerCase()
     if (c.includes('jasa')) return 'jasa'
@@ -57,6 +83,12 @@ export default function SettingsPage() {
     loadSettings()
   }, [])
 
+  useEffect(() => {
+    if (userId) {
+      loadOperationalSettings(userId, businessType)
+    }
+  }, [userId, businessType])
+
   const loadSettings = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser()
@@ -84,6 +116,76 @@ export default function SettingsPage() {
       console.error('Error loading settings:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const matchesBusinessType = (types: string[] | null | undefined, type: BusinessType) => {
+    if (!types || types.length === 0) return true
+    return types.map((t) => t.toLowerCase()).includes(type)
+  }
+
+  const loadOperationalSettings = async (uid: string, type: BusinessType) => {
+    try {
+      setOperationalLoading(true)
+
+      const { data: units, error: unitsError } = await supabase
+        .from('unit_catalog')
+        .select('*')
+        .eq('is_active', true)
+
+      if (unitsError) throw unitsError
+
+      const { data: templates, error: templatesError } = await supabase
+        .from('invoice_templates')
+        .select('*')
+        .eq('is_active', true)
+
+      if (templatesError) throw templatesError
+
+      const filteredUnits = (units || []).filter((unit) => matchesBusinessType(unit.business_types, type))
+      const filteredTemplates = (templates || []).filter((tpl) => matchesBusinessType(tpl.business_types, type))
+
+      setUnitCatalog(filteredUnits)
+      setInvoiceTemplates(filteredTemplates)
+
+      const { data: unitPreferences, error: unitPrefError } = await supabase
+        .from('business_unit_preferences')
+        .select('unit_id,is_active,is_favorite')
+        .eq('user_id', uid)
+
+      if (unitPrefError) throw unitPrefError
+
+      const { data: templatePreferences, error: templatePrefError } = await supabase
+        .from('business_invoice_preferences')
+        .select('template_id,is_default')
+        .eq('user_id', uid)
+
+      if (templatePrefError) throw templatePrefError
+
+      const initialPrefs: Record<string, { is_active: boolean; is_favorite: boolean }> = {}
+      filteredUnits.forEach((unit) => {
+        initialPrefs[unit.id] = {
+          is_active: unit.is_active ?? true,
+          is_favorite: false
+        }
+      })
+
+      ;(unitPreferences || []).forEach((pref) => {
+        initialPrefs[pref.unit_id] = {
+          is_active: pref.is_active ?? true,
+          is_favorite: pref.is_favorite ?? false
+        }
+      })
+
+      setUnitPrefs(initialPrefs)
+
+      const defaultPref = (templatePreferences || []).find((pref) => pref.is_default)
+      const defaultFromCatalog = filteredTemplates.find((tpl) => tpl.is_default)
+      setDefaultTemplateId(defaultPref?.template_id || defaultFromCatalog?.id || filteredTemplates[0]?.id || '')
+    } catch (error) {
+      console.error('Error loading operational settings:', error)
+    } finally {
+      setOperationalLoading(false)
     }
   }
 
@@ -120,6 +222,37 @@ export default function SettingsPage() {
 
       if (error) throw error
 
+      if (userId) {
+        const unitRows = unitCatalog.map((unit) => ({
+          user_id: userId,
+          unit_id: unit.id,
+          is_active: unitPrefs[unit.id]?.is_active ?? true,
+          is_favorite: unitPrefs[unit.id]?.is_favorite ?? false
+        }))
+
+        if (unitRows.length > 0) {
+          const { error: unitSaveError } = await supabase
+            .from('business_unit_preferences')
+            .upsert(unitRows, { onConflict: 'user_id,unit_id' })
+
+          if (unitSaveError) throw unitSaveError
+        }
+
+        const templateRows = invoiceTemplates.map((tpl) => ({
+          user_id: userId,
+          template_id: tpl.id,
+          is_default: tpl.id === defaultTemplateId
+        }))
+
+        if (templateRows.length > 0) {
+          const { error: templateSaveError } = await supabase
+            .from('business_invoice_preferences')
+            .upsert(templateRows, { onConflict: 'user_id,template_id' })
+
+          if (templateSaveError) throw templateSaveError
+        }
+      }
+
       showToast('success', '✅ Pengaturan berhasil disimpan!')
     } catch (error: any) {
       console.error('Error saving settings:', error)
@@ -142,12 +275,37 @@ export default function SettingsPage() {
         } else {
           showToast('error', '❌ Gagal menyimpan: ' + error.message)
         }
+      } else if (error?.code === '42P01') {
+        showToast(
+          'error',
+          '❌ Gagal menyimpan: tabel pengaturan operasional belum tersedia. Jalankan migrasi add-units-and-invoice-catalog.sql lalu refresh schema cache Supabase.'
+        )
       } else {
         showToast('error', '❌ Gagal menyimpan: ' + (error?.message || 'Unknown error'))
       }
     } finally {
       setSaving(false)
     }
+  }
+
+  const toggleUnitActive = (unitId: string) => {
+    setUnitPrefs((prev) => ({
+      ...prev,
+      [unitId]: {
+        is_active: !(prev[unitId]?.is_active ?? true),
+        is_favorite: prev[unitId]?.is_favorite ?? false
+      }
+    }))
+  }
+
+  const toggleUnitFavorite = (unitId: string) => {
+    setUnitPrefs((prev) => ({
+      ...prev,
+      [unitId]: {
+        is_active: prev[unitId]?.is_active ?? true,
+        is_favorite: !(prev[unitId]?.is_favorite ?? false)
+      }
+    }))
   }
 
   const formatNumber = (value: string): string => {
@@ -693,17 +851,120 @@ export default function SettingsPage() {
           <>
             <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
               <div className="flex items-center mb-4">
-                <div className="text-2xl mr-3">🧩</div>
+                <div className="text-2xl mr-3">📦</div>
                 <div>
-                  <h2 className="text-lg font-semibold text-gray-900">Operasional</h2>
-                  <p className="text-sm text-gray-600">Kontrol modul produk, stok, produksi, dan relasi bisnis</p>
+                  <h2 className="text-lg font-semibold text-gray-900">Satuan Transaksi</h2>
+                  <p className="text-sm text-gray-600">Pilih satuan yang relevan agar input transaksi lebih cepat dan tidak membingungkan</p>
                 </div>
               </div>
 
-              <div className="text-center py-10 text-gray-500">
-                <div className="text-5xl mb-3">🚧</div>
-                <p className="text-sm">Akan diaktifkan setelah konfigurasi tipe usaha selesai.</p>
+              {operationalLoading ? (
+                <div className="text-center py-8 text-gray-500">Memuat satuan...</div>
+              ) : unitCatalog.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  Tidak ada satuan yang tersedia untuk tipe usaha ini.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {unitCatalog.map((unit) => (
+                    <div key={unit.id} className="border border-gray-200 rounded-lg p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="text-sm font-semibold text-gray-900">
+                            {unit.name} {unit.symbol ? `(${unit.symbol})` : ''}
+                          </div>
+                          <div className="text-xs text-gray-500 mt-1">Tipe: {unit.unit_type || 'umum'}</div>
+                        </div>
+                        <button
+                          onClick={() => toggleUnitFavorite(unit.id)}
+                          className={`text-lg transition-colors ${
+                            unitPrefs[unit.id]?.is_favorite ? 'text-amber-500' : 'text-gray-300 hover:text-amber-400'
+                          }`}
+                          aria-label="Favorit"
+                        >
+                          ★
+                        </button>
+                      </div>
+
+                      <div className="mt-3 flex items-center justify-between">
+                        <span className="text-xs text-gray-500">Aktifkan satuan</span>
+                        <button
+                          onClick={() => toggleUnitActive(unit.id)}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                            unitPrefs[unit.id]?.is_active ?? true ? 'bg-blue-600' : 'bg-gray-300'
+                          }`}
+                        >
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                              unitPrefs[unit.id]?.is_active ?? true ? 'translate-x-6' : 'translate-x-1'
+                            }`}
+                          />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+              <div className="flex items-center mb-4">
+                <div className="text-2xl mr-3">🧾</div>
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">Template Invoice & Struk</h2>
+                  <p className="text-sm text-gray-600">Pilih ukuran dan format keluaran sesuai tipe usaha Anda</p>
+                </div>
               </div>
+
+              {operationalLoading ? (
+                <div className="text-center py-8 text-gray-500">Memuat template...</div>
+              ) : invoiceTemplates.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  Template belum tersedia untuk tipe usaha ini.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {invoiceTemplates.map((tpl) => (
+                    <label
+                      key={tpl.id}
+                      className={`flex items-start gap-3 border rounded-lg p-4 cursor-pointer transition-colors ${
+                        defaultTemplateId === tpl.id ? 'border-blue-600 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="invoice-template"
+                        className="mt-1"
+                        checked={defaultTemplateId === tpl.id}
+                        onChange={() => setDefaultTemplateId(tpl.id)}
+                      />
+                      <div>
+                        <div className="text-sm font-semibold text-gray-900">{tpl.name}</div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          Ukuran: {tpl.paper_size || 'custom'} · Orientasi: {tpl.orientation || 'portrait'}
+                        </div>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="flex-1 sm:flex-none px-8 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {saving ? 'Menyimpan...' : 'Simpan Pengaturan'}
+              </button>
+              <button
+                onClick={loadSettings}
+                disabled={saving}
+                className="px-6 py-3 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+              >
+                Reset
+              </button>
             </div>
           </>
         )}

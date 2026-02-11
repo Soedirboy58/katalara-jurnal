@@ -16,8 +16,6 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, Package, Search } from 'lucide-react'
 import type { Product } from '@/modules/inventory/types/inventoryTypes'
 import { createClient } from '@/lib/supabase/client'
-import type { ProductLegacy } from '@/types/legacy'
-import { createClient } from '@/lib/supabase/client'
 
 export interface LineItem {
   id: string
@@ -320,15 +318,10 @@ export function LineItemsBuilder({
     if (selectedProductId) {
       const product = products.find(p => p.id === selectedProductId)
       if (product) {
-<<<<<<< HEAD
         const sellPrice = getSellingPrice(product as any) || 0
         setPrice(new Intl.NumberFormat('id-ID').format(sellPrice))
         setProductQuery(product.name || '')
         if ((product as any).unit) setUnit((product as any).unit)
-=======
-        const legacy = product as ProductLegacy
-        setPrice(legacy.selling_price?.toString() || legacy.sell_price?.toString() || '0')
->>>>>>> 11f62bb (Fix additional TypeScript ESLint errors in dashboard and component files)
       }
     }
   }, [selectedProductId, products])
@@ -426,13 +419,8 @@ export function LineItemsBuilder({
       unit: finalUnit,
       price: priceNum,
       subtotal: subtotal,
-<<<<<<< HEAD
       buy_price: buyPrice,
       service_duration: (product as any).service_duration
-=======
-      buy_price: product.cost_price || 0,
-      service_duration: legacy.service_duration
->>>>>>> 11f62bb (Fix additional TypeScript ESLint errors in dashboard and component files)
     }
 
     onChange([...items, newItem])
@@ -484,7 +472,6 @@ export function LineItemsBuilder({
               Produk/Layanan
             </label>
             <div className="flex gap-2">
-<<<<<<< HEAD
               <div className="relative flex-1">
                 <input
                   type="text"
@@ -516,24 +503,6 @@ export function LineItemsBuilder({
                 <button
                   type="button"
                   onClick={() => {
-                    if (isMobile) {
-                      openPicker()
-                      return
-                    }
-                    setShowDropdown((s) => !s)
-                  }}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100"
-                  aria-label="Toggle product dropdown"
-                >
-                  <ChevronDown className="w-4 h-4" />
-                </button>
-
-                {!isMobile && showDropdown && (
-                  <div className="absolute z-50 w-full mt-2 bg-white border border-gray-200 rounded-2xl shadow-2xl ring-1 ring-black/5 max-h-72 overflow-y-auto overscroll-contain">
-                    {loadingProducts ? (
-                      <div className="p-3 text-center text-sm text-gray-500">
-                        <div className="animate-spin w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full mx-auto"></div>
-                        <p className="mt-2">Memuat produk...</p>
                       </div>
                     ) : filteredProducts.length > 0 ? (
                       <>

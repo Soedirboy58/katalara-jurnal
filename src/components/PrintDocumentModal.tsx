@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { buildIncomePdfFilename, generateIncomePdfBlob, type PrintMode } from '@/lib/pdf-generator'
 import { buildWhatsAppUrl, normalizeWhatsAppPhone, type WhatsAppDocumentType } from '@/lib/whatsapp'
+import { createClient } from '@/lib/supabase/client'
 
 type Props = {
   isOpen: boolean
@@ -17,13 +18,24 @@ type ToastState = {
   message: string
 }
 
+type InvoiceTemplateItem = {
+  id: string
+  name: string
+  paper_size: string | null
+  business_types: string[] | null
+  is_default: boolean | null
+}
+
 function formatIdDate(value?: string) {
   const d = value ? new Date(value) : new Date()
   return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
 export function PrintDocumentModal({ isOpen, onClose, incomeData, businessName }: Props) {
+  const supabase = createClient()
   const [mode, setMode] = useState<PrintMode>('receipt')
+  const [preferredTemplateName, setPreferredTemplateName] = useState<string | null>(null)
+  const [templateLoading, setTemplateLoading] = useState(false)
 
   const [previewOpen, setPreviewOpen] = useState(false)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
@@ -53,33 +65,104 @@ export function PrintDocumentModal({ isOpen, onClose, incomeData, businessName }
   useEffect(() => {
     if (!isOpen) return
 
-    // Auto-suggest print mode: if customer has identity, default invoice.
-    const customerId = (incomeData?.customer_id || '').toString()
-    const cname = (incomeData?.customer_name || '').toString().toLowerCase()
-    const isAnonymous =
-      !customerId ||
-      customerId === 'anonymous' ||
-      cname.includes('walk-in') ||
-      cname.includes('umum') ||
-      cname === '-'
+    const categoryToBusinessType = (category?: string | null): 'dagang' | 'jasa' | 'produksi' => {
+      const c = (category || '').toString().toLowerCase()
+      if (c.includes('jasa')) return 'jasa'
+      if (c.includes('trading') || c.includes('reseller')) return 'dagang'
+      if (c.includes('produk') || c.includes('stok') || c.includes('hybrid')) return 'produksi'
+      return 'dagang'
+    }
 
-    const hasIdentity = !!(
-      (!isAnonymous && incomeData?.customer_name) ||
-      incomeData?.customer_phone ||
-      incomeData?.customer_email ||
-      incomeData?.customer_address
-    )
+    const matchesBusinessType = (types: string[] | null | undefined, type: 'dagang' | 'jasa' | 'produksi') => {
+      if (!types || types.length === 0) return true
+      return types.map((t) => t.toLowerCase()).includes(type)
+    }
 
-    setMode(hasIdentity ? 'invoice' : 'receipt')
-    setError(null)
-    setPreviewOpen(false)
+    const resolveIdentityMode = () => {
+      const customerId = (incomeData?.customer_id || '').toString()
+      const cname = (incomeData?.customer_name || '').toString().toLowerCase()
+      const isAnonymous =
+        !customerId ||
+        customerId === 'anonymous' ||
+        cname.includes('walk-in') ||
+        cname.includes('umum') ||
+        cname === '-'
+
+      const hasIdentity = !!(
+        (!isAnonymous && incomeData?.customer_name) ||
+        incomeData?.customer_phone ||
+        incomeData?.customer_email ||
+        incomeData?.customer_address
+      )
+
+      return hasIdentity ? 'invoice' : 'receipt'
+    }
+
+    const loadPreferredTemplate = async () => {
+      try {
+        setTemplateLoading(true)
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+          setMode(resolveIdentityMode())
+          return
+        }
+
+        const { data: config } = await supabase
+          .from('business_configurations')
+          .select('business_category')
+          .eq('user_id', user.id)
+          .single()
+
+        const businessType = categoryToBusinessType(config?.business_category)
+
+        const { data: preferred } = await supabase
+          .from('business_invoice_preferences')
+          .select('template_id,is_default')
+          .eq('user_id', user.id)
+          .eq('is_default', true)
+          .maybeSingle()
+
+        const { data: templates } = await supabase
+          .from('invoice_templates')
+          .select('*')
+          .eq('is_active', true)
+
+        const typedTemplates = (templates || []) as InvoiceTemplateItem[]
+        const filtered = typedTemplates.filter((tpl) => matchesBusinessType(tpl.business_types, businessType))
+        const selectedTemplate =
+          (preferred?.template_id && filtered.find((tpl) => tpl.id === preferred.template_id)) ||
+          filtered.find((tpl) => tpl.is_default) ||
+          filtered[0]
+
+        if (selectedTemplate) {
+          const paperSize = (selectedTemplate.paper_size || '').toString().toLowerCase()
+          const isReceipt = paperSize.startsWith('thermal')
+          setMode(isReceipt ? 'receipt' : 'invoice')
+          setPreferredTemplateName(selectedTemplate.name)
+        } else {
+          setMode(resolveIdentityMode())
+          setPreferredTemplateName(null)
+        }
+      } catch (error) {
+        console.error('Error loading template preference:', error)
+        setMode(resolveIdentityMode())
+        setPreferredTemplateName(null)
+      } finally {
+        setTemplateLoading(false)
+        setError(null)
+        setPreviewOpen(false)
+      }
+    }
+
+    loadPreferredTemplate()
   }, [
     isOpen,
     incomeData?.customer_id,
     incomeData?.customer_name,
     incomeData?.customer_phone,
     incomeData?.customer_email,
-    incomeData?.customer_address
+    incomeData?.customer_address,
+    supabase
   ])
 
   // Cleanup blob URL
@@ -249,6 +332,12 @@ export function PrintDocumentModal({ isOpen, onClose, incomeData, businessName }
           {/* Mode Selection */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Pilih Format</label>
+            {preferredTemplateName && (
+              <p className="text-xs text-gray-500 mb-3">
+                Default dari pengaturan: <span className="font-semibold text-gray-700">{preferredTemplateName}</span>
+                {templateLoading && <span className="ml-2 text-gray-400">(memuat)</span>}
+              </p>
+            )}
             <div className="grid grid-cols-2 gap-4">
               <button
                 onClick={() => setMode('receipt')}
