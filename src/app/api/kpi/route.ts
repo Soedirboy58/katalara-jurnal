@@ -308,12 +308,15 @@ export async function GET(request: Request) {
           )
 
         if (!txRes.error) {
-          const total = txRes.data?.reduce((sum: number, row: any) => sum + toNumber(row?.[amountCol]), 0) || 0
-          return { count: txRes.data?.length || 0, amount: total }
+          if (txRes.data?.length) {
+            const total = txRes.data?.reduce((sum: number, row: any) => sum + toNumber(row?.[amountCol]), 0) || 0
+            return { count: txRes.data?.length || 0, amount: total }
+          }
+          // If transactions exist but none recorded, fallback to legacy incomes
         }
 
         // Fallback to legacy incomes if unified schema isn't available
-        if (!isSchemaMismatchError(txRes.error)) {
+        if (txRes.error && !isSchemaMismatchError(txRes.error)) {
           console.error('[KPI API] Error fetching overdue receivables (transactions):', txRes.error)
           return { count: 0, amount: 0 }
         }
@@ -392,12 +395,15 @@ export async function GET(request: Request) {
           )
 
         if (!txRes.error) {
-          const total = txRes.data?.reduce((sum: number, row: any) => sum + toNumber(row?.[amountCol]), 0) || 0
-          console.log('[KPI API] Incomes today (transactions):', total)
-          return total
+          if (txRes.data?.length) {
+            const total = txRes.data?.reduce((sum: number, row: any) => sum + toNumber(row?.[amountCol]), 0) || 0
+            console.log('[KPI API] Incomes today (transactions):', total)
+            return total
+          }
+          // If transactions exist but none recorded, fallback to legacy incomes
         }
 
-        if (!isSchemaMismatchError(txRes.error)) {
+        if (txRes.error && !isSchemaMismatchError(txRes.error)) {
           console.error('[KPI API] Error fetching incomes today (transactions):', txRes.error)
           return 0
         }
@@ -436,12 +442,15 @@ export async function GET(request: Request) {
           .apply(supabase.from('transactions').select(amountCol).gte(dateCol, startIso))
 
         if (!txRes.error) {
-          const total = txRes.data?.reduce((sum: number, row: any) => sum + toNumber(row?.[amountCol]), 0) || 0
-          console.log('[KPI API] Incomes month (transactions):', total)
-          return total
+          if (txRes.data?.length) {
+            const total = txRes.data?.reduce((sum: number, row: any) => sum + toNumber(row?.[amountCol]), 0) || 0
+            console.log('[KPI API] Incomes month (transactions):', total)
+            return total
+          }
+          // If transactions exist but none recorded, fallback to legacy incomes
         }
 
-        if (!isSchemaMismatchError(txRes.error)) {
+        if (txRes.error && !isSchemaMismatchError(txRes.error)) {
           console.error('[KPI API] Error fetching incomes month (transactions):', txRes.error)
           return 0
         }
@@ -485,12 +494,15 @@ export async function GET(request: Request) {
           )
 
         if (!txRes.error) {
-          const total = txRes.data?.reduce((sum: number, row: any) => sum + toNumber(row?.[amountCol]), 0) || 0
-          console.log('[KPI API] Paid incomes month (transactions):', total)
-          return total
+          if (txRes.data?.length) {
+            const total = txRes.data?.reduce((sum: number, row: any) => sum + toNumber(row?.[amountCol]), 0) || 0
+            console.log('[KPI API] Paid incomes month (transactions):', total)
+            return total
+          }
+          // If transactions exist but none recorded, fallback to legacy incomes
         }
 
-        if (!isSchemaMismatchError(txRes.error)) {
+        if (txRes.error && !isSchemaMismatchError(txRes.error)) {
           console.error('[KPI API] Error fetching paid incomes month (transactions):', txRes.error)
           return 0
         }

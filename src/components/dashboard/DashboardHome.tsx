@@ -15,7 +15,6 @@ import {
   PlusIcon,
   ArrowUpTrayIcon
 } from '@heroicons/react/24/outline'
-import { InsightsPanel } from './InsightsPanel'
 import { HealthScoreCard } from './HealthScoreCard'
 import { SalesChart } from './SalesChart'
 import { RevenueExpenseChart } from './RevenueExpenseChart'
@@ -732,23 +731,6 @@ export function DashboardHome() {
           growthHealth={healthScore?.growthHealth}
           efficiencyHealth={healthScore?.efficiencyHealth}
         />
-      )}
-
-      {/* AI Insights Panel */}
-      {kpiData && (
-      <InsightsPanel 
-        businessCategory={businessConfig?.business_category}
-        monthlyRevenue={kpiData?.month?.income || 0}
-        monthlyTarget={businessConfig?.monthly_revenue_target || 50000000}
-        profitMargin={(() => {
-          const income = Number(kpiData?.month?.income || 0)
-          const netProfit = Number(kpiData?.month?.netProfit || 0)
-          return income > 0 ? (netProfit / income) * 100 : 0
-        })()}
-        targetMargin={businessConfig?.profit_margin_target || 25}
-        cashBalance={kpiData?.operations?.cashPosition || 0}
-        minCashAlert={businessConfig?.minimum_cash_alert || 10000000}
-      />
       )}
 
       {/* Charts Section */}

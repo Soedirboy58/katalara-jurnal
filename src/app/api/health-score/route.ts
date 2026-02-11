@@ -99,6 +99,9 @@ async function loadRevenueAndCashIn(supabase: any, userId: string, startDate: st
     if (error) throw error
 
     const rows = data || []
+    if (!rows.length) {
+      throw new Error('NO_TRANSACTIONS_ROWS')
+    }
     const revenue = rows.reduce(
       (sum: number, r: any) => sum + toNumber(r?.total ?? r?.total_amount ?? r?.grand_total ?? 0),
       0
@@ -118,7 +121,7 @@ async function loadRevenueAndCashIn(supabase: any, userId: string, startDate: st
     }, 0)
     return { revenue, cashIn, source: 'transactions' as const }
   } catch (e) {
-    // Fallback to legacy `incomes`
+    // Fallback to legacy `incomes` when transactions are missing or empty
     try {
       let q = supabase
         .from('incomes')
