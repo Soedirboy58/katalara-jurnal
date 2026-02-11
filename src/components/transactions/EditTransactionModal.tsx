@@ -163,38 +163,6 @@ export function EditTransactionModal({
 
       if (lastError) throw lastError
 
-      let lastError: any = null
-      for (let i = 0; i < 8; i++) {
-        const { error } = await supabase.from(tableName).update(updateData).eq('id', transactionId)
-        if (!error) {
-          lastError = null
-          break
-        }
-
-        lastError = error
-        if (!isSchemaMismatch(error)) break
-
-        const missing = extractMissingColumn(error)
-        if (missing && Object.prototype.hasOwnProperty.call(updateData, missing)) {
-          delete updateData[missing]
-          continue
-        }
-
-        // If we couldn't detect the missing key, drop one of the category keys as a safe fallback.
-        if (Object.prototype.hasOwnProperty.call(updateData, categoryField)) {
-          delete updateData[categoryField]
-          continue
-        }
-        if (Object.prototype.hasOwnProperty.call(updateData, 'category')) {
-          delete updateData.category
-          continue
-        }
-
-        break
-      }
-
-      if (lastError) throw lastError
-
       showToast('Transaksi berhasil diperbarui', 'success')
       onSuccess?.()
       onClose()
