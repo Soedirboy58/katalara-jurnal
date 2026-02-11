@@ -17,12 +17,14 @@ export default function LapakPage() {
   const { confirm, confirmState, handleConfirm, handleCancel } = useConfirm();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [storefronts, setStorefronts] = useState<Storefront[]>([]);
   const [storefront, setStorefront] = useState<Storefront | null>(null);
+  const [activeStorefrontId, setActiveStorefrontId] = useState<string | null>(null);
   const [products, setProducts] = useState<StorefrontProduct[]>([]);
   const [analytics, setAnalytics] = useState<any>(null);
   const [orders, setOrders] = useState<any[]>([]);
   const [orderStats, setOrderStats] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState<'settings' | 'products' | 'analytics' | 'notifications'>('settings');
+  const [activeTab, setActiveTab] = useState<'list' | 'settings' | 'products' | 'analytics' | 'notifications'>('settings');
   const [kpiModal, setKpiModal] = useState<{
     isOpen: boolean;
     type: 'views' | 'cart' | 'whatsapp' | 'orders' | null;
@@ -69,13 +71,43 @@ export default function LapakPage() {
     loadData();
   }, []);
 
-  const loadData = async () => {
+  const resetStorefrontState = () => {
+    setStorefront(null);
+    setActiveStorefrontId(null);
+    setFormData({
+      store_name: '',
+      description: '',
+      logo_url: '',
+      qris_image_url: '',
+      bank_name: '',
+      bank_account_number: '',
+      bank_account_holder: '',
+      whatsapp_number: '',
+      instagram_handle: '',
+      location_text: '',
+      theme_color: '#3B82F6',
+      is_active: true,
+    });
+    setProducts([]);
+    setAnalytics(null);
+    setOrders([]);
+    setOrderStats(null);
+  };
+
+  const loadData = async (storefrontId?: string) => {
     try {
-      const response = await fetch('/api/lapak');
+      const url = storefrontId ? `/api/lapak?storefrontId=${storefrontId}` : '/api/lapak';
+      const response = await fetch(url);
       const data = await response.json();
+
+      setStorefronts(data.storefronts || []);
 
       if (data.storefront) {
         setStorefront(data.storefront);
+        setActiveStorefrontId(data.storefront.id);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('katalara_active_lapak_id', data.storefront.id);
+        }
         setFormData({
           store_name: data.storefront.store_name,
           description: data.storefront.description || '',
@@ -93,7 +125,7 @@ export default function LapakPage() {
         setAnalytics(data.analytics);
 
         // Load products
-        const productsResponse = await fetch('/api/lapak/products');
+        const productsResponse = await fetch(`/api/lapak/products?storefrontId=${data.storefront.id}`);
         const productsData = await productsResponse.json();
         setProducts(productsData.products || []);
 
@@ -106,27 +138,60 @@ export default function LapakPage() {
             setOrderStats(ordersData.stats);
           }
         }
+      } else {
+        resetStorefrontState();
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('katalara_active_lapak_id');
+        }
       }
 
       setLoading(false);
     } catch (error) {
       console.error('Error loading data:', error);
+      resetStorefrontState();
       setLoading(false);
     }
+  };
+
+  const handleSelectStorefront = async (storefrontId: string) => {
+    setLoading(true);
+    await loadData(storefrontId);
+    setActiveTab('settings');
+  };
+
+  const handleCreateNewStorefront = () => {
+    resetStorefrontState();
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('katalara_active_lapak_id');
+    }
+    setActiveTab('settings');
   };
 
   const handleSaveStorefront = async () => {
     setSaving(true);
     try {
+      const payload = {
+        ...formData,
+        storefront_id: activeStorefrontId || undefined,
+        create_new: !activeStorefrontId,
+      };
       const response = await fetch('/api/lapak', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
 
       const data = await response.json();
       if (response.ok) {
         setStorefront(data.storefront);
+        setActiveStorefrontId(data.storefront.id);
+        setStorefronts((prev) => {
+          const exists = prev.some((s) => s.id === data.storefront.id);
+          if (exists) {
+            return prev.map((s) => (s.id === data.storefront.id ? data.storefront : s));
+          }
+          return [data.storefront, ...prev];
+        });
         showToast('Lapak berhasil disimpan!', 'success');
       } else {
         showToast(data.error, 'error');
@@ -140,12 +205,20 @@ export default function LapakPage() {
 
   const handleSaveProduct = async () => {
     try {
+      if (!storefront?.id && !activeStorefrontId) {
+        showToast('Pilih atau buat lapak terlebih dahulu', 'error');
+        return;
+      }
+
+      const storefrontId = storefront?.id || activeStorefrontId;
+      const payload = { ...productForm, storefront_id: storefrontId };
+
       if (editingProduct) {
         // Update
         const response = await fetch(`/api/lapak/products/${editingProduct.id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(productForm),
+          body: JSON.stringify(payload),
         });
 
         if (response.ok) {
@@ -160,7 +233,7 @@ export default function LapakPage() {
         const response = await fetch('/api/lapak/products', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(productForm),
+          body: JSON.stringify(payload),
         });
 
         if (response.ok) {
@@ -304,6 +377,16 @@ export default function LapakPage() {
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-4 sm:mb-6 overflow-hidden">
           <div className="flex border-b border-gray-200 overflow-x-auto scrollbar-hide">
             <button
+              onClick={() => setActiveTab('list')}
+              className={`px-3 sm:px-6 py-2 sm:py-3 text-xs sm:text-base font-medium transition-colors whitespace-nowrap ${
+                activeTab === 'list'
+                  ? 'text-blue-600 border-b-2 border-blue-600'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              🧾 Daftar Lapak
+            </button>
+            <button
               onClick={() => setActiveTab('settings')}
               className={`px-3 sm:px-6 py-2 sm:py-3 text-xs sm:text-base font-medium transition-colors whitespace-nowrap ${
                 activeTab === 'settings'
@@ -344,6 +427,67 @@ export default function LapakPage() {
               🔔 Notifikasi Order
             </button>
           </div>
+
+          {/* List Tab */}
+          {activeTab === 'list' && (
+            <div className="p-3 sm:p-6">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                <div>
+                  <h2 className="text-base sm:text-lg font-semibold text-gray-900">Daftar Lapak</h2>
+                  <p className="text-xs sm:text-sm text-gray-500">Pilih lapak yang ingin dikelola</p>
+                </div>
+                <button
+                  onClick={handleCreateNewStorefront}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700"
+                >
+                  + Buat Lapak Baru
+                </button>
+              </div>
+
+              {storefronts.length === 0 ? (
+                <div className="text-center py-10 text-gray-500">
+                  Belum ada lapak. Klik "Buat Lapak Baru" untuk mulai.
+                </div>
+              ) : (
+                <div className="grid sm:grid-cols-2 gap-3">
+                  {storefronts.map((sf) => (
+                    <div key={sf.id} className="border border-gray-200 rounded-lg p-4 bg-white">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <h3 className="font-semibold text-gray-900 truncate">{sf.store_name}</h3>
+                          <p className="text-xs text-gray-500 truncate">/{sf.slug}</p>
+                        </div>
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                          sf.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+                        }`}>
+                          {sf.is_active ? 'Aktif' : 'Nonaktif'}
+                        </span>
+                      </div>
+
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <button
+                          onClick={() => handleSelectStorefront(sf.id)}
+                          className={`px-3 py-1.5 text-xs font-semibold rounded-lg border ${
+                            activeStorefrontId === sf.id
+                              ? 'bg-blue-600 text-white border-blue-600'
+                              : 'bg-white text-blue-600 border-blue-300 hover:bg-blue-50'
+                          }`}
+                        >
+                          {activeStorefrontId === sf.id ? 'Sedang Aktif' : 'Kelola'}
+                        </button>
+                        <button
+                          onClick={() => window.open(`${window.location.origin}/lapak/${sf.slug}`, '_blank')}
+                          className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50"
+                        >
+                          Buka Lapak
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Settings Tab */}
           {activeTab === 'settings' && (
@@ -563,30 +707,17 @@ export default function LapakPage() {
 
                           setSaving(true);
                           try {
-                            const response = await fetch('/api/lapak', {
+                            const targetId = storefront?.id || activeStorefrontId;
+                            const response = await fetch(`/api/lapak${targetId ? `?storefrontId=${targetId}` : ''}`, {
                               method: 'DELETE',
                             });
 
                             if (response.ok) {
                               showToast('Lapak berhasil dihapus', 'success');
-                              setStorefront(null);
-                              setProducts([]);
-                              setFormData({
-                                store_name: '',
-                                description: '',
-                                logo_url: '',
-                                qris_image_url: '',
-                                bank_name: '',
-                                bank_account_number: '',
-                                bank_account_holder: '',
-                                whatsapp_number: '',
-                                instagram_handle: '',
-                                location_text: '',
-                                theme_color: '#3B82F6',
-                                is_active: true,
-                              });
+                              await loadData();
                             } else {
-                              showToast('Gagal menghapus lapak', 'error');
+                              const data = await response.json().catch(() => null as any);
+                              showToast(data?.error || 'Gagal menghapus lapak', 'error');
                             }
                           } catch (error) {
                             console.error('Error deleting storefront:', error);

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
 // GET /api/lapak/products - Get user's products
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
     
@@ -16,11 +16,19 @@ export async function GET() {
       );
     }
 
-    // Get user's products
-    const { data: products, error: productsError } = await supabase
+    const { searchParams } = new URL(request.url);
+    const storefrontId = searchParams.get('storefrontId');
+
+    let query = supabase
       .from('storefront_products')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('user_id', user.id);
+
+    if (storefrontId) {
+      query = query.eq('storefront_id', storefrontId);
+    }
+
+    const { data: products, error: productsError } = await query
       .order('sort_order', { ascending: true })
       .order('created_at', { ascending: false });
 
@@ -59,14 +67,22 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
 
-    // Get user's storefront
-    const { data: storefront } = await supabase
-      .from('business_storefronts')
-      .select('id')
-      .eq('user_id', user.id)
-      .single();
+    const { storefront_id } = body;
 
-    if (!storefront) {
+    let storefrontId = storefront_id as string | undefined;
+    if (!storefrontId) {
+      const { data: storefront } = await supabase
+        .from('business_storefronts')
+        .select('id')
+        .eq('user_id', user.id)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      storefrontId = storefront?.id;
+    }
+
+    if (!storefrontId) {
       return NextResponse.json(
         { error: 'Buat lapak terlebih dahulu' },
         { status: 400 }
@@ -79,7 +95,7 @@ export async function POST(request: NextRequest) {
       .insert({
         ...body,
         user_id: user.id,
-        storefront_id: storefront.id,
+        storefront_id: storefrontId,
       })
       .select()
       .single();

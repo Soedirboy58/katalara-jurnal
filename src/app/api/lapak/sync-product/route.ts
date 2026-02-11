@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { productId } = body;
+    const { productId, storefrontId } = body;
 
     if (!productId) {
       return NextResponse.json(
@@ -43,11 +43,18 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if user has a storefront
-    const { data: storefront, error: storefrontError } = await supabase
+    let storefrontQuery = supabase
       .from('business_storefronts')
       .select('id')
-      .eq('user_id', user.id)
-      .single();
+      .eq('user_id', user.id);
+
+    if (storefrontId) {
+      storefrontQuery = storefrontQuery.eq('id', storefrontId);
+    } else {
+      storefrontQuery = storefrontQuery.order('updated_at', { ascending: false }).limit(1);
+    }
+
+    const { data: storefront, error: storefrontError } = await storefrontQuery.single();
 
     if (storefrontError || !storefront) {
       return NextResponse.json(
@@ -55,6 +62,13 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    const resolvedPrice =
+      (product as any).selling_price ??
+      (product as any).sell_price ??
+      (product as any).price ??
+      0;
+    const resolvedImage = (product as any).image_url ?? null;
 
     // Check if product already exists in storefront_products
     const { data: existingProduct } = await supabase
@@ -72,14 +86,14 @@ export async function POST(request: NextRequest) {
           description: product.description || `${product.name} - Produk berkualitas`,
           product_type: 'barang', // Default to barang
           category: product.category || 'Lainnya',
-          price: product.price,
+          price: resolvedPrice,
           compare_at_price: null,
           // ⚠️ stock_quantity removed - doesn't exist in products table
           // Stock will be managed separately in stock_movements
           track_inventory: product.track_inventory !== false,
           is_visible: true,
           is_featured: false,
-          image_url: null,
+          image_url: resolvedImage,
           updated_at: new Date().toISOString(),
         })
         .eq('id', existingProduct.id);
@@ -108,14 +122,14 @@ export async function POST(request: NextRequest) {
           description: product.description || `${product.name} - Produk berkualitas`,
           product_type: 'barang', // Default to barang
           category: product.category || 'Lainnya',
-          price: product.price,
+          price: resolvedPrice,
           compare_at_price: null,
           // ⚠️ stock_quantity removed - doesn't exist in products table
           // Stock will be managed separately in stock_movements
           track_inventory: product.track_inventory !== false,
           is_visible: true,
           is_featured: false,
-          image_url: null,
+          image_url: resolvedImage,
           sort_order: 0,
         })
         .select()
@@ -160,6 +174,7 @@ export async function DELETE(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const productName = searchParams.get('productName');
+    const storefrontId = searchParams.get('storefrontId');
 
     if (!productName) {
       return NextResponse.json(
@@ -169,11 +184,17 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Find and delete the product from storefront_products
-    const { error: deleteError } = await supabase
+    let deleteQuery = supabase
       .from('storefront_products')
       .delete()
       .eq('user_id', user.id)
       .eq('name', productName);
+
+    if (storefrontId) {
+      deleteQuery = deleteQuery.eq('storefront_id', storefrontId);
+    }
+
+    const { error: deleteError } = await deleteQuery;
 
     if (deleteError) {
       console.error('Error deleting product:', deleteError);
@@ -211,6 +232,7 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const productName = searchParams.get('productName');
+    const storefrontId = searchParams.get('storefrontId');
 
     if (!productName) {
       return NextResponse.json(
@@ -220,12 +242,17 @@ export async function GET(request: NextRequest) {
     }
 
     // Check if product exists in storefront_products
-    const { data: product } = await supabase
+    let query = supabase
       .from('storefront_products')
       .select('id, is_visible, is_featured')
       .eq('user_id', user.id)
-      .eq('name', productName)
-      .single();
+      .eq('name', productName);
+
+    if (storefrontId) {
+      query = query.eq('storefront_id', storefrontId);
+    }
+
+    const { data: product } = await query.single();
 
     return NextResponse.json({
       synced: !!product,

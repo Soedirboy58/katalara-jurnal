@@ -17,13 +17,20 @@ export function ProductTable({ products, loading, onEdit, onAdjustStock, onDelet
   const [syncedProducts, setSyncedProducts] = useState<Record<string, boolean>>({})
   const [syncingProducts, setSyncingProducts] = useState<Record<string, boolean>>({})
 
+  const getActiveStorefrontId = () => {
+    if (typeof window === 'undefined') return null
+    return localStorage.getItem('katalara_active_lapak_id')
+  }
+
   useEffect(() => {
     const checkSyncStatus = async () => {
       const statusMap: Record<string, boolean> = {}
 
+      const storefrontId = getActiveStorefrontId()
+
       for (const product of products) {
         try {
-          const response = await fetch(`/api/lapak/sync-product?productName=${encodeURIComponent(product.name)}`)
+          const response = await fetch(`/api/lapak/sync-product?productName=${encodeURIComponent(product.name)}${storefrontId ? `&storefrontId=${storefrontId}` : ''}`)
           const data = await response.json()
           statusMap[product.id] = data.synced || false
         } catch {
@@ -42,10 +49,11 @@ export function ProductTable({ products, loading, onEdit, onAdjustStock, onDelet
   const handleSyncToLapak = async (product: Product) => {
     setSyncingProducts(prev => ({ ...prev, [product.id]: true }))
     try {
+      const storefrontId = getActiveStorefrontId()
       const response = await fetch('/api/lapak/sync-product', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ productId: product.id }),
+        body: JSON.stringify({ productId: product.id, storefrontId }),
       })
       const data = await response.json()
       if (!response.ok) {
@@ -64,7 +72,8 @@ export function ProductTable({ products, loading, onEdit, onAdjustStock, onDelet
   const handleUnsyncFromLapak = async (product: Product) => {
     setSyncingProducts(prev => ({ ...prev, [product.id]: true }))
     try {
-      const response = await fetch(`/api/lapak/sync-product?productName=${encodeURIComponent(product.name)}`, {
+      const storefrontId = getActiveStorefrontId()
+      const response = await fetch(`/api/lapak/sync-product?productName=${encodeURIComponent(product.name)}${storefrontId ? `&storefrontId=${storefrontId}` : ''}`, {
         method: 'DELETE',
       })
       const data = await response.json()
