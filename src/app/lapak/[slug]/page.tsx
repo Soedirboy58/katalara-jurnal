@@ -181,8 +181,21 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
     setIsPaymentModalOpen(true);
   };
 
-  const handlePaymentComplete = async (method: 'qris' | 'transfer' | 'cash') => {
+  const handlePaymentComplete = async (payload: {
+    method: 'qris' | 'transfer' | 'cash';
+    customer: {
+      customer_name: string;
+      customer_phone: string;
+      customer_address: string;
+      delivery_method: 'pickup' | 'delivery';
+      notes?: string;
+    };
+    paymentProofUrl?: string;
+    orderCode: string;
+  }) => {
     if (!storefront) return;
+
+    const { method, customer, paymentProofUrl, orderCode } = payload;
 
     // Calculate total
     const total = checkoutItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
@@ -195,13 +208,16 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
 
     const message = formatWhatsAppMessage({
       storefront_name: storefront.store_name,
-      customer_name: 'Pembeli',
-      customer_phone: '-',
-      customer_address: '-',
-      delivery_method: 'Akan dikonfirmasi',
+      customer_name: customer.customer_name,
+      customer_phone: customer.customer_phone,
+      customer_address: customer.customer_address,
+      delivery_method: customer.delivery_method,
       items: checkoutItems,
       total_amount: total,
       payment_method: paymentMethodText,
+      notes: customer.notes,
+      order_code: orderCode,
+      payment_proof_url: paymentProofUrl,
     });
 
     // Track order to database
@@ -223,6 +239,13 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
           })),
           total_amount: total,
           payment_method: method,
+          customer_name: customer.customer_name,
+          customer_phone: customer.customer_phone,
+          customer_address: customer.customer_address,
+          delivery_method: customer.delivery_method,
+          notes: customer.notes,
+          payment_proof_url: paymentProofUrl,
+          order_code: orderCode,
         }),
       });
     } catch (err) {
@@ -440,6 +463,7 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
         totalAmount={checkoutItems.reduce((sum, item) => sum + (item.price * item.quantity), 0)}
         themeColor={storefront.theme_color}
         storeName={storefront.store_name}
+        storefrontSlug={slug}
         qrisImage={storefront.qris_image_url}
         businessBankAccount={
           storefront.bank_name && storefront.bank_account_number

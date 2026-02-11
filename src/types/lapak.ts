@@ -166,6 +166,8 @@ export interface WhatsAppOrder {
   total_amount: number;
   payment_method?: string;
   notes?: string;
+  order_code?: string;
+  payment_proof_url?: string;
 }
 
 // Theme presets
@@ -254,6 +256,8 @@ export function formatWhatsAppMessage(order: WhatsAppOrder): string {
 
   const message = `*PESANAN BARU - ${order.storefront_name}*
 
+${order.order_code ? `🧾 *Kode Order:* ${order.order_code}\n` : ''}
+
 📦 *Detail Pesanan:*
 ${itemsList}
 
@@ -266,6 +270,8 @@ No. HP: ${order.customer_phone}
 ${order.delivery_method === 'delivery' ? `Alamat: ${order.customer_address}` : 'Metode: Ambil di Tempat'}
 
 ${order.notes ? `📝 *Catatan:*\n${order.notes}` : ''}
+
+${order.payment_proof_url ? `📎 *Bukti Pembayaran:*\n${order.payment_proof_url}` : ''}
 
 Mohon konfirmasi ketersediaan produk. Terima kasih! 🙏`;
 
