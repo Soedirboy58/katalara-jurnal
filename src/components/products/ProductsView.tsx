@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useProducts } from '@/hooks/useProducts'
 import { Button } from '@/components/ui/Button'
 import { ProductKPICards } from './ProductKPICards'
@@ -127,6 +127,12 @@ export function ProductsView() {
     const start = (currentPage - 1) * itemsPerPage
     return filteredProducts.slice(start, start + itemsPerPage)
   }, [filteredProducts, currentPage, itemsPerPage])
+
+  useEffect(() => {
+    if (totalPages > 0 && currentPage > totalPages) {
+      setCurrentPage(1)
+    }
+  }, [currentPage, totalPages])
 
   // Category tabs
   const categoryTabs = [
@@ -443,6 +449,94 @@ export function ProductsView() {
           onAdjustStock={handleAdjustStock}
           onDelete={handleDelete}
         />
+      )}
+
+      {/* Pagination */}
+      {!loading && filteredProducts.length > 0 && totalPages > 1 && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4">
+          <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-600">
+            <span>Halaman</span>
+            <span className="font-semibold text-gray-900">{currentPage}</span>
+            <span>dari {totalPages}</span>
+          </div>
+
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setCurrentPage(1)}
+              disabled={currentPage === 1}
+              className="px-2.5 py-1.5 text-xs sm:text-sm rounded-md border border-gray-300 text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50"
+            >
+              «
+            </button>
+            <button
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+              className="px-2.5 py-1.5 text-xs sm:text-sm rounded-md border border-gray-300 text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50"
+            >
+              Prev
+            </button>
+
+            <div className="hidden sm:flex items-center gap-1">
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter(page =>
+                  page === 1 ||
+                  page === totalPages ||
+                  Math.abs(page - currentPage) <= 1
+                )
+                .map((page, idx, arr) => {
+                  const prevPage = arr[idx - 1]
+                  const showEllipsis = prevPage && page - prevPage > 1
+                  return (
+                    <div key={page} className="flex items-center gap-1">
+                      {showEllipsis && <span className="px-1 text-gray-400">…</span>}
+                      <button
+                        onClick={() => setCurrentPage(page)}
+                        className={`px-2.5 py-1.5 text-xs sm:text-sm rounded-md border transition-colors ${
+                          page === currentPage
+                            ? 'border-blue-600 bg-blue-600 text-white'
+                            : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    </div>
+                  )
+                })}
+            </div>
+
+            <button
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={currentPage === totalPages}
+              className="px-2.5 py-1.5 text-xs sm:text-sm rounded-md border border-gray-300 text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50"
+            >
+              Next
+            </button>
+            <button
+              onClick={() => setCurrentPage(totalPages)}
+              disabled={currentPage === totalPages}
+              className="px-2.5 py-1.5 text-xs sm:text-sm rounded-md border border-gray-300 text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50"
+            >
+              »
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-600">
+            <span>Tampilkan</span>
+            <select
+              value={itemsPerPage}
+              onChange={(e) => {
+                setItemsPerPage(Number(e.target.value))
+                setCurrentPage(1)
+              }}
+              className="px-2 py-1.5 text-xs sm:text-sm border border-gray-300 rounded-md bg-white"
+            >
+              {[10, 20, 30, 50].map(size => (
+                <option key={size} value={size}>{size}</option>
+              ))}
+            </select>
+            <span>per halaman</span>
+          </div>
+        </div>
       )}
 
       {/* Bulk Actions Bar */}
