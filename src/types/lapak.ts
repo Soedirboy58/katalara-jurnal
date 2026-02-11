@@ -168,6 +168,7 @@ export interface WhatsAppOrder {
   notes?: string;
   order_code?: string;
   payment_proof_url?: string;
+  tracking_url?: string;
 }
 
 // Theme presets
@@ -272,6 +273,8 @@ ${order.delivery_method === 'delivery' ? `Alamat: ${order.customer_address}` : '
 ${order.notes ? `📝 *Catatan:*\n${order.notes}` : ''}
 
 ${order.payment_proof_url ? `📎 *Bukti Pembayaran:*\n${order.payment_proof_url}` : ''}
+
+${order.tracking_url ? `🔎 *Tracking Order:*\n${order.tracking_url}` : ''}
 
 Mohon konfirmasi ketersediaan produk. Terima kasih! 🙏`;
 

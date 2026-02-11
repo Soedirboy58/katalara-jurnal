@@ -186,6 +186,11 @@ export default function LapakPage() {
     }
   };
 
+  const getTrackingUrl = (order: any) => {
+    if (typeof window === 'undefined' || !storefront?.slug || !order?.public_tracking_code) return ''
+    return `${window.location.origin}/lapak/${storefront.slug}/order/${order.public_tracking_code}`
+  }
+
   const loadData = async (storefrontId?: string) => {
     try {
       const url = storefrontId ? `/api/lapak?storefrontId=${storefrontId}` : '/api/lapak';
@@ -1494,6 +1499,19 @@ export default function LapakPage() {
                             >
                               Lihat bukti pembayaran
                             </a>
+                          )}
+
+                          {order.public_tracking_code && (
+                            <div className="mt-2">
+                              <a
+                                href={getTrackingUrl(order)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center text-xs text-blue-600 hover:underline"
+                              >
+                                Lihat tracking publik
+                              </a>
+                            </div>
                           )}
 
                           <div className="mt-3 flex flex-wrap gap-2">

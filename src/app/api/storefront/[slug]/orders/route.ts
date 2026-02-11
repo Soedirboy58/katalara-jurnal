@@ -22,7 +22,21 @@ export async function POST(
       notes,
       payment_proof_url,
       order_code,
+      public_tracking_code,
     } = body;
+
+    const slugify = (value: string) =>
+      value
+        .toLowerCase()
+        .replace(/[^a-z0-9\s-]/g, '')
+        .trim()
+        .replace(/\s+/g, '-')
+        .replace(/-+/g, '-')
+        .slice(0, 32)
+
+    const trackingCode =
+      public_tracking_code ||
+      (order_code ? `${order_code}-${slugify((customer_name || 'pembeli').toString())}` : null)
 
     const supabase = await createClient();
 
@@ -55,6 +69,7 @@ export async function POST(
         notes,
         payment_proof_url,
         order_code,
+        public_tracking_code: trackingCode,
         session_id: sessionId,
         user_agent: userAgent,
         status: 'pending',

@@ -206,6 +206,18 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
       method === 'transfer' ? 'Transfer Bank (Sudah Dibayar)' :
       'Tunai (Bayar di Tempat)';
 
+    const slugify = (value: string) =>
+      value
+        .toLowerCase()
+        .replace(/[^a-z0-9\s-]/g, '')
+        .trim()
+        .replace(/\s+/g, '-')
+        .replace(/-+/g, '-')
+        .slice(0, 32)
+
+    const trackingCode = `${orderCode}-${slugify(customer.customer_name || 'pembeli')}`
+    const trackingUrl = `${window.location.origin}/lapak/${slug}/order/${trackingCode}`
+
     const message = formatWhatsAppMessage({
       storefront_name: storefront.store_name,
       customer_name: customer.customer_name,
@@ -218,6 +230,7 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
       notes: customer.notes,
       order_code: orderCode,
       payment_proof_url: paymentProofUrl,
+      tracking_url: trackingUrl,
     });
 
     // Track order to database
@@ -246,6 +259,7 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
           notes: customer.notes,
           payment_proof_url: paymentProofUrl,
           order_code: orderCode,
+          public_tracking_code: trackingCode,
         }),
       });
     } catch (err) {
