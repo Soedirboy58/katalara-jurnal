@@ -17,17 +17,16 @@ export default async function AdminLayout({
     redirect('/login')
   }
 
-  // TEMPORARILY DISABLED: Auth check for debugging
   // Check if user is super_admin
-  // const { data: profile } = await supabase
-  //   .from('user_profiles')
-  //   .select('role, email, full_name')
-  //   .eq('user_id', user.id)
-  //   .single()
+  const { data: profile } = await supabase
+    .from('user_profiles')
+    .select('role')
+    .eq('user_id', user.id)
+    .single()
 
-  // if (!profile || profile.role !== 'super_admin') {
-  //   redirect('/dashboard')
-  // }
+  if (!profile || profile.role !== 'super_admin') {
+    redirect('/dashboard')
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">

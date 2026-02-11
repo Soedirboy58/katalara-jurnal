@@ -6,60 +6,32 @@ import { createClient } from '@/lib/supabase/client'
 
 interface UserAnalytics {
   user_id: string
-  email: string
-  registered_at: string
   full_name: string | null
   business_name: string | null
-  phone: string | null
-  address: string | null
-  business_category: string | null
-  business_type: string | null
-  number_of_employees: string | null
   is_active: boolean
   is_approved: boolean
-  is_verified: boolean
   role: string
-  total_income_transactions: number
-  total_expense_transactions: number
-  total_products: number
-  total_customers: number
-  total_suppliers: number
-  revenue_30d: number
-  expenses_30d: number
-  total_revenue: number
-  total_expenses: number
-  last_activity_date: string
-  days_registered: number
-  activity_status: string
+  created_at: string
+  last_active_at: string | null
+  events_7d: number
 }
 
-interface PlatformStats {
-  total_users: number
-  active_users: number
-  pending_approval: number
-  new_today: number
-  new_this_week: number
-  new_this_month: number
-  income_transactions_30d: number
-  expense_transactions_30d: number
-  total_revenue_30d: number
-  total_expenses_30d: number
-  total_products: number
-  total_customers: number
-  total_suppliers: number
-  users_with_income: number
-  users_with_expenses: number
-  users_with_products: number
-  users_with_customers: number
-  income_adoption_rate: number
-  expense_adoption_rate: number
+interface OverviewStats {
+  totalUsers: number
+  activeUsers: number
+  newToday: number
+  newThisWeek: number
+  newThisMonth: number
+  totalAuthUsers?: number
+  totalProfileUsers?: number
+  missingProfiles?: number
 }
 
 export default function AdminDashboard() {
   const router = useRouter()
   const supabase = createClient()
   const [loading, setLoading] = useState(true)
-  const [stats, setStats] = useState<PlatformStats | null>(null)
+  const [stats, setStats] = useState<OverviewStats | null>(null)
   const [users, setUsers] = useState<UserAnalytics[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'pending' | 'inactive'>('all')
@@ -103,13 +75,23 @@ export default function AdminDashboard() {
 
   const loadPlatformStats = async () => {
     try {
-      const { data, error } = await supabase
-        .from('admin_platform_stats')
-        .select('*')
-        .single()
+      const res = await fetch('/api/admin/monitoring?type=overview', { cache: 'no-store' })
+      const json = await res.json()
 
-      if (error) throw error
-      setStats(data)
+      if (!res.ok || !json?.success) {
+        throw new Error(json?.error || 'Failed to load overview stats')
+      }
+
+      setStats({
+        totalUsers: Number(json.data?.totalUsers || 0),
+        activeUsers: Number(json.data?.activeUsers || 0),
+        newToday: Number(json.data?.newToday || 0),
+        newThisWeek: Number(json.data?.newThisWeek || 0),
+        newThisMonth: Number(json.data?.newThisMonth || 0),
+        totalAuthUsers: Number(json.data?.totalAuthUsers || 0),
+        totalProfileUsers: Number(json.data?.totalProfileUsers || 0),
+        missingProfiles: Number(json.data?.missingProfiles || 0)
+      })
     } catch (error) {
       console.error('Error loading platform stats:', error)
     }
@@ -118,13 +100,14 @@ export default function AdminDashboard() {
   const loadUsers = async () => {
     try {
       setLoading(true)
-      const { data, error } = await supabase
-        .from('admin_user_analytics')
-        .select('*')
-        .order('registered_at', { ascending: false })
+      const res = await fetch('/api/admin/monitoring?type=user_stats&limit=500', { cache: 'no-store' })
+      const json = await res.json()
 
-      if (error) throw error
-      setUsers(data || [])
+      if (!res.ok || !json?.success) {
+        throw new Error(json?.error || 'Failed to load user stats')
+      }
+
+      setUsers((json.data || []) as UserAnalytics[])
     } catch (error) {
       console.error('Error loading users:', error)
     } finally {
@@ -192,14 +175,6 @@ export default function AdminDashboard() {
     router.push('/login')
   }
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('id-ID', {
-      style: 'currency',
-      currency: 'IDR',
-      minimumFractionDigits: 0
-    }).format(amount)
-  }
-
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('id-ID', {
       year: 'numeric',
@@ -208,20 +183,27 @@ export default function AdminDashboard() {
     })
   }
 
-  const getActivityBadge = (status: string) => {
-    const badges: Record<string, string> = {
-      'Very Active': 'bg-green-100 text-green-800',
-      'Active': 'bg-blue-100 text-blue-800',
-      'Idle': 'bg-yellow-100 text-yellow-800',
-      'Dormant': 'bg-gray-100 text-gray-800'
-    }
-    return badges[status] || 'bg-gray-100 text-gray-800'
+  const formatDateTime = (dateString: string) => {
+    return new Date(dateString).toLocaleString('id-ID', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+  }
+
+  const getUsageBadge = (events7d: number) => {
+    if (events7d >= 50) return 'bg-green-100 text-green-800'
+    if (events7d >= 10) return 'bg-blue-100 text-blue-800'
+    if (events7d >= 1) return 'bg-yellow-100 text-yellow-800'
+    return 'bg-gray-100 text-gray-800'
   }
 
   const filteredUsers = users.filter(user => {
-    const matchesSearch = user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         user.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         user.business_name?.toLowerCase().includes(searchTerm.toLowerCase())
+    const matchesSearch = user.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         user.business_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         user.user_id?.toLowerCase().includes(searchTerm.toLowerCase())
     
     const matchesFilter = filterStatus === 'all' ||
                          (filterStatus === 'active' && user.is_active && user.is_approved) ||
@@ -280,8 +262,13 @@ export default function AdminDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Total Users</p>
-                <p className="text-3xl font-bold text-gray-900 mt-1">{stats?.total_users || 0}</p>
-                <p className="text-xs text-gray-500 mt-1">Active: {stats?.active_users || 0}</p>
+                <p className="text-3xl font-bold text-gray-900 mt-1">{stats?.totalUsers || 0}</p>
+                <p className="text-xs text-gray-500 mt-1">Active (7d): {stats?.activeUsers || 0}</p>
+                {!!stats?.missingProfiles && stats.missingProfiles > 0 && (
+                  <p className="text-xs text-amber-600 mt-1">
+                    Missing profiles: {stats.missingProfiles} (Auth: {stats.totalAuthUsers || 0} • Profiles: {stats.totalProfileUsers || 0})
+                  </p>
+                )}
               </div>
               <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
                 <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -294,9 +281,9 @@ export default function AdminDashboard() {
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Pending Approval</p>
-                <p className="text-3xl font-bold text-orange-600 mt-1">{stats?.pending_approval || 0}</p>
-                <p className="text-xs text-gray-500 mt-1">Need review</p>
+                <p className="text-sm text-gray-600">New Users</p>
+                <p className="text-3xl font-bold text-orange-600 mt-1">{stats?.newToday || 0}</p>
+                <p className="text-xs text-gray-500 mt-1">7d: {stats?.newThisWeek || 0} • 30d: {stats?.newThisMonth || 0}</p>
               </div>
               <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
                 <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -309,11 +296,11 @@ export default function AdminDashboard() {
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Transactions (30d)</p>
+                <p className="text-sm text-gray-600">Usage (7d)</p>
                 <p className="text-3xl font-bold text-green-600 mt-1">
-                  {((stats?.income_transactions_30d || 0) + (stats?.expense_transactions_30d || 0))}
+                  {users.reduce((sum, u) => sum + (u.events_7d || 0), 0)}
                 </p>
-                <p className="text-xs text-gray-500 mt-1">Income + Expense</p>
+                <p className="text-xs text-gray-500 mt-1">Total events in logs</p>
               </div>
               <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
                 <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -326,48 +313,19 @@ export default function AdminDashboard() {
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Revenue (30d)</p>
+                <p className="text-sm text-gray-600">Avg Events / User (7d)</p>
                 <p className="text-2xl font-bold text-purple-600 mt-1">
-                  {formatCurrency(stats?.total_revenue_30d || 0)}
+                  {stats && stats.totalUsers > 0
+                    ? Math.round((users.reduce((sum, u) => sum + (u.events_7d || 0), 0) / stats.totalUsers) * 10) / 10
+                    : 0}
                 </p>
-                <p className="text-xs text-gray-500 mt-1">Platform total</p>
+                <p className="text-xs text-gray-500 mt-1">Signal engagement frequency</p>
               </div>
               <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
                 <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Feature Adoption */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-8">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Feature Adoption</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="text-center">
-              <div className="text-3xl font-bold text-blue-600">{stats?.income_adoption_rate || 0}%</div>
-              <div className="text-sm text-gray-600 mt-1">Input Sales</div>
-              <div className="text-xs text-gray-500">{stats?.users_with_income || 0} users</div>
-            </div>
-            <div className="text-center">
-              <div className="text-3xl font-bold text-green-600">{stats?.expense_adoption_rate || 0}%</div>
-              <div className="text-sm text-gray-600 mt-1">Input Expenses</div>
-              <div className="text-xs text-gray-500">{stats?.users_with_expenses || 0} users</div>
-            </div>
-            <div className="text-center">
-              <div className="text-3xl font-bold text-purple-600">
-                {stats && stats.total_users > 0 ? Math.round((stats.users_with_products / stats.total_users) * 100) : 0}%
-              </div>
-              <div className="text-sm text-gray-600 mt-1">Inventory</div>
-              <div className="text-xs text-gray-500">{stats?.users_with_products || 0} users</div>
-            </div>
-            <div className="text-center">
-              <div className="text-3xl font-bold text-orange-600">
-                {stats && stats.total_users > 0 ? Math.round((stats.users_with_customers / stats.total_users) * 100) : 0}%
-              </div>
-              <div className="text-sm text-gray-600 mt-1">CRM</div>
-              <div className="text-xs text-gray-500">{stats?.users_with_customers || 0} users</div>
             </div>
           </div>
         </div>
@@ -404,9 +362,9 @@ export default function AdminDashboard() {
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Business</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Activity</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Transactions</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Usage (7d)</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Active</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User ID</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
@@ -417,27 +375,23 @@ export default function AdminDashboard() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div>
                         <div className="text-sm font-medium text-gray-900">{user.full_name || 'N/A'}</div>
-                        <div className="text-sm text-gray-500">{user.email}</div>
-                        <div className="text-xs text-gray-400">Joined: {formatDate(user.registered_at)}</div>
+                        <div className="text-sm text-gray-500">{user.business_name || 'N/A'}</div>
+                        <div className="text-xs text-gray-400">Joined: {formatDate(user.created_at)}</div>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div>
-                        <div className="text-sm font-medium text-gray-900">{user.business_name || 'N/A'}</div>
-                        <div className="text-sm text-gray-500">{user.business_category || 'N/A'}</div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getActivityBadge(user.activity_status)}`}>
-                        {user.activity_status}
+                      <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getUsageBadge(user.events_7d || 0)}`}>
+                        {user.events_7d >= 50 ? 'Very Active' : user.events_7d >= 10 ? 'Active' : user.events_7d >= 1 ? 'Idle' : 'Dormant'}
                       </span>
-                      <div className="text-xs text-gray-500 mt-1">{user.days_registered}d ago</div>
+                      <div className="text-xs text-gray-500 mt-1">{user.events_7d || 0} events</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-900">
-                        <div>Income: {user.total_income_transactions}</div>
-                        <div>Expense: {user.total_expense_transactions}</div>
+                        {user.last_active_at ? formatDateTime(user.last_active_at) : 'N/A'}
                       </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-xs text-gray-600 font-mono">{user.user_id}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex flex-col gap-1">
@@ -509,53 +463,41 @@ export default function AdminDashboard() {
                       <p className="text-sm text-gray-900">{selectedUser.full_name || 'N/A'}</p>
                     </div>
                     <div>
-                      <label className="text-sm font-medium text-gray-500">Email</label>
-                      <p className="text-sm text-gray-900">{selectedUser.email}</p>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-gray-500">Phone</label>
-                      <p className="text-sm text-gray-900">{selectedUser.phone || 'N/A'}</p>
-                    </div>
-                    <div>
                       <label className="text-sm font-medium text-gray-500">Business Name</label>
                       <p className="text-sm text-gray-900">{selectedUser.business_name || 'N/A'}</p>
                     </div>
                     <div>
-                      <label className="text-sm font-medium text-gray-500">Category</label>
-                      <p className="text-sm text-gray-900">{selectedUser.business_category || 'N/A'}</p>
+                      <label className="text-sm font-medium text-gray-500">User ID</label>
+                      <p className="text-sm text-gray-900 font-mono">{selectedUser.user_id}</p>
                     </div>
                     <div>
-                      <label className="text-sm font-medium text-gray-500">Business Type</label>
-                      <p className="text-sm text-gray-900">{selectedUser.business_type || 'N/A'}</p>
+                      <label className="text-sm font-medium text-gray-500">Joined</label>
+                      <p className="text-sm text-gray-900">{formatDate(selectedUser.created_at)}</p>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-500">Last Active</label>
+                      <p className="text-sm text-gray-900">{selectedUser.last_active_at ? formatDateTime(selectedUser.last_active_at) : 'N/A'}</p>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-500">Usage (7d)</label>
+                      <p className="text-sm text-gray-900">{selectedUser.events_7d || 0} events</p>
                     </div>
                   </div>
 
                   <div className="border-t border-gray-200 pt-4">
-                    <h4 className="text-sm font-semibold text-gray-900 mb-3">Activity Metrics</h4>
-                    <div className="grid grid-cols-3 gap-4">
-                      <div className="text-center p-3 bg-blue-50 rounded-lg">
-                        <div className="text-2xl font-bold text-blue-600">{selectedUser.total_income_transactions}</div>
-                        <div className="text-xs text-gray-600">Income Trans.</div>
+                    <h4 className="text-sm font-semibold text-gray-900 mb-3">Quick Interpretation</h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="p-3 bg-gray-50 rounded-lg">
+                        <div className="text-xs text-gray-600">Engagement label</div>
+                        <div className="text-sm font-semibold text-gray-900">
+                          {selectedUser.events_7d >= 50 ? 'Very Active' : selectedUser.events_7d >= 10 ? 'Active' : selectedUser.events_7d >= 1 ? 'Idle' : 'Dormant'}
+                        </div>
                       </div>
-                      <div className="text-center p-3 bg-green-50 rounded-lg">
-                        <div className="text-2xl font-bold text-green-600">{selectedUser.total_expense_transactions}</div>
-                        <div className="text-xs text-gray-600">Expense Trans.</div>
-                      </div>
-                      <div className="text-center p-3 bg-purple-50 rounded-lg">
-                        <div className="text-2xl font-bold text-purple-600">{selectedUser.total_products}</div>
-                        <div className="text-xs text-gray-600">Products</div>
-                      </div>
-                      <div className="text-center p-3 bg-orange-50 rounded-lg">
-                        <div className="text-2xl font-bold text-orange-600">{selectedUser.total_customers}</div>
-                        <div className="text-xs text-gray-600">Customers</div>
-                      </div>
-                      <div className="text-center p-3 bg-pink-50 rounded-lg">
-                        <div className="text-2xl font-bold text-pink-600">{selectedUser.total_suppliers}</div>
-                        <div className="text-xs text-gray-600">Suppliers</div>
-                      </div>
-                      <div className="text-center p-3 bg-indigo-50 rounded-lg">
-                        <div className="text-sm font-bold text-indigo-600">{formatCurrency(selectedUser.total_revenue)}</div>
-                        <div className="text-xs text-gray-600">Total Revenue</div>
+                      <div className="p-3 bg-gray-50 rounded-lg">
+                        <div className="text-xs text-gray-600">Account status</div>
+                        <div className="text-sm font-semibold text-gray-900">
+                          {selectedUser.is_active ? 'Active' : 'Inactive'}{selectedUser.is_approved ? '' : ' • Pending approval'}
+                        </div>
                       </div>
                     </div>
                   </div>

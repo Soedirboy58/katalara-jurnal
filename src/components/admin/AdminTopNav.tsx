@@ -24,9 +24,7 @@ export function AdminTopNav({ adminEmail }: AdminTopNavProps) {
 
   const menuItems = [
     { label: 'Dashboard', href: '/admin/dashboard', icon: '📊' },
-    { label: 'Users', href: '/admin/users', icon: '👥' },
-    { label: 'Reports', href: '/admin/reports', icon: '🐛' },
-    { label: 'Settings', href: '/admin/settings', icon: '⚙️' }
+    { label: 'Monitoring', href: '/admin/monitoring', icon: '🧭' }
   ]
 
   const handleLogout = async () => {

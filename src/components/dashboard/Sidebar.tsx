@@ -42,15 +42,13 @@ const menuItems = [
     name: 'Input Pendapatan', 
     href: '/dashboard/input-income', 
     icon: PlusCircleIcon,
-    description: 'Catat pendapatan & penjualan',
-    badge: 'Hot'
+    description: 'Catat pendapatan & penjualan'
   },
   { 
     name: 'Input Pengeluaran', 
     href: '/dashboard/input-expenses', 
     icon: MinusCircleIcon,
-    description: 'Catat pengeluaran bisnis',
-    badge: 'Hot'
+    description: 'Catat pengeluaran bisnis'
   },
   { 
     name: 'Produk Saya', 
@@ -116,6 +114,12 @@ const menuItems = [
     icon: QuestionMarkCircleIcon,
     description: 'Panduan & support'
   },
+  {
+    name: 'Logout',
+    action: 'logout',
+    icon: ArrowLeftOnRectangleIcon,
+    description: 'Keluar dari akun'
+  }
 ]
 
 export function Sidebar({ isOpen, onClose, collapsed, onToggleCollapse }: SidebarProps) {
@@ -149,7 +153,7 @@ export function Sidebar({ isOpen, onClose, collapsed, onToggleCollapse }: Sideba
       {/* Sidebar */}
       <aside
         className={`
-          fixed top-0 left-0 z-50 min-h-screen border-r border-white/10 shadow-lg
+          fixed top-0 left-0 z-50 h-[100dvh] lg:min-h-screen border-r border-white/10 shadow-lg
           transform transition-all duration-300 ease-in-out
           lg:translate-x-0 lg:static lg:z-auto
           ${isOpen ? 'translate-x-0' : '-translate-x-full'}
@@ -200,7 +204,7 @@ export function Sidebar({ isOpen, onClose, collapsed, onToggleCollapse }: Sideba
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto scrollbar-thin scrollbar-thumb-white/20">
+          <nav className="flex-1 px-3 py-4 pb-16 lg:pb-4 space-y-1 overflow-y-auto scrollbar-thin scrollbar-thumb-white/20">
             {menuItems.map((item, index) => {
               const isActive = pathname === item.href
               const Icon = item.icon
@@ -208,42 +212,64 @@ export function Sidebar({ isOpen, onClose, collapsed, onToggleCollapse }: Sideba
               
               return (
                 <div key={item.name}>
-                  <a
-                    href={item.href}
-                    title={collapsed ? item.name : item.description}
-                    className={`
-                      group flex items-center px-3 py-2.5 text-sm font-medium rounded-lg
-                      transition-all duration-200 relative
-                      ${collapsed ? 'justify-center' : ''}
-                      ${
-                        isActive
-                          ? 'bg-white/20 text-white shadow-md'
-                          : 'text-white hover:bg-white/10'
-                      }
-                    `}
-                  >
-                    <Icon className={`h-5 w-5 ${collapsed ? '' : 'mr-3'} flex-shrink-0 transition-transform group-hover:scale-110`} />
-                    {!collapsed && (
-                      <div className="flex-1 flex items-center justify-between">
-                        <span className="whitespace-nowrap">{item.name}</span>
-                        {item.badge && (
-                          <span className={`
-                            ml-2 px-1.5 py-0.5 text-[10px] font-bold rounded uppercase tracking-wide
-                            ${item.badge === 'Hot' ? 'bg-red-500 text-white' : 
-                              item.badge === 'Soon' ? 'bg-orange-500 text-white' : 
-                              'bg-green-500 text-white'}
-                          `}>
-                            {item.badge}
-                          </span>
-                        )}
-                      </div>
-                    )}
-                    
-                    {/* Active indicator */}
-                    {isActive && (
-                      <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-yellow-400 rounded-r-full" />
-                    )}
-                  </a>
+                  {'action' in item ? (
+                    <button
+                      onClick={handleLogout}
+                      disabled={loggingOut}
+                      title={collapsed ? item.name : item.description}
+                      className={`
+                        group w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg
+                        transition-all duration-200 relative
+                        ${collapsed ? 'justify-center' : ''}
+                        text-red-200 hover:bg-red-500/20 hover:text-red-100
+                        disabled:opacity-50 disabled:cursor-not-allowed
+                      `}
+                    >
+                      <Icon className={`h-5 w-5 ${collapsed ? '' : 'mr-3'} flex-shrink-0 transition-transform group-hover:scale-110`} />
+                      {!collapsed && (
+                        <div className="flex-1 flex items-center justify-between">
+                          <span className="whitespace-nowrap">{loggingOut ? 'Logging out...' : item.name}</span>
+                        </div>
+                      )}
+                    </button>
+                  ) : (
+                    <a
+                      href={item.href}
+                      title={collapsed ? item.name : item.description}
+                      className={`
+                        group flex items-center px-3 py-2.5 text-sm font-medium rounded-lg
+                        transition-all duration-200 relative
+                        ${collapsed ? 'justify-center' : ''}
+                        ${
+                          isActive
+                            ? 'bg-white/20 text-white shadow-md'
+                            : 'text-white hover:bg-white/10'
+                        }
+                      `}
+                    >
+                      <Icon className={`h-5 w-5 ${collapsed ? '' : 'mr-3'} flex-shrink-0 transition-transform group-hover:scale-110`} />
+                      {!collapsed && (
+                        <div className="flex-1 flex items-center justify-between">
+                          <span className="whitespace-nowrap">{item.name}</span>
+                          {item.badge && (
+                            <span className={`
+                              ml-2 px-1.5 py-0.5 text-[10px] font-bold rounded uppercase tracking-wide
+                              ${item.badge === 'Hot' ? 'bg-red-500 text-white' : 
+                                item.badge === 'Soon' ? 'bg-orange-500 text-white' : 
+                                'bg-green-500 text-white'}
+                            `}>
+                              {item.badge}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      
+                      {/* Active indicator */}
+                      {isActive && (
+                        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-yellow-400 rounded-r-full" />
+                      )}
+                    </a>
+                  )}
                   
                   {/* Divider */}
                   {showDivider && !collapsed && (
@@ -254,23 +280,7 @@ export function Sidebar({ isOpen, onClose, collapsed, onToggleCollapse }: Sideba
             })}
           </nav>
 
-          {/* Logout Button */}
-          <div className="p-3 border-t border-white/10">
-            <button
-              onClick={handleLogout}
-              disabled={loggingOut}
-              className={`
-                w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg
-                text-red-300 hover:bg-red-500/20 hover:text-red-200 transition-all
-                disabled:opacity-50 disabled:cursor-not-allowed
-                ${collapsed ? 'justify-center' : ''}
-              `}
-              title="Logout"
-            >
-              <ArrowLeftOnRectangleIcon className={`h-5 w-5 ${collapsed ? '' : 'mr-3'} flex-shrink-0`} />
-              {!collapsed && <span>{loggingOut ? 'Logging out...' : 'Logout'}</span>}
-            </button>
-          </div>
+          <div className="p-3 border-t border-white/10 lg:hidden"></div>
         </div>
       </aside>
     </>
