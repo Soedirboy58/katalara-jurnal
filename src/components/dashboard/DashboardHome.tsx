@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { ExpenseRecord } from '@/types/legacy'
 import {
@@ -60,16 +60,52 @@ export function DashboardHome() {
   const [healthScore, setHealthScore] = useState<any>(null)
   const [loadingHealthScore, setLoadingHealthScore] = useState(true)
 
+  const userIdRef = useRef<string | null>(null)
+  const lastKpiFetchRef = useRef(0)
+  const lastTrxFetchRef = useRef(0)
+
+  const readCache = (key: string, maxAgeMs: number) => {
+    if (typeof window === 'undefined') return null
+    try {
+      const raw = localStorage.getItem(`katalara_cache_${key}`)
+      if (!raw) return null
+      const parsed = JSON.parse(raw)
+      if (!parsed?.ts) return null
+      if (Date.now() - parsed.ts > maxAgeMs) return null
+      return parsed.data
+    } catch {
+      return null
+    }
+  }
+
+  const writeCache = (key: string, data: any) => {
+    if (typeof window === 'undefined') return
+    try {
+      localStorage.setItem(`katalara_cache_${key}`, JSON.stringify({ ts: Date.now(), data }))
+    } catch {
+      // ignore
+    }
+  }
+
   // Fetch Health Score
   useEffect(() => {
-    const fetchHealthScore = async () => {
+    const fetchHealthScore = async (force = false) => {
       try {
         setLoadingHealthScore(true)
+        if (!force) {
+          const cached = readCache('health_score', 5 * 60 * 1000)
+          if (cached) {
+            setHealthScore(cached)
+            setLoadingHealthScore(false)
+            return
+          }
+        }
         const response = await fetch('/api/health-score')
         const result = await response.json()
         
         if (result.success) {
           setHealthScore(result.data)
+          writeCache('health_score', result.data)
         }
       } catch (error) {
         console.error('Failed to load health score:', error)
@@ -90,32 +126,33 @@ export function DashboardHome() {
       try {
         const { data: { user } } = await supabase.auth.getUser()
         if (user) {
+          userIdRef.current = user.id
           // Load profile
-          const { data: profile } = await supabase
-            .from('user_profiles')
-            .select('business_name')
-            .eq('user_id', user.id)
-            .single()
-          
-          if (profile) {
-            setBusinessName(profile.business_name)
+          const loadProfile = async () => {
+            const { data: profile } = await supabase
+              .from('user_profiles')
+              .select('business_name')
+              .eq('user_id', user.id)
+              .single()
+            if (profile) setBusinessName(profile.business_name)
           }
 
-          // Load business config
-          const { data: config } = await supabase
-            .from('business_configurations')
-            .select('*')
-            .eq('user_id', user.id)
-            .single()
-          
-          if (config) {
-            setBusinessConfig(config)
+          const loadConfig = async () => {
+            const { data: config } = await supabase
+              .from('business_configurations')
+              .select('*')
+              .eq('user_id', user.id)
+              .single()
+            if (config) setBusinessConfig(config)
           }
 
-          // Load KPI data from API
-          await refreshKpiData()
-          await fetchRecentTransactions()
-          await loadSettings()
+          await Promise.all([
+            loadProfile(),
+            loadConfig(),
+            refreshKpiData({ force: false }),
+            fetchRecentTransactions(user.id, { force: false }),
+            loadSettings({ force: false })
+          ])
         }
       } catch (error) {
         console.error('Error loading data:', error)
@@ -129,8 +166,10 @@ export function DashboardHome() {
     // Auto-refresh KPI when user returns to page (visibility change)
     const handleVisibilityChange = () => {
       if (!document.hidden) {
-        refreshKpiData()
-        fetchRecentTransactions()
+        refreshKpiData({ force: false })
+        if (userIdRef.current) {
+          fetchRecentTransactions(userIdRef.current, { force: false })
+        }
       }
     }
     
@@ -141,27 +180,26 @@ export function DashboardHome() {
     }
   }, [supabase])
   
-  const refreshKpiData = async () => {
+  const refreshKpiData = async (options?: { force?: boolean }) => {
     try {
-      // Force cache bust with timestamp
-      const timestamp = Date.now()
-      const kpiResponse = await fetch(`/api/kpi?t=${timestamp}`, { 
-        cache: 'no-store',
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache'
+      const force = options?.force === true
+      if (!force) {
+        const cached = readCache('kpi', 2 * 60 * 1000)
+        if (cached) {
+          setKpiData(cached)
+          return
         }
-      })
-      
-      console.log('KPI API Response Status:', kpiResponse.status)
+        if (Date.now() - lastKpiFetchRef.current < 30 * 1000) return
+      }
+
+      lastKpiFetchRef.current = Date.now()
+      const kpiResponse = await fetch('/api/kpi', { cache: 'no-store' })
       
       if (kpiResponse.ok) {
         const kpiResult = await kpiResponse.json()
-        console.log('KPI API Result:', kpiResult)
-        
         if (kpiResult.success) {
-          console.log('Setting KPI Data:', kpiResult.data)
           setKpiData(kpiResult.data)
+          writeCache('kpi', kpiResult.data)
         } else {
           console.error('KPI API returned success:false', kpiResult)
         }
@@ -174,10 +212,27 @@ export function DashboardHome() {
     }
   }
   
-  const fetchRecentTransactions = async () => {
+  const fetchRecentTransactions = async (userId?: string, options?: { force?: boolean }) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      const force = options?.force === true
+      if (!force) {
+        const cached = readCache('recent_transactions', 2 * 60 * 1000)
+        if (cached) {
+          setRecentTransactions(cached)
+          return
+        }
+        if (Date.now() - lastTrxFetchRef.current < 30 * 1000) return
+      }
+
+      const uid = userId || userIdRef.current
+      if (!uid) {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return
+        userIdRef.current = user.id
+      }
+
+      const effectiveUserId = uid || userIdRef.current
+      if (!effectiveUserId) return
 
       const toNumber = (v: unknown): number => {
         if (typeof v === 'number') return Number.isFinite(v) ? v : 0
@@ -205,13 +260,13 @@ export function DashboardHome() {
             .from('transactions')
             .select('id, transaction_date, category, customer_name, payment_type, payment_status, total, invoice_number')
             .order('transaction_date', { ascending: false })
-            .limit(100)
+            .limit(50)
 
-        const r1 = await makeQuery().or(`owner_id.eq.${user.id},user_id.eq.${user.id}`)
+        const r1 = await makeQuery().or(`owner_id.eq.${effectiveUserId},user_id.eq.${effectiveUserId}`)
         if (!r1.error) {
           incomeRows = r1.data || []
         } else if (isSchemaMismatch(r1.error)) {
-          const r2 = await makeQuery().eq('user_id', user.id)
+          const r2 = await makeQuery().eq('user_id', effectiveUserId)
           if (!r2.error) incomeRows = r2.data || []
         }
       }
@@ -224,13 +279,13 @@ export function DashboardHome() {
             .from('expenses')
             .select('*')
             .order('expense_date', { ascending: false })
-            .limit(100)
+            .limit(50)
 
-        const r1 = await makeQuery().or(`owner_id.eq.${user.id},user_id.eq.${user.id}`)
+        const r1 = await makeQuery().or(`owner_id.eq.${effectiveUserId},user_id.eq.${effectiveUserId}`)
         if (!r1.error) {
           expenseRows = r1.data || []
         } else if (isSchemaMismatch(r1.error)) {
-          const r2 = await makeQuery().eq('user_id', user.id)
+          const r2 = await makeQuery().eq('user_id', effectiveUserId)
           if (!r2.error) expenseRows = r2.data || []
         }
       }
@@ -262,21 +317,32 @@ export function DashboardHome() {
       const combined = [...incomes, ...expenses]
         .filter((r) => r.date)
         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-        .slice(0, 100)
+        .slice(0, 50)
 
       setRecentTransactions(combined)
+      writeCache('recent_transactions', combined)
+      lastTrxFetchRef.current = Date.now()
     } catch (error) {
       console.error('Error fetching recent transactions:', error)
     }
   }
   
-  const loadSettings = async () => {
+  const loadSettings = async (options?: { force?: boolean }) => {
     try {
+      const force = options?.force === true
+      if (!force) {
+        const cached = readCache('settings', 10 * 60 * 1000)
+        if (cached) {
+          setSettings(cached)
+          return
+        }
+      }
       const response = await fetch('/api/settings')
       const result = await response.json()
       
       if (result.success && result.data) {
         setSettings(result.data)
+        writeCache('settings', result.data)
       }
     } catch (error) {
       console.error('Failed to load settings:', error)
@@ -327,15 +393,6 @@ export function DashboardHome() {
       maximumFractionDigits: 0
     }).format(num)
   }
-
-  // Debug: Log kpiData whenever it changes
-  useEffect(() => {
-    console.log('kpiData state updated:', kpiData)
-    if (kpiData?.month) {
-      console.log('Chart Data - Revenue (All):', kpiData.month.income, 'Expense (All):', kpiData.month.expense)
-      console.log('Chart Data - Revenue (Paid):', kpiData.month.incomePaid, 'Expense (Paid):', kpiData.month.expensePaid)
-    }
-  }, [kpiData])
 
   const kpiCards: KPICard[] = [
     // CRITICAL: Piutang Jatuh Tempo
