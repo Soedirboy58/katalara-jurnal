@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Modal } from '@/components/ui/Modal'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
+import { showToast, ToastContainer } from '@/components/ui/Toast'
 
 interface LoanFormProps {
   isOpen: boolean
@@ -43,7 +44,7 @@ export function LoanForm({ isOpen, onClose, onSuccess }: LoanFormProps) {
     const n = parseInt(formData.loan_term_months)
 
     if (!P || !n || P <= 0 || n <= 0) {
-      alert('Masukkan jumlah pinjaman dan jangka waktu yang valid')
+      showToast('Masukkan jumlah pinjaman dan jangka waktu yang valid', 'warning')
       return
     }
 
@@ -130,7 +131,7 @@ export function LoanForm({ isOpen, onClose, onSuccess }: LoanFormProps) {
         throw new Error(data.error || 'Gagal membuat pinjaman')
       }
 
-      alert('Pinjaman berhasil dibuat dengan ' + data.loan.loan_installments.length + ' cicilan!')
+      showToast(`Pinjaman berhasil dibuat dengan ${data.loan.loan_installments.length} cicilan!`, 'success')
       onSuccess()
       onClose()
       
@@ -151,7 +152,7 @@ export function LoanForm({ isOpen, onClose, onSuccess }: LoanFormProps) {
 
     } catch (error: any) {
       console.error('Error creating loan:', error)
-      alert('Error: ' + error.message)
+      showToast('Error: ' + error.message, 'error')
     } finally {
       setLoading(false)
     }
@@ -355,6 +356,7 @@ export function LoanForm({ isOpen, onClose, onSuccess }: LoanFormProps) {
           </Button>
         </div>
       </form>
+      <ToastContainer />
     </Modal>
   )
 }

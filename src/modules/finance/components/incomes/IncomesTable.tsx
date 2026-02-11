@@ -3,6 +3,9 @@
 import { useState } from 'react'
 import { IncomePrintModal } from './IncomePrintModal'
 import type { Income } from '@/modules/finance/types/financeTypes'
+import ConfirmModal from '@/components/ui/ConfirmModal'
+import { useConfirm } from '@/hooks/useConfirm'
+import { showToast } from '@/components/ui/Toast'
 
 interface Transaction {
   id: string
@@ -37,6 +40,7 @@ export function TransactionsTable({ transactions, businessName, onRefresh, onEdi
   const [printModalOpen, setPrintModalOpen] = useState(false)
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  const { confirm, confirmState, handleConfirm, handleCancel } = useConfirm()
   
   // Filter states
   const [filterStartDate, setFilterStartDate] = useState('')
@@ -85,9 +89,18 @@ export function TransactionsTable({ transactions, businessName, onRefresh, onEdi
   }
 
   const handleBulkDelete = async () => {
-    if (selectedIds.size === 0) return
-    
-    const confirmed = confirm(`Hapus ${selectedIds.size} transaksi terpilih?`)
+    if (selectedIds.size === 0) {
+      showToast('Pilih transaksi terlebih dulu', 'warning')
+      return
+    }
+
+    const confirmed = await confirm({
+      title: 'Hapus banyak transaksi?',
+      message: `Hapus ${selectedIds.size} transaksi terpilih?`,
+      confirmText: 'Hapus Semua',
+      cancelText: 'Batal',
+      type: 'danger'
+    })
     if (!confirmed) return
 
     setIsDeleting(true)
@@ -102,10 +115,10 @@ export function TransactionsTable({ transactions, businessName, onRefresh, onEdi
         setSelectedIds(new Set())
         onRefresh()
       } else {
-        alert('Gagal menghapus transaksi')
+        showToast('Gagal menghapus transaksi', 'error')
       }
     } catch (error) {
-      alert('Error: ' + error)
+      showToast('Error: ' + error, 'error')
     } finally {
       setIsDeleting(false)
     }
@@ -557,6 +570,17 @@ export function TransactionsTable({ transactions, businessName, onRefresh, onEdi
           businessName={businessName}
         />
       )}
+
+      <ConfirmModal
+        isOpen={confirmState.isOpen}
+        onClose={handleCancel}
+        onConfirm={handleConfirm}
+        title={confirmState.options.title}
+        message={confirmState.options.message}
+        confirmText={confirmState.options.confirmText}
+        cancelText={confirmState.options.cancelText}
+        type={confirmState.options.type}
+      />
     </div>
   )
 }

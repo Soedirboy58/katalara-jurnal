@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { cookies } from 'next/headers';
 
-// GET /api/lapak - Get user's storefront
-export async function GET() {
+// GET /api/lapak - Get user's storefront(s)
+export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
     
@@ -17,24 +17,32 @@ export async function GET() {
       );
     }
 
-    // Get user's storefront
-    const { data: storefront, error: storefrontError } = await supabase
+    const { searchParams } = new URL(request.url);
+    const storefrontId = searchParams.get('storefrontId');
+
+    // Get all storefronts for user (for multi-lapak support)
+    const { data: storefronts, error: storefrontsError } = await supabase
       .from('business_storefronts')
       .select('*')
       .eq('user_id', user.id)
-      .single();
+      .order('updated_at', { ascending: false });
 
-    if (storefrontError && storefrontError.code !== 'PGRST116') {
-      console.error('Error fetching storefront:', storefrontError);
+    if (storefrontsError) {
+      console.error('Error fetching storefronts:', storefrontsError);
       return NextResponse.json(
         { error: 'Gagal memuat data lapak' },
         { status: 500 }
       );
     }
 
-    // If no storefront exists, return null
-    if (!storefront) {
-      return NextResponse.json({ storefront: null });
+    if (!storefronts || storefronts.length === 0) {
+      return NextResponse.json({ storefront: null, storefronts: [] });
+    }
+
+    let storefront = storefronts[0];
+    if (storefrontId) {
+      const selected = storefronts.find((s) => s.id === storefrontId);
+      if (selected) storefront = selected;
     }
 
     // Get products count
@@ -63,6 +71,7 @@ export async function GET() {
 
     return NextResponse.json({
       storefront,
+      storefronts,
       products_count: productsCount || 0,
       analytics: analyticsSummary,
     });
@@ -105,6 +114,8 @@ export async function POST(request: NextRequest) {
       bank_account_number,
       bank_account_holder,
       is_active,
+      storefront_id,
+      create_new,
     } = body;
 
     // Validate required fields
@@ -115,14 +126,53 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if storefront exists
-    const { data: existingStorefront } = await supabase
-      .from('business_storefronts')
-      .select('id, slug')
-      .eq('user_id', user.id)
-      .single();
+    // Update specific storefront if id provided
+    if (storefront_id) {
+      const { data: updatedStorefront, error: updateError } = await supabase
+        .from('business_storefronts')
+        .update({
+          store_name,
+          description,
+          whatsapp_number,
+          instagram_handle,
+          location_text,
+          theme_color,
+          logo_url,
+          cover_image_url,
+          qris_image_url,
+          bank_name,
+          bank_account_number,
+          bank_account_holder,
+          is_active,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', storefront_id)
+        .eq('user_id', user.id)
+        .select()
+        .single();
 
-    if (existingStorefront) {
+      if (updateError) {
+        console.error('Error updating storefront:', updateError);
+        return NextResponse.json(
+          { error: 'Gagal memperbarui lapak' },
+          { status: 500 }
+        );
+      }
+
+      return NextResponse.json({ storefront: updatedStorefront });
+    }
+
+    // If not explicitly creating new, try to update the most recent storefront
+    if (!create_new) {
+      const { data: existingStorefront } = await supabase
+        .from('business_storefronts')
+        .select('id, slug')
+        .eq('user_id', user.id)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (existingStorefront) {
       // Update existing storefront
       const { data: updatedStorefront, error: updateError } = await supabase
         .from('business_storefronts')
@@ -154,8 +204,11 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      return NextResponse.json({ storefront: updatedStorefront });
-    } else {
+        return NextResponse.json({ storefront: updatedStorefront });
+      }
+    }
+
+    {
       // Generate slug from store name
       const baseSlug = store_name
         .toLowerCase()
@@ -227,7 +280,7 @@ export async function POST(request: NextRequest) {
 }
 
 // DELETE /api/lapak - Delete storefront and all related data
-export async function DELETE() {
+export async function DELETE(request: NextRequest) {
   try {
     const supabase = await createClient();
     
@@ -241,25 +294,40 @@ export async function DELETE() {
       );
     }
 
-    // Get storefront ID
-    const { data: storefront } = await supabase
-      .from('business_storefronts')
-      .select('id')
-      .eq('user_id', user.id)
-      .single();
+    const { searchParams } = new URL(request.url);
+    const storefrontId = searchParams.get('storefrontId');
 
-    if (!storefront) {
-      return NextResponse.json(
-        { error: 'Storefront not found' },
-        { status: 404 }
-      );
+    let targetId = storefrontId || '';
+    if (!targetId) {
+      const { data: storefronts } = await supabase
+        .from('business_storefronts')
+        .select('id')
+        .eq('user_id', user.id)
+        .order('updated_at', { ascending: false });
+
+      if (!storefronts || storefronts.length === 0) {
+        return NextResponse.json(
+          { error: 'Storefront not found' },
+          { status: 404 }
+        );
+      }
+
+      if (storefronts.length > 1) {
+        return NextResponse.json(
+          { error: 'Pilih lapak yang ingin dihapus' },
+          { status: 400 }
+        );
+      }
+
+      targetId = storefronts[0].id;
     }
 
     // Delete storefront (CASCADE will delete products, analytics, cart_sessions)
     const { error: deleteError } = await supabase
       .from('business_storefronts')
       .delete()
-      .eq('id', storefront.id);
+      .eq('id', targetId)
+      .eq('user_id', user.id);
 
     if (deleteError) {
       console.error('Error deleting storefront:', deleteError);

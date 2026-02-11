@@ -9,6 +9,7 @@ import FloatingWhatsApp from '@/components/lapak/FloatingWhatsApp';
 import ShoppingCart from '@/components/lapak/ShoppingCart';
 import PaymentModal from '@/components/lapak/PaymentModal';
 import { Storefront, StorefrontProduct, CartItem, formatWhatsAppMessage } from '@/types/lapak';
+import { showToast, ToastContainer } from '@/components/ui/Toast';
 
 interface StorefrontPageProps {
   params: Promise<{ slug: string }>;
@@ -181,8 +182,21 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
     setIsPaymentModalOpen(true);
   };
 
-  const handlePaymentComplete = async (method: 'qris' | 'transfer' | 'cash') => {
+  const handlePaymentComplete = async (payload: {
+    method: 'qris' | 'transfer' | 'cash';
+    customer: {
+      customer_name: string;
+      customer_phone: string;
+      customer_address: string;
+      delivery_method: 'pickup' | 'delivery';
+      notes?: string;
+    };
+    paymentProofUrl?: string;
+    orderCode: string;
+  }) => {
     if (!storefront) return;
+
+    const { method, customer, paymentProofUrl, orderCode } = payload;
 
     // Calculate total
     const total = checkoutItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
@@ -193,20 +207,36 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
       method === 'transfer' ? 'Transfer Bank (Sudah Dibayar)' :
       'Tunai (Bayar di Tempat)';
 
+    const slugify = (value: string) =>
+      value
+        .toLowerCase()
+        .replace(/[^a-z0-9\s-]/g, '')
+        .trim()
+        .replace(/\s+/g, '-')
+        .replace(/-+/g, '-')
+        .slice(0, 32)
+
+    const trackingCode = `${orderCode}-${slugify(customer.customer_name || 'pembeli')}`
+    const trackingUrl = `${window.location.origin}/lapak/${slug}/order/${trackingCode}`
+
     const message = formatWhatsAppMessage({
       storefront_name: storefront.store_name,
-      customer_name: 'Pembeli',
-      customer_phone: '-',
-      customer_address: '-',
-      delivery_method: 'Akan dikonfirmasi',
+      customer_name: customer.customer_name,
+      customer_phone: customer.customer_phone,
+      customer_address: customer.customer_address,
+      delivery_method: customer.delivery_method,
       items: checkoutItems,
       total_amount: total,
       payment_method: paymentMethodText,
+      notes: customer.notes,
+      order_code: orderCode,
+      payment_proof_url: paymentProofUrl,
+      tracking_url: trackingUrl,
     });
 
     // Track order to database
     try {
-      await fetch(`/api/storefront/${slug}/orders`, {
+      const orderResponse = await fetch(`/api/storefront/${slug}/orders`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -223,10 +253,24 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
           })),
           total_amount: total,
           payment_method: method,
+          customer_name: customer.customer_name,
+          customer_phone: customer.customer_phone,
+          customer_address: customer.customer_address,
+          delivery_method: customer.delivery_method,
+          notes: customer.notes,
+          payment_proof_url: paymentProofUrl,
+          order_code: orderCode,
+          public_tracking_code: trackingCode,
         }),
       });
+      if (!orderResponse.ok) {
+        const errJson = await orderResponse.json().catch(() => null as any);
+        console.error('Error tracking order:', errJson?.error || orderResponse.statusText);
+        showToast('Order gagal tersimpan. Mohon coba lagi.', 'error');
+      }
     } catch (err) {
       console.error('Error tracking order:', err);
+      showToast('Order gagal tersimpan. Mohon coba lagi.', 'error');
     }
 
     // Track WhatsApp click
@@ -440,6 +484,7 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
         totalAmount={checkoutItems.reduce((sum, item) => sum + (item.price * item.quantity), 0)}
         themeColor={storefront.theme_color}
         storeName={storefront.store_name}
+        storefrontSlug={slug}
         qrisImage={storefront.qris_image_url}
         businessBankAccount={
           storefront.bank_name && storefront.bank_account_number
@@ -491,6 +536,7 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
           </div>
         </div>
       </footer>
+      <ToastContainer />
     </div>
   );
 }

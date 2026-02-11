@@ -63,6 +63,8 @@ export const ExpenseItemsTable: React.FC<ExpenseItemsTableProps> = ({
   const [filteredProducts, setFilteredProducts] = useState<typeof products>([])
   const [showDropdown, setShowDropdown] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const [unitOptions, setUnitOptions] = useState<{ value: string; label: string; isFavorite: boolean }[]>([])
+  const [unitLoading, setUnitLoading] = useState(false)
   
   // Calculate current item subtotal
   const currentSubtotal = 
@@ -77,6 +79,19 @@ export const ExpenseItemsTable: React.FC<ExpenseItemsTableProps> = ({
       minimumFractionDigits: 0
     }).format(amount)
   }
+
+  const categoryToBusinessType = (category?: string | null): 'dagang' | 'jasa' | 'produksi' => {
+    const c = (category || '').toString().toLowerCase()
+    if (c.includes('jasa')) return 'jasa'
+    if (c.includes('trading') || c.includes('reseller')) return 'dagang'
+    if (c.includes('produk') || c.includes('stok') || c.includes('hybrid')) return 'produksi'
+    return 'dagang'
+  }
+
+  const matchesBusinessType = (types: string[] | null | undefined, type: 'dagang' | 'jasa' | 'produksi') => {
+    if (!types || types.length === 0) return true
+    return types.map((t) => t.toLowerCase()).includes(type)
+  }
   
   // Update filtered products when products change
   useEffect(() => {
@@ -87,6 +102,68 @@ export const ExpenseItemsTable: React.FC<ExpenseItemsTableProps> = ({
     }
     setFilteredProducts(products)
   }, [products])
+
+  useEffect(() => {
+    const loadUnits = async () => {
+      try {
+        setUnitLoading(true)
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return
+
+        const { data: config } = await supabase
+          .from('business_configurations')
+          .select('business_category')
+          .eq('user_id', user.id)
+          .single()
+
+        const businessType = categoryToBusinessType(config?.business_category)
+
+        const { data: catalog, error: catalogError } = await supabase
+          .from('unit_catalog')
+          .select('id,name,symbol,business_types,is_default,is_active')
+          .eq('is_active', true)
+
+        if (catalogError) throw catalogError
+
+        const { data: prefs, error: prefsError } = await supabase
+          .from('business_unit_preferences')
+          .select('unit_id,is_active,is_favorite')
+          .eq('user_id', user.id)
+
+        if (prefsError) throw prefsError
+
+        const filtered = (catalog || []).filter((unit) => matchesBusinessType(unit.business_types, businessType))
+        const options = filtered
+          .filter((unit) => {
+            const pref = (prefs || []).find((p) => p.unit_id === unit.id)
+            if (pref && pref.is_active === false) return false
+            return unit.is_active !== false
+          })
+          .map((unit) => {
+            const pref = (prefs || []).find((p) => p.unit_id === unit.id)
+            const value = (unit.symbol || unit.name || '').toString()
+            return {
+              value,
+              label: `${unit.name}${unit.symbol ? ` (${unit.symbol})` : ''}`,
+              isFavorite: pref?.is_favorite ?? false
+            }
+          })
+          .filter((unit) => unit.value)
+          .sort((a, b) => {
+            if (a.isFavorite !== b.isFavorite) return a.isFavorite ? -1 : 1
+            return a.label.localeCompare(b.label)
+          })
+
+        setUnitOptions(options)
+      } catch (error) {
+        console.error('Error loading unit options:', error)
+      } finally {
+        setUnitLoading(false)
+      }
+    }
+
+    loadUnits()
+  }, [supabase])
   
   // Filter products based on input
   useEffect(() => {
@@ -128,7 +205,7 @@ export const ExpenseItemsTable: React.FC<ExpenseItemsTableProps> = ({
       product_id: product.id,
       product_name: product.name,
       unit: product.unit || currentItem.unit || 'pcs',
-      price_per_unit: (product as any).cost_price?.toString() || '0'
+      price_per_unit: product.cost_price?.toString() || '0'
     })
     setShowDropdown(false)
   }
@@ -344,16 +421,14 @@ export const ExpenseItemsTable: React.FC<ExpenseItemsTableProps> = ({
               onChange={(e) => onCurrentItemChange({ unit: e.target.value })}
               className="w-full h-10 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
             >
-              <option value="pcs">Pcs</option>
-              <option value="kg">Kg</option>
-              <option value="gram">Gram</option>
-              <option value="liter">Liter</option>
-              <option value="ml">ML</option>
-              <option value="meter">Meter</option>
-              <option value="box">Box</option>
-              <option value="karton">Karton</option>
-              <option value="lusin">Lusin</option>
-              <option value="pack">Pack</option>
+              {unitLoading && <option value={currentItem.unit || 'pcs'}>Memuat satuan...</option>}
+              {!unitLoading && unitOptions.length === 0 && <option value={currentItem.unit || 'pcs'}>Satuan default</option>}
+              {!unitLoading &&
+                unitOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
             </select>
           </div>
           

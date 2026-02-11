@@ -1,8 +1,12 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import QRCode from 'react-qr-code';
-import { CartItem } from '@/types/lapak';
+import { CartItem, CheckoutForm } from '@/types/lapak';
+import { uploadPaymentProof } from '@/lib/uploadPaymentProof';
+import ConfirmModal from '@/components/ui/ConfirmModal';
+import { useConfirm } from '@/hooks/useConfirm';
+import { showToast, ToastContainer } from '@/components/ui/Toast';
 
 interface PaymentModalProps {
   isOpen: boolean;
@@ -11,13 +15,19 @@ interface PaymentModalProps {
   totalAmount: number;
   themeColor: string;
   storeName: string;
+  storefrontSlug: string;
   qrisImage?: string;
   businessBankAccount?: {
     bank_name: string;
     account_number: string;
     account_holder: string;
   };
-  onPaymentComplete: (method: 'qris' | 'transfer' | 'cash') => void;
+  onPaymentComplete: (payload: {
+    method: 'qris' | 'transfer' | 'cash';
+    customer: CheckoutForm;
+    paymentProofUrl?: string;
+    orderCode: string;
+  }) => void;
 }
 
 export default function PaymentModal({
@@ -27,31 +37,124 @@ export default function PaymentModal({
   totalAmount,
   themeColor,
   storeName,
+  storefrontSlug,
   qrisImage,
   businessBankAccount,
   onPaymentComplete,
 }: PaymentModalProps) {
   const [paymentMethod, setPaymentMethod] = useState<'qris' | 'transfer' | null>(null);
   const [showVerification, setShowVerification] = useState(false);
+  const [orderCode, setOrderCode] = useState('');
+  const [checkoutForm, setCheckoutForm] = useState<CheckoutForm>({
+    customer_name: '',
+    customer_phone: '',
+    customer_address: '',
+    delivery_method: 'delivery',
+    notes: '',
+  });
+  const [paymentProofUrl, setPaymentProofUrl] = useState<string | undefined>(undefined);
+  const [paymentProofUploading, setPaymentProofUploading] = useState(false);
+  const [paymentProofError, setPaymentProofError] = useState<string | null>(null);
+  const { confirm, confirmState, handleConfirm, handleCancel } = useConfirm();
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setPaymentMethod(null);
+    setShowVerification(false);
+    setPaymentProofUrl(undefined);
+    setPaymentProofUploading(false);
+    setPaymentProofError(null);
+    setCheckoutForm({
+      customer_name: '',
+      customer_phone: '',
+      customer_address: '',
+      delivery_method: 'delivery',
+      notes: '',
+    });
+    setOrderCode(`KNT-${Date.now().toString().slice(-8)}`);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
-  const handleCashPayment = () => {
-    if (confirm('Konfirmasi pembayaran tunai?')) {
-      onPaymentComplete('cash');
+  const normalizePhone = (value: string) => {
+    let v = value.replace(/\D/g, '');
+    if (v.startsWith('0')) v = v.slice(1);
+    if (v && !v.startsWith('62')) v = `62${v}`;
+    return v;
+  };
+
+  const isCustomerValid =
+    checkoutForm.customer_name.trim().length > 0 &&
+    checkoutForm.customer_phone.trim().length > 0 &&
+    (checkoutForm.delivery_method === 'pickup' || checkoutForm.customer_address.trim().length > 0);
+
+  const requiresProof = paymentMethod === 'qris' || paymentMethod === 'transfer';
+
+  const handleProofUpload = async (file?: File) => {
+    if (!file) return;
+
+    setPaymentProofUploading(true);
+    setPaymentProofError(null);
+
+    const result = await uploadPaymentProof(file, storefrontSlug, orderCode || 'KNT');
+    if (result.success && result.url) {
+      setPaymentProofUrl(result.url);
+    } else {
+      setPaymentProofError(result.error || 'Gagal upload bukti pembayaran');
+    }
+
+    setPaymentProofUploading(false);
+  };
+
+  const handleCashPayment = async () => {
+    if (!isCustomerValid) {
+      showToast('Lengkapi data pembeli terlebih dahulu.', 'warning');
+      return;
+    }
+    const ok = await confirm({
+      title: 'Konfirmasi pembayaran',
+      message: 'Konfirmasi pembayaran tunai?',
+      confirmText: 'Konfirmasi',
+      cancelText: 'Batal',
+      type: 'warning'
+    });
+    if (ok) {
+      onPaymentComplete({
+        method: 'cash',
+        customer: checkoutForm,
+        orderCode,
+      });
       onClose();
     }
   };
 
-  const handleVerifyPayment = () => {
-    if (confirm('Konfirmasi bahwa pembayaran sudah dilakukan?')) {
-      onPaymentComplete(paymentMethod || 'qris');
+  const handleVerifyPayment = async () => {
+    if (!isCustomerValid) {
+      showToast('Lengkapi data pembeli terlebih dahulu.', 'warning');
+      return;
+    }
+    if (requiresProof && !paymentProofUrl) {
+      showToast('Mohon upload bukti pembayaran terlebih dahulu.', 'warning');
+      return;
+    }
+    const ok = await confirm({
+      title: 'Konfirmasi pembayaran',
+      message: 'Konfirmasi bahwa pembayaran sudah dilakukan?',
+      confirmText: 'Konfirmasi',
+      cancelText: 'Batal',
+      type: 'warning'
+    });
+    if (ok) {
+      onPaymentComplete({
+        method: paymentMethod || 'qris',
+        customer: checkoutForm,
+        paymentProofUrl,
+        orderCode,
+      });
       setShowVerification(false);
       onClose();
     }
   };
-
-  const orderCode = `KNT-${Date.now().toString().slice(-8)}`;
 
   // Generate transfer instructions
   const transferInstructions = businessBankAccount ? [
@@ -109,6 +212,91 @@ export default function PaymentModal({
           {/* Content */}
           {!paymentMethod ? (
             <div className="p-6">
+              {/* Customer Info */}
+              <div className="mb-6">
+                <h3 className="font-bold text-gray-900 mb-3">Data Pembeli</h3>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Nama *</label>
+                    <input
+                      type="text"
+                      value={checkoutForm.customer_name}
+                      onChange={(e) => setCheckoutForm({ ...checkoutForm, customer_name: e.target.value })}
+                      placeholder="Nama pembeli"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">No. WhatsApp *</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2.5 text-gray-600 text-sm">+62</span>
+                      <input
+                        type="tel"
+                        value={checkoutForm.customer_phone.replace(/^62/, '')}
+                        onChange={(e) => {
+                          const formatted = normalizePhone(e.target.value);
+                          setCheckoutForm({ ...checkoutForm, customer_phone: formatted });
+                        }}
+                        placeholder="8123456789"
+                        className="w-full pl-12 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Metode Pengiriman</label>
+                    <div className="flex gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setCheckoutForm({ ...checkoutForm, delivery_method: 'delivery' })}
+                        className={`flex-1 py-2 rounded-lg border ${
+                          checkoutForm.delivery_method === 'delivery'
+                            ? 'border-blue-600 bg-blue-50 text-blue-700'
+                            : 'border-gray-300 text-gray-600'
+                        }`}
+                      >
+                        🚚 Diantar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCheckoutForm({ ...checkoutForm, delivery_method: 'pickup', customer_address: '' })}
+                        className={`flex-1 py-2 rounded-lg border ${
+                          checkoutForm.delivery_method === 'pickup'
+                            ? 'border-blue-600 bg-blue-50 text-blue-700'
+                            : 'border-gray-300 text-gray-600'
+                        }`}
+                      >
+                        🏪 Ambil Sendiri
+                      </button>
+                    </div>
+                  </div>
+                  {checkoutForm.delivery_method === 'delivery' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Alamat *</label>
+                      <textarea
+                        value={checkoutForm.customer_address}
+                        onChange={(e) => setCheckoutForm({ ...checkoutForm, customer_address: e.target.value })}
+                        rows={2}
+                        placeholder="Alamat lengkap"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                  )}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Catatan (Opsional)</label>
+                    <textarea
+                      value={checkoutForm.notes || ''}
+                      onChange={(e) => setCheckoutForm({ ...checkoutForm, notes: e.target.value })}
+                      rows={2}
+                      placeholder="Catatan untuk penjual"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+                {!isCustomerValid && (
+                  <p className="text-xs text-red-600 mt-2">Lengkapi data pembeli sebelum melanjutkan pembayaran.</p>
+                )}
+              </div>
+
               {/* Order Summary */}
               <div className="bg-gray-50 rounded-lg p-4 mb-6">
                 <div className="flex items-center justify-between mb-2">
@@ -177,6 +365,7 @@ export default function PaymentModal({
                   {/* Cash Payment Button */}
                   <button
                     onClick={handleCashPayment}
+                    disabled={!isCustomerValid}
                     className="w-full py-4 bg-orange-500 text-white rounded-xl font-medium hover:bg-orange-600 transition-colors flex items-center justify-center gap-2"
                   >
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -189,6 +378,7 @@ export default function PaymentModal({
                   {businessBankAccount && (
                     <button
                       onClick={() => setPaymentMethod('transfer')}
+                      disabled={!isCustomerValid}
                       className="w-full py-4 bg-purple-600 text-white rounded-xl font-medium hover:bg-purple-700 transition-colors flex items-center justify-center gap-2"
                     >
                       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -204,6 +394,7 @@ export default function PaymentModal({
                       setPaymentMethod('qris');
                       setShowVerification(true);
                     }}
+                    disabled={!isCustomerValid}
                     className="w-full py-4 bg-green-600 text-white rounded-xl font-medium hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
                   >
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -235,9 +426,28 @@ export default function PaymentModal({
                 </p>
               </div>
 
-              <div className="space-y-3">
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Upload Bukti Pembayaran *</label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => handleProofUpload(e.target.files?.[0])}
+                    className="block w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                  />
+                  {paymentProofUploading && (
+                    <p className="text-xs text-gray-500 mt-2">Mengupload bukti pembayaran...</p>
+                  )}
+                  {paymentProofUrl && (
+                    <p className="text-xs text-green-600 mt-2">Bukti pembayaran berhasil diupload.</p>
+                  )}
+                  {paymentProofError && (
+                    <p className="text-xs text-red-600 mt-2">{paymentProofError}</p>
+                  )}
+                </div>
                 <button
                   onClick={handleVerifyPayment}
+                  disabled={!paymentProofUrl}
                   className="w-full py-4 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition-colors"
                 >
                   ✓ Ya, Saya Sudah Bayar
@@ -357,7 +567,7 @@ export default function PaymentModal({
                       <button
                         onClick={() => {
                           navigator.clipboard.writeText(businessBankAccount?.account_number || '');
-                          alert('Nomor rekening disalin!');
+                          showToast('Nomor rekening disalin!', 'success');
                         }}
                         className="text-blue-600 text-xs font-medium"
                       >
@@ -390,8 +600,28 @@ export default function PaymentModal({
                 </ol>
               </div>
 
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Upload Bukti Transfer *</label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => handleProofUpload(e.target.files?.[0])}
+                  className="block w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100"
+                />
+                {paymentProofUploading && (
+                  <p className="text-xs text-gray-500 mt-2">Mengupload bukti pembayaran...</p>
+                )}
+                {paymentProofUrl && (
+                  <p className="text-xs text-green-600 mt-2">Bukti transfer berhasil diupload.</p>
+                )}
+                {paymentProofError && (
+                  <p className="text-xs text-red-600 mt-2">{paymentProofError}</p>
+                )}
+              </div>
+
               <button
                 onClick={handleVerifyPayment}
+                disabled={!paymentProofUrl}
                 className="w-full py-4 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition-colors"
               >
                 ✅ Konfirmasi Sudah Transfer
@@ -400,6 +630,17 @@ export default function PaymentModal({
           )}
         </div>
       </div>
+      <ConfirmModal
+        isOpen={confirmState.isOpen}
+        onClose={handleCancel}
+        onConfirm={handleConfirm}
+        title={confirmState.options.title}
+        message={confirmState.options.message}
+        confirmText={confirmState.options.confirmText}
+        cancelText={confirmState.options.cancelText}
+        type={confirmState.options.type}
+      />
+      <ToastContainer />
     </>
   );
 }

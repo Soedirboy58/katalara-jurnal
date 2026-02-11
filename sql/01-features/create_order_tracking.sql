@@ -13,6 +13,9 @@ CREATE TABLE IF NOT EXISTS public.storefront_orders (
   total_amount DECIMAL(12,2) NOT NULL,
   payment_method VARCHAR(50), -- 'qris', 'transfer', 'cash'
   delivery_method VARCHAR(100),
+  order_code VARCHAR(50),
+  payment_proof_url TEXT,
+  transaction_id UUID,
   
   -- Tracking
   session_id VARCHAR(100),

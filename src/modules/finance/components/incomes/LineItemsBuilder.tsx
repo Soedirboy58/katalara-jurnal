@@ -235,7 +235,7 @@ export function LineItemsBuilder({
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  // Auto-fill price when product selected
+  // Auto-fill price and unit when product selected
   useEffect(() => {
     if (selectedProductId) {
       const product = products.find(p => p.id === selectedProductId)
@@ -264,23 +264,69 @@ export function LineItemsBuilder({
     return parseInt(str.replace(/\./g, '')) || 0
   }
 
-  const handleAddItem = () => {
+  const handleAddItem = async () => {
     if (!selectedProductId || !quantity || !price) {
-      alert('⚠️ Mohon lengkapi produk, jumlah, dan harga')
+      showToast('Mohon lengkapi produk, jumlah, dan harga', 'warning')
       return
     }
 
     const product = products.find(p => p.id === selectedProductId)
     if (!product) return
+    
+    // Check for duplicate products
+    const isDuplicate = items.some(item => item.product_id === selectedProductId)
+    if (isDuplicate) {
+      showToast(`Produk "${product.name}" sudah ada dalam daftar!`, 'warning')
+      return
+    }
 
     const finalUnit = unit === '__CUSTOM__' ? customUnit : unit
     if (!finalUnit) {
-      alert('⚠️ Mohon pilih atau masukkan satuan')
+      showToast('Mohon pilih atau masukkan satuan', 'warning')
       return
     }
 
     const qty = parseNumber(quantity)
     const priceNum = parseNumber(price)
+    const buyPrice = (product as any).cost_price || 0
+    
+    // Validate quantity
+    if (qty <= 0) {
+      showToast('Jumlah harus lebih dari 0', 'warning')
+      return
+    }
+    
+    // Validate price
+    if (priceNum <= 0) {
+      showToast('Harga harus lebih dari 0', 'warning')
+      return
+    }
+    
+    // Check stock availability for tracked products
+    if ((product as any).track_inventory && (product as any).current_stock !== undefined) {
+      const currentStock = (product as any).current_stock || 0
+      if (currentStock < qty) {
+        showToast(`Stok tidak cukup! Stok tersedia: ${currentStock} ${finalUnit}`, 'error')
+        return
+      }
+    }
+    
+    // Warn if selling below cost price
+    if (buyPrice > 0 && priceNum < buyPrice) {
+      const confirmed = await confirm({
+        title: 'Harga jual di bawah HPP?',
+        message:
+          `Harga Beli: Rp ${buyPrice.toLocaleString('id-ID')}\n` +
+          `Harga Jual: Rp ${priceNum.toLocaleString('id-ID')}\n` +
+          `Rugi per unit: Rp ${(buyPrice - priceNum).toLocaleString('id-ID')}\n\n` +
+          'Apakah Anda yakin ingin melanjutkan?',
+        confirmText: 'Lanjutkan',
+        cancelText: 'Batal',
+        type: 'warning'
+      })
+      if (!confirmed) return
+    }
+    
     const subtotal = qty * priceNum
 
     const legacy = product as ProductLegacy
@@ -320,7 +366,15 @@ export function LineItemsBuilder({
     setPrice(formatNumber(value))
   }
 
+  // Helper function for profit calculation
+  const calculateTotalProfit = (items: LineItem[]) => {
+    return items.reduce((sum, item) => 
+      sum + ((item.price - (item.buy_price || 0)) * item.quantity), 0
+    )
+  }
+
   const totalSubtotal = items.reduce((sum, item) => sum + item.subtotal, 0)
+  const totalProfit = calculateTotalProfit(items)
 
   return (
     <div className="space-y-4">
@@ -724,40 +778,60 @@ export function LineItemsBuilder({
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Produk</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Jumlah</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Harga</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Harga Jual</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Harga Beli</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Profit</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Subtotal</th>
                   <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase w-16">Aksi</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {items.map((item) => (
-                  <tr key={item.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-sm text-gray-900">{item.product_name}</td>
-                    <td className="px-4 py-3 text-sm text-gray-600 text-right">
-                      {new Intl.NumberFormat('id-ID').format(item.quantity)} {item.unit}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-600 text-right">
-                      Rp {new Intl.NumberFormat('id-ID').format(item.price)}
-                    </td>
-                    <td className="px-4 py-3 text-sm font-medium text-gray-900 text-right">
-                      Rp {new Intl.NumberFormat('id-ID').format(item.subtotal)}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveItem(item.id)}
-                        className="text-red-600 hover:text-red-800 text-sm"
-                      >
-                        🗑️
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {items.map((item) => {
+                  const profitPerUnit = item.price - (item.buy_price || 0)
+                  const totalProfit = profitPerUnit * item.quantity
+                  return (
+                    <tr key={item.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 text-sm text-gray-900">{item.product_name}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600 text-right">
+                        {new Intl.NumberFormat('id-ID').format(item.quantity)} {item.unit}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-600 text-right">
+                        Rp {new Intl.NumberFormat('id-ID').format(item.price)}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-500 text-right">
+                        Rp {new Intl.NumberFormat('id-ID').format(item.buy_price || 0)}
+                      </td>
+                      <td className={`px-4 py-3 text-sm font-medium text-right ${
+                        totalProfit < 0 ? 'text-red-600' : 'text-green-600'
+                      }`}>
+                        {totalProfit < 0 && '-'}
+                        Rp {new Intl.NumberFormat('id-ID').format(Math.abs(totalProfit))}
+                      </td>
+                      <td className="px-4 py-3 text-sm font-medium text-gray-900 text-right">
+                        Rp {new Intl.NumberFormat('id-ID').format(item.subtotal)}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveItem(item.id)}
+                          className="text-red-600 hover:text-red-800 text-sm"
+                        >
+                          🗑️
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
               <tfoot className="bg-gray-50">
                 <tr>
-                  <td colSpan={3} className="px-4 py-3 text-sm font-semibold text-gray-700 text-right">
-                    Total
+                  <td colSpan={4} className="px-4 py-3 text-sm font-semibold text-gray-700 text-right">
+                    Total Profit
+                  </td>
+                  <td className={`px-4 py-3 text-sm font-bold text-right ${
+                    totalProfit < 0 ? 'text-red-600' : 'text-green-600'
+                  }`}>
+                    Rp {new Intl.NumberFormat('id-ID').format(Math.abs(totalProfit))}
                   </td>
                   <td className="px-4 py-3 text-sm font-bold text-blue-600 text-right">
                     Rp {new Intl.NumberFormat('id-ID').format(totalSubtotal)}
@@ -776,6 +850,17 @@ export function LineItemsBuilder({
           <p className="text-sm text-gray-500">Belum ada item. Tambahkan produk/layanan di atas.</p>
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={confirmState.isOpen}
+        onClose={handleCancel}
+        onConfirm={handleConfirm}
+        title={confirmState.options.title}
+        message={confirmState.options.message}
+        confirmText={confirmState.options.confirmText}
+        cancelText={confirmState.options.cancelText}
+        type={confirmState.options.type}
+      />
     </div>
   )
 }

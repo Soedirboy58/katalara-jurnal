@@ -9,6 +9,7 @@ import { useState, useEffect } from 'react'
 import { X, Save, Loader2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { Income } from '@/modules/finance/types/financeTypes'
+import { showToast, ToastContainer } from '@/components/ui/Toast'
 
 export interface EditTransactionModalProps {
   isOpen: boolean
@@ -80,7 +81,7 @@ export function EditTransactionModal({
         }
       } catch (error) {
         console.error('Error loading transaction:', error)
-        alert('❌ Gagal memuat data transaksi')
+        showToast('Gagal memuat data transaksi', 'error')
         onClose()
       } finally {
         setLoading(false)
@@ -162,12 +163,44 @@ export function EditTransactionModal({
 
       if (lastError) throw lastError
 
-      alert('✅ Transaksi berhasil diperbarui')
+      let lastError: any = null
+      for (let i = 0; i < 8; i++) {
+        const { error } = await supabase.from(tableName).update(updateData).eq('id', transactionId)
+        if (!error) {
+          lastError = null
+          break
+        }
+
+        lastError = error
+        if (!isSchemaMismatch(error)) break
+
+        const missing = extractMissingColumn(error)
+        if (missing && Object.prototype.hasOwnProperty.call(updateData, missing)) {
+          delete updateData[missing]
+          continue
+        }
+
+        // If we couldn't detect the missing key, drop one of the category keys as a safe fallback.
+        if (Object.prototype.hasOwnProperty.call(updateData, categoryField)) {
+          delete updateData[categoryField]
+          continue
+        }
+        if (Object.prototype.hasOwnProperty.call(updateData, 'category')) {
+          delete updateData.category
+          continue
+        }
+
+        break
+      }
+
+      if (lastError) throw lastError
+
+      showToast('Transaksi berhasil diperbarui', 'success')
       onSuccess?.()
       onClose()
     } catch (error) {
       console.error('Error updating transaction:', error)
-      alert('❌ Gagal memperbarui transaksi')
+      showToast('Gagal memperbarui transaksi', 'error')
     } finally {
       setSaving(false)
     }
@@ -352,6 +385,7 @@ export function EditTransactionModal({
           )}
         </div>
       </div>
+      <ToastContainer />
     </div>
   )
 }

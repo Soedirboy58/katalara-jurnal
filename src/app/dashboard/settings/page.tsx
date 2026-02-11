@@ -57,6 +57,12 @@ export default function SettingsPage() {
     loadSettings()
   }, [])
 
+  useEffect(() => {
+    if (userId) {
+      loadOperationalSettings(userId, businessType)
+    }
+  }, [userId, businessType])
+
   const loadSettings = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser()
@@ -84,6 +90,76 @@ export default function SettingsPage() {
       console.error('Error loading settings:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const matchesBusinessType = (types: string[] | null | undefined, type: BusinessType) => {
+    if (!types || types.length === 0) return true
+    return types.map((t) => t.toLowerCase()).includes(type)
+  }
+
+  const loadOperationalSettings = async (uid: string, type: BusinessType) => {
+    try {
+      setOperationalLoading(true)
+
+      const { data: units, error: unitsError } = await supabase
+        .from('unit_catalog')
+        .select('*')
+        .eq('is_active', true)
+
+      if (unitsError) throw unitsError
+
+      const { data: templates, error: templatesError } = await supabase
+        .from('invoice_templates')
+        .select('*')
+        .eq('is_active', true)
+
+      if (templatesError) throw templatesError
+
+      const filteredUnits = (units || []).filter((unit) => matchesBusinessType(unit.business_types, type))
+      const filteredTemplates = (templates || []).filter((tpl) => matchesBusinessType(tpl.business_types, type))
+
+      setUnitCatalog(filteredUnits)
+      setInvoiceTemplates(filteredTemplates)
+
+      const { data: unitPreferences, error: unitPrefError } = await supabase
+        .from('business_unit_preferences')
+        .select('unit_id,is_active,is_favorite')
+        .eq('user_id', uid)
+
+      if (unitPrefError) throw unitPrefError
+
+      const { data: templatePreferences, error: templatePrefError } = await supabase
+        .from('business_invoice_preferences')
+        .select('template_id,is_default')
+        .eq('user_id', uid)
+
+      if (templatePrefError) throw templatePrefError
+
+      const initialPrefs: Record<string, { is_active: boolean; is_favorite: boolean }> = {}
+      filteredUnits.forEach((unit) => {
+        initialPrefs[unit.id] = {
+          is_active: unit.is_active ?? true,
+          is_favorite: false
+        }
+      })
+
+      ;(unitPreferences || []).forEach((pref) => {
+        initialPrefs[pref.unit_id] = {
+          is_active: pref.is_active ?? true,
+          is_favorite: pref.is_favorite ?? false
+        }
+      })
+
+      setUnitPrefs(initialPrefs)
+
+      const defaultPref = (templatePreferences || []).find((pref) => pref.is_default)
+      const defaultFromCatalog = filteredTemplates.find((tpl) => tpl.is_default)
+      setDefaultTemplateId(defaultPref?.template_id || defaultFromCatalog?.id || filteredTemplates[0]?.id || '')
+    } catch (error) {
+      console.error('Error loading operational settings:', error)
+    } finally {
+      setOperationalLoading(false)
     }
   }
 
@@ -120,6 +196,37 @@ export default function SettingsPage() {
 
       if (error) throw error
 
+      if (userId) {
+        const unitRows = unitCatalog.map((unit) => ({
+          user_id: userId,
+          unit_id: unit.id,
+          is_active: unitPrefs[unit.id]?.is_active ?? true,
+          is_favorite: unitPrefs[unit.id]?.is_favorite ?? false
+        }))
+
+        if (unitRows.length > 0) {
+          const { error: unitSaveError } = await supabase
+            .from('business_unit_preferences')
+            .upsert(unitRows, { onConflict: 'user_id,unit_id' })
+
+          if (unitSaveError) throw unitSaveError
+        }
+
+        const templateRows = invoiceTemplates.map((tpl) => ({
+          user_id: userId,
+          template_id: tpl.id,
+          is_default: tpl.id === defaultTemplateId
+        }))
+
+        if (templateRows.length > 0) {
+          const { error: templateSaveError } = await supabase
+            .from('business_invoice_preferences')
+            .upsert(templateRows, { onConflict: 'user_id,template_id' })
+
+          if (templateSaveError) throw templateSaveError
+        }
+      }
+
       showToast('success', '✅ Pengaturan berhasil disimpan!')
     } catch (error: any) {
       console.error('Error saving settings:', error)
@@ -148,6 +255,26 @@ export default function SettingsPage() {
     } finally {
       setSaving(false)
     }
+  }
+
+  const toggleUnitActive = (unitId: string) => {
+    setUnitPrefs((prev) => ({
+      ...prev,
+      [unitId]: {
+        is_active: !(prev[unitId]?.is_active ?? true),
+        is_favorite: prev[unitId]?.is_favorite ?? false
+      }
+    }))
+  }
+
+  const toggleUnitFavorite = (unitId: string) => {
+    setUnitPrefs((prev) => ({
+      ...prev,
+      [unitId]: {
+        is_active: prev[unitId]?.is_active ?? true,
+        is_favorite: !(prev[unitId]?.is_favorite ?? false)
+      }
+    }))
   }
 
   const formatNumber = (value: string): string => {

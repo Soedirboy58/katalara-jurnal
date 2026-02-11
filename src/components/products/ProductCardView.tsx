@@ -34,14 +34,21 @@ export function ProductCardView({
   const [syncedProducts, setSyncedProducts] = useState<Record<string, boolean>>({})
   const [syncingProducts, setSyncingProducts] = useState<Record<string, boolean>>({})
 
+  const getActiveStorefrontId = () => {
+    if (typeof window === 'undefined') return null
+    return localStorage.getItem('katalara_active_lapak_id')
+  }
+
   // Check which products are synced to Lapak
   useEffect(() => {
     const checkSyncStatus = async () => {
       const statusMap: Record<string, boolean> = {}
       
+      const storefrontId = getActiveStorefrontId()
+
       for (const product of products) {
         try {
-          const response = await fetch(`/api/lapak/sync-product?productName=${encodeURIComponent(product.name)}`)
+          const response = await fetch(`/api/lapak/sync-product?productName=${encodeURIComponent(product.name)}${storefrontId ? `&storefrontId=${storefrontId}` : ''}`)
           const data = await response.json()
           statusMap[product.id] = data.synced || false
         } catch (error) {
@@ -62,10 +69,11 @@ export function ProductCardView({
     setSyncingProducts(prev => ({ ...prev, [product.id]: true }))
     
     try {
+      const storefrontId = getActiveStorefrontId()
       const response = await fetch('/api/lapak/sync-product', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ productId: product.id }),
+        body: JSON.stringify({ productId: product.id, storefrontId }),
       })
 
       const data = await response.json()
@@ -89,7 +97,8 @@ export function ProductCardView({
     setSyncingProducts(prev => ({ ...prev, [product.id]: true }))
     
     try {
-      const response = await fetch(`/api/lapak/sync-product?productName=${encodeURIComponent(product.name)}`, {
+      const storefrontId = getActiveStorefrontId()
+      const response = await fetch(`/api/lapak/sync-product?productName=${encodeURIComponent(product.name)}${storefrontId ? `&storefrontId=${storefrontId}` : ''}`, {
         method: 'DELETE',
       })
 
@@ -112,9 +121,27 @@ export function ProductCardView({
   
   const formatCurrency = (value: number) => `Rp ${value.toLocaleString('id-ID')}`
 
+  const getStockQty = (product: Product) => {
+    const qty = (product as any).stock_quantity ?? (product as any).stock ?? (product as any).quantity ?? 0
+    const asNum = typeof qty === 'string' ? Number(qty) : qty
+    return Number.isFinite(asNum) ? asNum : 0
+  }
+
+  const getMinStock = (product: Product) => {
+    const min = (product as any).min_stock_alert ?? (product as any).min_stock ?? (product as any).low_stock_threshold ?? 0
+    const asNum = typeof min === 'string' ? Number(min) : min
+    return Number.isFinite(asNum) ? asNum : 0
+  }
+
   const getStockStatus = (product: Product) => {
-    // ⚠️ Stock tracking fields not in simplified schema
-    return { label: 'N/A', icon: '➖', color: 'bg-gray-100 text-gray-700' }
+    if (!(product as any).track_inventory) {
+      return { label: 'Sehat', icon: '✅', color: 'bg-green-100 text-green-800' }
+    }
+    const stockQty = getStockQty(product)
+    const minStock = getMinStock(product)
+    if (stockQty <= 0) return { label: 'Habis', icon: '⛔', color: 'bg-red-100 text-red-800' }
+    if (minStock > 0 && stockQty <= minStock) return { label: 'Rendah', icon: '⚠️', color: 'bg-yellow-100 text-yellow-800' }
+    return { label: 'Sehat', icon: '✅', color: 'bg-green-100 text-green-800' }
   }
 
   const getMargin = (product: Product) => {
@@ -155,6 +182,11 @@ export function ProductCardView({
         const status = getStockStatus(product)
         const margin = getMargin(product)
         const isSelected = selectedProducts.includes(product.id)
+        const stockQty = getStockQty(product)
+        const legacy = product as ProductLegacy
+        const costPrice = legacy.cost_price ?? legacy.buy_price ?? 0
+        const costNum = typeof costPrice === 'string' ? Number(costPrice) : costPrice
+        const stockValue = Number.isFinite(costNum) ? costNum * stockQty : 0
 
         return (
           <div
@@ -245,14 +277,19 @@ export function ProductCardView({
             {/* Card Body */}
             <div className="p-2.5 sm:p-4 space-y-2 sm:space-y-3">
               {/* Stock Info */}
-              {/* ⚠️ Stock display disabled - fields not in schema
               <div className="flex items-center justify-between">
                 <span className="text-[10px] sm:text-xs text-gray-600">Stok</span>
                 <div className="text-right">
-                  <span className="text-xs sm:text-sm font-bold text-gray-900">N/A</span>
+                  <span className="text-xs sm:text-sm font-bold text-gray-900">{stockQty}</span>
+                  <span className="text-[10px] sm:text-xs text-gray-500 ml-1">{(product as any).unit || ''}</span>
                 </div>
               </div>
-              */}
+              
+              <div className="flex items-center justify-between">
+                <span className={`text-[10px] sm:text-xs px-2 py-0.5 rounded-full ${status.color}`}>
+                  {status.icon} {status.label}
+                </span>
+              </div>
 
               {/* Pricing */}
               <div className="space-y-1 sm:space-y-2">
@@ -285,7 +322,7 @@ export function ProductCardView({
               <div className="bg-blue-50 rounded-lg p-1.5 sm:p-2 flex items-center justify-between">
                 <span className="text-[10px] sm:text-xs text-blue-700 font-medium">Nilai Stok</span>
                 <span className="text-xs sm:text-sm font-bold text-blue-700">
-                  {formatCurrency(0)}
+                  {formatCurrency(stockValue)}
                 </span>
               </div>
             </div>

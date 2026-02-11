@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { showToast, ToastContainer } from '@/components/ui/Toast'
 
 interface Supplier {
   id: string
@@ -390,7 +391,7 @@ export default function SuppliersPage() {
                 try {
                   const { data: { session } } = await supabase.auth.getSession()
                   if (!session?.user) {
-                    alert('Sesi berakhir, silakan login kembali')
+                    showToast('Sesi berakhir, silakan login kembali', 'error')
                     return
                   }
 
@@ -408,7 +409,7 @@ export default function SuppliersPage() {
 
                   if (error) throw error
 
-                  alert('Supplier berhasil ditambahkan!')
+                  showToast('Supplier berhasil ditambahkan!', 'success')
                   setShowAddModal(false)
                   setFormData({
                     name: '',
@@ -420,7 +421,7 @@ export default function SuppliersPage() {
                   fetchSuppliers()
                 } catch (error) {
                   console.error('Error adding supplier:', error)
-                  alert('Gagal menambahkan supplier')
+                  showToast('Gagal menambahkan supplier', 'error')
                 } finally {
                   setSubmitting(false)
                 }
@@ -538,6 +539,7 @@ export default function SuppliersPage() {
           </div>
         </div>
       )}
+      <ToastContainer />
     </div>
   )
 }

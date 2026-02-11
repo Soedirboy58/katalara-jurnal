@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { createClient } from '@/lib/supabase/client'
+import { showToast, ToastContainer } from '@/components/ui/Toast'
 
 export default function ResetPasswordPage() {
   const router = useRouter()
@@ -125,7 +126,7 @@ export default function ResetPasswordPage() {
       if (error) throw error
 
       // Success - redirect to login
-      alert('Password berhasil diubah! Silakan login dengan password baru.')
+      showToast('Password berhasil diubah! Silakan login dengan password baru.', 'success')
       router.push('/login')
     } catch (err: any) {
       setError(err.message || 'Terjadi kesalahan')
@@ -226,6 +227,7 @@ export default function ResetPasswordPage() {
           </div>
         </div>
       </div>
+      <ToastContainer />
     </div>
   )
 }

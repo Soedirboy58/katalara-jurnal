@@ -3,6 +3,9 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useProducts } from '@/hooks/useProducts'
 import { Button } from '@/components/ui/Button'
+import ConfirmModal from '@/components/ui/ConfirmModal'
+import { showToast, ToastContainer } from '@/components/ui/Toast'
+import { useConfirm } from '@/hooks/useConfirm'
 import { ProductKPICards } from './ProductKPICards'
 import { ProductCategoryTabs } from './ProductCategoryTabs'
 // import { ProductTableAdvanced } from './ProductTableAdvanced' // ⚠️ Disabled - uses old schema fields
@@ -27,12 +30,17 @@ export function ProductsView() {
   const [isProductModalOpen, setIsProductModalOpen] = useState(false)
   const [isStockModalOpen, setIsStockModalOpen] = useState(false)
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
+  const [stockProduct, setStockProduct] = useState<Product | null>(null)
+  const [stockChange, setStockChange] = useState('')
+  const [stockNotes, setStockNotes] = useState('Penyesuaian stok manual')
   const [viewMode, setViewMode] = useState<ViewMode>('table')
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedProducts, setSelectedProducts] = useState<string[]>([])
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(10)
+
+  const { confirm, confirmState, handleConfirm, handleCancel } = useConfirm()
 
   const { 
     products, 
@@ -204,13 +212,20 @@ export function ProductsView() {
   }
 
   const handleDelete = async (product: Product) => {
-    if (!confirm(`Hapus produk "${product.name}"?`)) return
+    const ok = await confirm({
+      title: 'Hapus produk?',
+      message: `Hapus produk "${product.name}"?`,
+      confirmText: 'Hapus',
+      cancelText: 'Batal',
+      type: 'danger'
+    })
+    if (!ok) return
 
     const { error } = await deleteProduct(product.id)
     if (error) {
-      alert('Gagal menghapus: ' + error)
+      showToast('Gagal menghapus: ' + error, 'error')
     } else {
-      alert('Produk berhasil dihapus')
+      showToast('Produk berhasil dihapus', 'success')
       setSelectedProducts(prev => prev.filter(id => id !== product.id))
     }
   }
@@ -232,13 +247,25 @@ export function ProductsView() {
   }
 
   const handleBulkDelete = async () => {
-    if (!confirm(`Hapus ${selectedProducts.length} produk yang dipilih?`)) return
+    if (selectedProducts.length === 0) {
+      showToast('Pilih produk terlebih dulu', 'warning')
+      return
+    }
+
+    const ok = await confirm({
+      title: 'Hapus banyak produk?',
+      message: `Hapus ${selectedProducts.length} produk yang dipilih?`,
+      confirmText: 'Hapus Semua',
+      cancelText: 'Batal',
+      type: 'danger'
+    })
+    if (!ok) return
 
     for (const id of selectedProducts) {
       await deleteProduct(id)
     }
     setSelectedProducts([])
-    alert('Produk berhasil dihapus')
+    showToast('Produk berhasil dihapus', 'success')
   }
 
   const handleBulkExport = () => {
@@ -270,6 +297,7 @@ export function ProductsView() {
     a.href = url
     a.download = 'produk-export.csv'
     a.click()
+    showToast('Export berhasil', 'success')
   }
 
   return (
@@ -543,8 +571,8 @@ export function ProductsView() {
       <BulkActionsBar
         selectedCount={selectedProducts.length}
         onClearSelection={() => setSelectedProducts([])}
-        onBulkCategory={() => alert('Bulk category change coming soon!')}
-        onBulkAdjustStock={() => alert('Bulk stock adjustment coming soon!')}
+        onBulkCategory={() => showToast('Bulk category change segera hadir', 'info')}
+        onBulkAdjustStock={() => showToast('Bulk stock adjustment segera hadir', 'info')}
         onBulkExport={handleBulkExport}
         onBulkDelete={handleBulkDelete}
       />
@@ -559,8 +587,88 @@ export function ProductsView() {
         product={selectedProduct}
         onSuccess={refresh}
       />
+      <ConfirmModal
+        isOpen={confirmState.isOpen}
+        onClose={handleCancel}
+        onConfirm={handleConfirm}
+        title={confirmState.options.title}
+        message={confirmState.options.message}
+        confirmText={confirmState.options.confirmText}
+        cancelText={confirmState.options.cancelText}
+        type={confirmState.options.type}
+      />
 
-      {/* ⚠️ StockAdjustModal disabled - stock tracking not in schema */}
+      {/* Stock Adjust Modal */}
+      {isStockModalOpen && stockProduct && (
+        <div className="fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full">
+            <div className="p-5 border-b">
+              <h3 className="text-lg font-bold text-gray-900">Penyesuaian Stok</h3>
+              <p className="text-xs text-gray-600 mt-1">{stockProduct.name}</p>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Perubahan stok</label>
+                <input
+                  type="number"
+                  value={stockChange}
+                  onChange={(e) => setStockChange(e.target.value)}
+                  placeholder="Contoh: 5 atau -3"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                <p className="text-xs text-gray-500 mt-1">Gunakan angka negatif untuk pengurangan.</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Catatan (opsional)</label>
+                <input
+                  type="text"
+                  value={stockNotes}
+                  onChange={(e) => setStockNotes(e.target.value)}
+                  placeholder="Catatan penyesuaian"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+
+            <div className="border-t p-4 flex gap-3">
+              <button
+                onClick={() => {
+                  setIsStockModalOpen(false)
+                  setStockProduct(null)
+                }}
+                className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+              >
+                Batal
+              </button>
+              <button
+                onClick={async () => {
+                  const qtyChange = Number(stockChange)
+                  if (!Number.isFinite(qtyChange) || qtyChange === 0) {
+                    showToast('Perubahan stok tidak valid atau 0', 'warning')
+                    return
+                  }
+                  const notes = stockNotes?.trim() || undefined
+                  const { error } = await adjustStock(stockProduct.id, qtyChange, notes)
+                  if (error) {
+                    showToast('Gagal menyesuaikan stok: ' + error, 'error')
+                    return
+                  }
+                  showToast('Stok berhasil disesuaikan', 'success')
+                  setIsStockModalOpen(false)
+                  setStockProduct(null)
+                }}
+                className="flex-1 px-4 py-2.5 text-white rounded-lg transition-colors font-medium bg-blue-600 hover:bg-blue-700"
+              >
+                Simpan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <ToastContainer />
     </div>
   )
 }

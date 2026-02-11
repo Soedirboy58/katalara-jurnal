@@ -270,7 +270,7 @@ export function PreviewTransactionModal({
         }
       } catch (error) {
         console.error('Error loading transaction:', error)
-        alert('❌ Gagal memuat detail transaksi')
+        showToast('Gagal memuat detail transaksi', 'error')
         onClose()
       } finally {
         setLoading(false)

@@ -11,7 +11,32 @@ export async function POST(
     const userAgent = request.headers.get('user-agent') || '';
     
     const body = await request.json();
-    const { order_items, total_amount, payment_method } = body;
+    const {
+      order_items,
+      total_amount,
+      payment_method,
+      customer_name,
+      customer_phone,
+      customer_address,
+      delivery_method,
+      notes,
+      payment_proof_url,
+      order_code,
+      public_tracking_code,
+    } = body;
+
+    const slugify = (value: string) =>
+      value
+        .toLowerCase()
+        .replace(/[^a-z0-9\s-]/g, '')
+        .trim()
+        .replace(/\s+/g, '-')
+        .replace(/-+/g, '-')
+        .slice(0, 32)
+
+    const trackingCode =
+      public_tracking_code ||
+      (order_code ? `${order_code}-${slugify((customer_name || 'pembeli').toString())}` : null)
 
     const supabase = await createClient();
 
@@ -34,9 +59,17 @@ export async function POST(
       .from('storefront_orders')
       .insert({
         storefront_id: storefront.id,
+        customer_name,
+        customer_phone,
+        customer_address,
         order_items,
         total_amount,
         payment_method,
+        delivery_method,
+        notes,
+        payment_proof_url,
+        order_code,
+        public_tracking_code: trackingCode,
         session_id: sessionId,
         user_agent: userAgent,
         status: 'pending',
@@ -123,6 +156,82 @@ export async function GET(
     });
   } catch (error) {
     console.error('Get orders error:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+// PATCH - update order status (owner only)
+export async function PATCH(
+  request: NextRequest,
+  context: { params: Promise<{ slug: string }> }
+) {
+  try {
+    const { slug } = await context.params;
+    const supabase = await createClient();
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { order_id, status, transaction_id } = body || {};
+
+    if (!order_id || !status) {
+      return NextResponse.json({ error: 'order_id dan status wajib diisi' }, { status: 400 });
+    }
+
+    const allowed = ['pending', 'confirmed', 'preparing', 'shipped', 'completed', 'canceled'];
+    if (!allowed.includes(status)) {
+      return NextResponse.json({ error: 'Status tidak valid' }, { status: 400 });
+    }
+
+    // Verify ownership
+    const { data: storefront, error: storefrontError } = await supabase
+      .from('business_storefronts')
+      .select('id')
+      .eq('slug', slug)
+      .eq('user_id', user.id)
+      .single();
+
+    if (storefrontError || !storefront) {
+      return NextResponse.json(
+        { error: 'Storefront not found or unauthorized' },
+        { status: 404 }
+      );
+    }
+
+    const updatePayload: any = {
+      status,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (transaction_id) {
+      updatePayload.transaction_id = transaction_id;
+    }
+
+    const { data: updatedOrder, error: updateError } = await supabase
+      .from('storefront_orders')
+      .update(updatePayload)
+      .eq('id', order_id)
+      .eq('storefront_id', storefront.id)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error('Error updating order:', updateError);
+      return NextResponse.json(
+        { error: 'Gagal memperbarui order' },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ success: true, order: updatedOrder });
+  } catch (error) {
+    console.error('Order update error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

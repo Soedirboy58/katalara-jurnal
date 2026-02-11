@@ -35,9 +35,9 @@ import { SupabaseClient } from '@supabase/supabase-js'
 export const PRODUCT_IMAGE_BUCKET = 'products' // ⚠️ GANTI SESUAI BUCKET ANDA
 
 /**
- * Maximum file size (5 MB)
+ * Maximum file size (3 MB)
  */
-export const MAX_FILE_SIZE = 5 * 1024 * 1024
+export const MAX_FILE_SIZE = 3 * 1024 * 1024
 
 /**
  * Allowed image MIME types

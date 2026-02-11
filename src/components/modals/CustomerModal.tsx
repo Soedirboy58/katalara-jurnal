@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { X, Search, Plus, UserCircle, Phone, Mail, MapPin, Loader2, TrendingUp } from 'lucide-react'
+import { showToast, ToastContainer } from '@/components/ui/Toast'
 
 interface Customer {
   id: string
@@ -82,7 +83,7 @@ export default function CustomerModal({ isOpen, onClose, onSelect, selectedCusto
 
   const handleQuickAdd = async () => {
     if (!newCustomer.name.trim()) {
-      alert('Nama pelanggan wajib diisi!')
+      showToast('Nama pelanggan wajib diisi!', 'warning')
       return
     }
 
@@ -108,11 +109,11 @@ export default function CustomerModal({ isOpen, onClose, onSelect, selectedCusto
           address: ''
         })
       } else {
-        alert(json.error || 'Gagal menambahkan pelanggan')
+        showToast(json.error || 'Gagal menambahkan pelanggan', 'error')
       }
     } catch (error) {
       console.error('Error adding customer:', error)
-      alert('Terjadi kesalahan saat menambahkan pelanggan')
+      showToast('Terjadi kesalahan saat menambahkan pelanggan', 'error')
     } finally {
       setIsSubmitting(false)
     }
@@ -367,6 +368,7 @@ export default function CustomerModal({ isOpen, onClose, onSelect, selectedCusto
           </button>
         </div>
       </div>
+      <ToastContainer />
     </div>
   )
 }

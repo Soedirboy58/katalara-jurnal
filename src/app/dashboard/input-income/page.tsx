@@ -23,8 +23,14 @@ import { getIncomeCategoryLabel } from '@/modules/finance/types/financeTypes'
 import type { IncomeFormData } from '@/modules/finance/types/financeTypes'
 import { EditTransactionModal } from '@/components/transactions/EditTransactionModal'
 import { PreviewTransactionModal } from '@/components/transactions/PreviewTransactionModal'
+import { CheckCircle, HelpCircle, X } from 'lucide-react'
+import ConfirmModal from '@/components/ui/ConfirmModal'
+import { useConfirm } from '@/hooks/useConfirm'
+import { ToastContainer } from '@/components/ui/Toast'
 
 export const dynamic = 'force-dynamic'
+
+type ToastType = 'success' | 'error' | 'warning'
 
 export default function InputIncomePage() {
   const { incomes, loading: loadingIncomes, error, fetchIncomes, createIncome, deleteIncome } = useIncomes({

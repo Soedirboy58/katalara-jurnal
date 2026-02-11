@@ -221,6 +221,12 @@ export async function DELETE(request: NextRequest) {
 
     const { error: deleteError } = await deleteQuery;
 
+    if (storefrontId) {
+      deleteQuery = deleteQuery.eq('storefront_id', storefrontId);
+    }
+
+    const { error: deleteError } = await deleteQuery;
+
     if (deleteError) {
       console.error('Error deleting product:', deleteError);
       return NextResponse.json(
@@ -257,6 +263,7 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const productName = searchParams.get('productName');
+    const storefrontId = searchParams.get('storefrontId');
 
     if (!productName) {
       return NextResponse.json(
@@ -266,12 +273,17 @@ export async function GET(request: NextRequest) {
     }
 
     // Check if product exists in storefront_products
-    const { data: product } = await supabase
+    let query = supabase
       .from('storefront_products')
       .select('id, is_visible, is_featured')
       .eq('user_id', user.id)
-      .eq('name', productName)
-      .single();
+      .eq('name', productName);
+
+    if (storefrontId) {
+      query = query.eq('storefront_id', storefrontId);
+    }
+
+    const { data: product } = await query.single();
 
     return NextResponse.json({
       synced: !!product,

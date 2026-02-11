@@ -10,7 +10,8 @@ import { getCostPrice, getSellingPrice } from '@/types/product-schema'
 import { generateSKU } from '@/utils/helpers'
 import { createClient } from '@/lib/supabase/client'
 import { formatRupiah, parseRupiahInput } from '@/lib/numberFormat'
-import { uploadProductImage, PRODUCT_IMAGE_BUCKET, getBucketInfo } from '@/lib/storage/productImages'
+import { uploadProductImage, PRODUCT_IMAGE_BUCKET, getBucketInfo, validateImageFile, MAX_FILE_SIZE } from '@/lib/storage/productImages'
+import { showToast, ToastContainer } from '@/components/ui/Toast'
 
 interface ProductModalProps {
   isOpen: boolean
@@ -98,17 +99,18 @@ export function ProductModal({ isOpen, onClose, product, onSuccess, onCreated }:
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || [])
     
-    // Validation: Maximum 5 images
-    if (images.length + files.length > 5) {
-      setErrorMessage('Maksimal 5 gambar. Hapus gambar lain terlebih dahulu.')
+    // Validation: Maximum 3 images
+    if (images.length + files.length > 3) {
+      setErrorMessage('Maksimal 3 gambar. Hapus gambar lain terlebih dahulu.')
       return
     }
 
-    // Validation: File size (max 5MB each)
-    const invalidFiles = files.filter(file => file.size > 5 * 1024 * 1024)
-    if (invalidFiles.length > 0) {
-      setErrorMessage('Beberapa file melebihi 5MB. Pilih file yang lebih kecil.')
-      return
+    for (const file of files) {
+      const validationError = validateImageFile(file)
+      if (validationError) {
+        setErrorMessage(`${file.name}: ${validationError}`)
+        return
+      }
     }
 
     // Create previews for new files
@@ -132,8 +134,8 @@ export function ProductModal({ isOpen, onClose, product, onSuccess, onCreated }:
     e.target.value = ''
   }
 
-  const handleRemoveImage = () => {
-    setImages([]) // Clear single image
+  const handleRemoveImage = (index: number) => {
+    setImages((prev) => prev.filter((_, i) => i !== index))
   }
 
 
@@ -248,49 +250,51 @@ export function ProductModal({ isOpen, onClose, product, onSuccess, onCreated }:
 
       // STEP 2: Upload image to Supabase Storage (only first image, sesuai schema)
       if (images.length > 0) {
-        console.log('🖼️ Uploading product image...', {
+        console.log('🖼️ Uploading product images...', {
           bucket: PRODUCT_IMAGE_BUCKET,
           config: getBucketInfo()
         })
 
-        const imageData = images[0] // Hanya ambil gambar pertama
-        
-        console.log('📁 Uploading image...')
-
-        // Use helper function for upload
-        const uploadResult = await uploadProductImage(
-          supabase,
-          user.id,
-          productId,
-          imageData.file,
-          0
+        const uploadResults = await Promise.all(
+          images.slice(0, 3).map((imageData, index) =>
+            uploadProductImage(supabase, user.id, productId, imageData.file, index)
+          )
         )
 
-        if (!uploadResult.success || !uploadResult.publicUrl) {
-          console.error('❌ Upload error:', uploadResult.error)
-          // Produk sudah tersimpan, tapi gambar gagal - tidak perlu throw error
-          alert(
-            `⚠️ Produk berhasil disimpan, tetapi gambar gagal diupload.\n\n` +
-            `Error: ${uploadResult.error}\n\n` +
-            `Silakan edit produk dan upload ulang gambar.`
+        const successUrls = uploadResults
+          .filter((r) => r.success && r.publicUrl)
+          .map((r) => r.publicUrl as string)
+
+        if (successUrls.length === 0) {
+          const firstError = uploadResults.find((r) => r.error)?.error
+          showToast(
+            `Produk berhasil disimpan, tetapi gambar gagal diupload. ${firstError || ''}`.trim(),
+            'warning'
           )
         } else {
-          console.log('✅ Image uploaded:', uploadResult.publicUrl)
+          const updatePayload: any = {
+            image_url: successUrls[0],
+            image_urls: successUrls,
+          }
 
-          // STEP 3: Update products.image_url
           const { error: updateError } = await supabase
             .from('products')
-            .update({ image_url: uploadResult.publicUrl })
+            .update(updatePayload)
             .eq('id', productId)
 
           if (updateError) {
-            console.error('❌ Failed to update image_url:', updateError)
-            alert(
-              `⚠️ Produk berhasil disimpan, tetapi gagal menyimpan URL gambar.\n\n` +
-              `Silakan edit produk dan upload ulang gambar.`
+            console.error('❌ Failed to update image_url(s):', updateError)
+            showToast(
+              'Produk berhasil disimpan, tetapi gagal menyimpan URL gambar. Silakan edit produk dan upload ulang gambar.',
+              'warning'
             )
           } else {
-            console.log('✅ Product image_url updated successfully')
+            showToast('Gambar produk berhasil diupload', 'success')
+          }
+
+          const failedCount = uploadResults.filter((r) => !r.success).length
+          if (failedCount > 0) {
+            showToast(`${failedCount} gambar gagal diupload`, 'warning')
           }
         }
       } else {
@@ -298,12 +302,10 @@ export function ProductModal({ isOpen, onClose, product, onSuccess, onCreated }:
       }
 
       // Success!
-      onSuccess()
+      onSuccess(productId)
       onClose()
       
-      // Show success toast (assuming toast utility exists in project)
-      // If not, we'll just log it
-      console.log('🎉 Success:', product ? 'Produk berhasil diupdate!' : 'Produk berhasil ditambahkan!')
+      showToast(product ? 'Produk berhasil diupdate!' : 'Produk berhasil ditambahkan!', 'success')
       
     } catch (error: any) {
       console.error('❌ Submit error:', error)
@@ -329,40 +331,39 @@ export function ProductModal({ isOpen, onClose, product, onSuccess, onCreated }:
           placeholder="Contoh: Kaos Polos Hitam"
         />
 
-        {/* Single Image Upload (sesuai schema products.image_url) */}
+        {/* Multi Image Upload (max 3) */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Gambar Produk (Opsional)
           </label>
           
-          {/* Image Preview (single image only) */}
+          {/* Image Previews */}
           {images.length > 0 && (
-            <div className="mb-3 max-w-xs">
-              <div className="relative group rounded-lg overflow-hidden border-2 border-gray-300">
-                {/* Image Preview */}
-                <div className="aspect-square">
-                  <img 
-                    src={images[0].preview} 
-                    alt="Preview" 
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                
-                {/* Remove Button (show on hover) */}
-                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+            <div className="mb-3 grid grid-cols-3 gap-3">
+              {images.map((img, index) => (
+                <div key={`${img.preview}-${index}`} className="relative group rounded-lg overflow-hidden border border-gray-300">
+                  <div className="aspect-square">
+                    <img
+                      src={img.preview}
+                      alt={`Preview ${index + 1}`}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
                   <button
                     type="button"
-                    onClick={handleRemoveImage}
-                    className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition-colors flex items-center gap-2"
+                    onClick={() => handleRemoveImage(index)}
+                    className="absolute top-2 right-2 bg-black/60 text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                     title="Hapus gambar"
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                    <span className="text-sm font-medium">Hapus</span>
+                    ×
                   </button>
+                  {index === 0 && (
+                    <span className="absolute bottom-2 left-2 text-[10px] bg-black/60 text-white px-2 py-0.5 rounded">
+                      Utama
+                    </span>
+                  )}
                 </div>
-              </div>
+              ))}
             </div>
           )}
           
@@ -371,6 +372,7 @@ export function ProductModal({ isOpen, onClose, product, onSuccess, onCreated }:
             <input
               type="file"
               accept="image/*"
+              multiple
               onChange={handleImageChange}
               className="hidden"
               id="product-image"
@@ -383,11 +385,11 @@ export function ProductModal({ isOpen, onClose, product, onSuccess, onCreated }:
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
               <span className="text-sm font-medium">
-                {images.length === 0 ? 'Upload Gambar' : 'Ganti Gambar'}
+                {images.length === 0 ? 'Upload Gambar' : 'Tambah/Ganti Gambar'}
               </span>
             </label>
             <p className="text-xs text-gray-500 mt-1">
-              JPG/PNG • Max 5MB • Opsional (1 gambar)
+              JPG/PNG/WebP • Max {Math.round(MAX_FILE_SIZE / 1024 / 1024)}MB • Maks 3 gambar
             </p>
           </div>
 
@@ -528,6 +530,7 @@ export function ProductModal({ isOpen, onClose, product, onSuccess, onCreated }:
           </Button>
         </div>
       </form>
+      <ToastContainer />
     </Modal>
   )
 }

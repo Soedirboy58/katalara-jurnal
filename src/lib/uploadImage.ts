@@ -1,6 +1,28 @@
 import { createClient } from '@/lib/supabase/client';
 
-const BUCKET_NAME = 'lapak-images';
+const DEFAULT_BUCKET = 'lapak-images';
+
+const getBucketCandidates = (folder: 'products' | 'logos' | 'qris') => {
+  const envLogo = process.env.NEXT_PUBLIC_LAPAK_LOGO_BUCKET;
+  const envQris = process.env.NEXT_PUBLIC_LAPAK_QRIS_BUCKET;
+  const envProducts = process.env.NEXT_PUBLIC_LAPAK_PRODUCTS_BUCKET;
+
+  if (folder === 'logos') {
+    return [envLogo, 'Logo Binis', 'Logo Bisnis', DEFAULT_BUCKET].filter(Boolean) as string[];
+  }
+
+  if (folder === 'qris') {
+    return [envQris, 'QRIS DB', DEFAULT_BUCKET].filter(Boolean) as string[];
+  }
+
+  return [envProducts, 'products', DEFAULT_BUCKET].filter(Boolean) as string[];
+};
+
+const isBucketNotFound = (message?: string) => {
+  const m = (message || '').toLowerCase();
+  return (m.includes('bucket') && (m.includes('not found') || m.includes('does not exist')))
+    || m.includes('bucket not found');
+};
 
 export interface UploadResult {
   success: boolean;
@@ -42,41 +64,55 @@ export async function uploadImage(
     console.log('📁 Generated fileName:', fileName);
 
     // Upload to Supabase Storage
-    console.log('☁️ Uploading to bucket:', BUCKET_NAME);
-    const { data, error } = await supabase.storage
-      .from(BUCKET_NAME)
-      .upload(fileName, file, {
-        cacheControl: '3600',
-        upsert: false,
-      });
+    const bucketCandidates = getBucketCandidates(folder);
+    let lastError: string | undefined;
 
-    if (error) {
-      console.error('❌ Supabase upload error:', error);
-      
-      // More specific error messages
-      if (error.message.includes('row-level security')) {
-        return { success: false, error: 'Akses ditolak. Pastikan Anda sudah login dan bucket sudah dikonfigurasi.' };
-      } else if (error.message.includes('not found')) {
-        return { success: false, error: 'Bucket storage belum dibuat. Hubungi admin untuk setup.' };
-      } else if (error.message.includes('duplicate')) {
-        return { success: false, error: 'File dengan nama sama sudah ada. Coba lagi.' };
+    for (const bucketName of bucketCandidates) {
+      console.log('☁️ Uploading to bucket:', bucketName);
+      const { data, error } = await supabase.storage
+        .from(bucketName)
+        .upload(fileName, file, {
+          cacheControl: '3600',
+          upsert: false,
+        });
+
+      if (error) {
+        console.error('❌ Supabase upload error:', error);
+        lastError = error.message;
+
+        const message = (error.message || '').toLowerCase();
+        if (message.includes('row-level security')) {
+          return { success: false, error: 'Akses ditolak. Pastikan Anda sudah login dan bucket sudah dikonfigurasi.' };
+        }
+
+        if (isBucketNotFound(error.message)) {
+          continue;
+        }
+
+        if (message.includes('duplicate')) {
+          return { success: false, error: 'File dengan nama sama sudah ada. Coba lagi.' };
+        }
+
+        return { success: false, error: `Gagal upload: ${error.message}` };
       }
-      
-      return { success: false, error: `Gagal upload: ${error.message}` };
+
+      console.log('✅ Upload success:', data);
+
+      const { data: urlData } = supabase.storage
+        .from(bucketName)
+        .getPublicUrl(data.path);
+
+      console.log('🔗 Public URL:', urlData.publicUrl);
+
+      return {
+        success: true,
+        url: urlData.publicUrl,
+      };
     }
 
-    console.log('✅ Upload success:', data);
-
-    // Get public URL
-    const { data: urlData } = supabase.storage
-      .from(BUCKET_NAME)
-      .getPublicUrl(data.path);
-
-    console.log('🔗 Public URL:', urlData.publicUrl);
-
     return {
-      success: true,
-      url: urlData.publicUrl,
+      success: false,
+      error: `Bucket storage belum dibuat. Pastikan bucket tersedia (${bucketCandidates.join(', ')}).${lastError ? ` (${lastError})` : ''}`,
     };
   } catch (error: any) {
     console.error('💥 Upload exception:', error);

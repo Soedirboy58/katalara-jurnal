@@ -6,6 +6,7 @@ import type { ProductLegacy } from '@/types/legacy'
 import { InvoiceModal } from '@/components/sales/InvoiceModal'
 import { ProductModal } from '@/components/products/ProductModal'
 import { createClient } from '@/lib/supabase/client'
+import { showToast, ToastContainer } from '@/components/ui/Toast'
 
 export const dynamic = 'force-dynamic'
 
@@ -96,7 +97,7 @@ export default function InputSalesPage() {
     e.preventDefault()
     
     if (!selectedProductId || !quantity || !pricePerUnit) {
-      alert('Mohon lengkapi produk, jumlah, dan harga')
+      showToast('Mohon lengkapi produk, jumlah, dan harga', 'warning')
       return
     }
 
@@ -113,7 +114,7 @@ export default function InputSalesPage() {
         const legacy = product as ProductLegacy
         const currentStock = legacy.stock_quantity || 0
         if (currentStock < qtyNum) {
-          alert(`Stok tidak cukup! Stok tersedia: ${currentStock}`)
+          showToast(`Stok tidak cukup! Stok tersedia: ${currentStock}`, 'error')
           setSaving(false)
           return
         }
@@ -176,7 +177,7 @@ export default function InputSalesPage() {
 
     } catch (error) {
       console.error('Error saving transaction:', error)
-      alert('Gagal menyimpan transaksi')
+      showToast('Gagal menyimpan transaksi', 'error')
     } finally {
       setSaving(false)
     }
@@ -518,6 +519,7 @@ export default function InputSalesPage() {
           <p className="text-sm">Mulai catat penjualan pertama Anda!</p>
         </div>
       </div>
+      <ToastContainer />
     </div>
   )
 }

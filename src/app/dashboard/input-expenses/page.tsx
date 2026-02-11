@@ -329,6 +329,7 @@ export default function InputExpensesPage() {
     type: 'success' | 'error' | 'warning'
     message: string
   }>({ show: false, type: 'success', message: '' })
+  const { confirm, confirmState, handleConfirm, handleCancel } = useConfirm()
   
   // Tutorial modal
   const [showTutorial, setShowTutorial] = useState(false)
@@ -375,6 +376,35 @@ export default function InputExpensesPage() {
     setTimeout(() => setToast({ show: false, type: 'success', message: '' }), 3000)
   }, [])
   
+  // Product creation callback
+  const [productCreatedTrigger, setProductCreatedTrigger] = useState(0)
+  
+  const handleProductCreated = useCallback(async (newProductId: string) => {
+    showToast('success', 'Produk berhasil ditambahkan!')
+    actions.toggleUI('showProductModal', false)
+    
+    // Refresh products
+    await refreshProducts()
+    
+    // Auto-select the newly created product
+    const { data: newProduct } = await supabase
+      .from('products')
+      .select('*')
+      .eq('id', newProductId)
+      .single()
+    
+    if (newProduct) {
+      actions.updateCurrentItem({
+        product_id: newProduct.id,
+        product_name: newProduct.name,
+        unit: newProduct.unit || 'pcs',
+        price_per_unit: newProduct.cost_price?.toString() || '0'
+      })
+    }
+    
+    setProductCreatedTrigger(prev => prev + 1)
+  }, [actions, showToast, refreshProducts, supabase])
+  
   // Add line item
   const handleAddItem = useCallback(() => {
     const current = formState.items.currentItem
@@ -386,6 +416,28 @@ export default function InputExpensesPage() {
     
     const quantity = parseFloat(current.quantity)
     const pricePerUnit = parseFloat(current.price_per_unit)
+    
+    // Validate quantity
+    if (quantity <= 0) {
+      showToast('error', 'Jumlah harus lebih dari 0')
+      return
+    }
+    
+    // Validate price
+    if (pricePerUnit <= 0) {
+      showToast('error', 'Harga beli harus lebih dari 0')
+      return
+    }
+    
+    // Check for duplicates
+    if (current.product_id) {
+      const isDuplicate = formState.items.lineItems.some(item => item.product_id === current.product_id)
+      if (isDuplicate) {
+        showToast('warning', `Produk "${current.product_name}" sudah ada dalam daftar!`)
+        return
+      }
+    }
+    
     const subtotal = quantity * pricePerUnit
     
     const newItem: LineItem = {
@@ -401,7 +453,7 @@ export default function InputExpensesPage() {
     
     actions.addItem(newItem)
     showToast('success', 'Item ditambahkan')
-  }, [formState.items.currentItem, actions, showToast])
+  }, [formState.items.currentItem, formState.items.lineItems, actions, showToast])
   
   // Show educational modal on first visit
   useEffect(() => {
@@ -1432,6 +1484,18 @@ export default function InputExpensesPage() {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={confirmState.isOpen}
+        onClose={handleCancel}
+        onConfirm={handleConfirm}
+        title={confirmState.options.title}
+        message={confirmState.options.message}
+        confirmText={confirmState.options.confirmText}
+        cancelText={confirmState.options.cancelText}
+        type={confirmState.options.type}
+      />
+      <ToastContainer />
 
       {/* Edit Modal */}
       <EditTransactionModal

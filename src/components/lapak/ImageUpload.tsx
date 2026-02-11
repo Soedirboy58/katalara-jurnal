@@ -38,6 +38,12 @@ export default function ImageUpload({
     const file = event.target.files?.[0];
     if (!file) return;
 
+    if (!userId) {
+      showToast('Sesi login belum siap. Coba beberapa detik lagi.', 'error');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
     // Validate file type
     if (!file.type.startsWith('image/')) {
       showToast('File harus berupa gambar (JPG, PNG, dll)', 'error');
