@@ -16,6 +16,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Katalara - Platform Manajemen Bisnis UMKM",
   description: "Platform all-in-one untuk mengelola keuangan, inventori, dan operasional bisnis UMKM Anda dengan mudah dan efisien",
+  manifest: '/manifest.webmanifest',
   icons: {
     icon: 'https://usradkbchlkcfoabxvbo.supabase.co/storage/v1/object/public/assets/Logo.png',
     apple: 'https://usradkbchlkcfoabxvbo.supabase.co/storage/v1/object/public/assets/Logo.png',
@@ -49,6 +50,9 @@ export default function RootLayout({
       <head>
         <link rel="icon" href="https://usradkbchlkcfoabxvbo.supabase.co/storage/v1/object/public/assets/Logo.png" />
         <link rel="apple-touch-icon" href="https://usradkbchlkcfoabxvbo.supabase.co/storage/v1/object/public/assets/Logo.png" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="mobile-web-app-capable" content="yes" />
 
         {/*
           Runtime-inject public env so client code can read it without relying on build-time replacement.
