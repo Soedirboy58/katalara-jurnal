@@ -1,97 +1,79 @@
 /**
  * LINE ITEMS BUILDER COMPONENT
  * Finance Module - Incomes
- * 
- * Manages multi-item input for product sales & service income
- * Features:
- * - Add/remove items
- * - Real-time subtotal calculation
- * - Product selection with autocomplete
- * - Custom units support
- */
+              </div>
+                {!isMobile && showDropdown && (
+                  <div className="absolute z-50 w-full mt-2 bg-white border border-gray-200 rounded-2xl shadow-2xl ring-1 ring-black/5 max-h-72 overflow-y-auto overscroll-contain">
+                    {loadingProducts ? (
+                      <div className="p-3 text-center text-sm text-gray-500">
+                        <div className="animate-spin w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full mx-auto"></div>
+                        <p className="mt-2">Memuat produk...</p>
+                      </div>
+                    ) : filteredProducts.length > 0 ? (
+                      <>
+                        <div className="sticky top-0 z-10 bg-white/90 backdrop-blur px-4 py-2 border-b border-gray-100 text-xs text-gray-600 font-medium flex items-center gap-2">
+                          <Search className="w-3 h-3" />
+                          {filteredProducts.length} {category === 'service_income' ? 'layanan' : 'produk'} ditemukan
+                        </div>
+                        {filteredProducts.map((p) => {
+                          const stockQty = getProductStockQty(p as any)
+                          const sellPrice = getSellingPrice(p as any)
+                          return (
+                            <button
+                              key={p.id}
+                              type="button"
+                              onClick={() => {
+                                selectProduct(p as any)
+                              }}
+                              className="w-full px-4 py-3 text-left hover:bg-blue-50/60 focus:bg-blue-50/60 transition-colors border-b border-gray-100 last:border-0"
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0 flex-1">
+                                  <div className="font-semibold text-gray-900 text-sm truncate">
+                                    {p.name}
+                                  </div>
 
-'use client'
+                                  <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
+                                    {(p as any).unit && (
+                                      <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-gray-600">
+                                        <Package className="w-3 h-3" />
+                                        {(p as any).unit}
+                                      </span>
+                                    )}
 
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, Package, Search } from 'lucide-react'
-import type { Product } from '@/modules/inventory/types/inventoryTypes'
-import { createClient } from '@/lib/supabase/client'
+                                    {stockQty !== null && (
+                                      <span
+                                        className={`inline-flex items-center rounded-full px-2 py-0.5 font-medium ${
+                                          stockQty > 0
+                                            ? 'bg-green-50 text-green-700'
+                                            : 'bg-red-50 text-red-700'
+                                        }`}
+                                      >
+                                        Stok: {new Intl.NumberFormat('id-ID').format(stockQty)}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
 
-export interface LineItem {
-  id: string
-  product_id: string
-  product_name: string
-  quantity: number
-  unit: string
-  price: number
-  subtotal: number
-  buy_price?: number // For profit calculation
-  service_duration?: number // For services
-}
-
-interface LineItemsBuilderProps {
-  items: LineItem[]
-  onChange: (items: LineItem[]) => void
-  products: Product[]
-  loadingProducts?: boolean
-  category?: string // 'product_sales' or 'service_income'
-  onAddProduct?: () => void // Callback to open quick add product modal
-}
-
-export function LineItemsBuilder({
-  items,
-  onChange,
-  products,
-  loadingProducts = false,
-  category = 'product_sales',
-  onAddProduct
-}: LineItemsBuilderProps) {
-  const supabase = createClient()
-  // Current item being added
-  const [selectedProductId, setSelectedProductId] = useState('')
-  const [productQuery, setProductQuery] = useState('')
-  const [showDropdown, setShowDropdown] = useState(false)
-  const [pickerOpen, setPickerOpen] = useState(false)
-  const [pickerQuery, setPickerQuery] = useState('')
-  const [isMobile, setIsMobile] = useState(false)
-  const [quantity, setQuantity] = useState('')
-  const [unit, setUnit] = useState(category === 'product_sales' ? 'pcs' : 'jam')
-  const [price, setPrice] = useState('')
-  const [showCustomUnit, setShowCustomUnit] = useState(false)
-  const [customUnit, setCustomUnit] = useState('')
-  const [unitOptions, setUnitOptions] = useState<{ value: string; label: string; isFavorite: boolean }[]>([])
-  const [unitLoading, setUnitLoading] = useState(false)
-  const dropdownRef = useRef<HTMLDivElement>(null)
-
-  const categoryToBusinessType = (category?: string | null): 'dagang' | 'jasa' | 'produksi' => {
-    const c = (category || '').toString().toLowerCase()
-    if (c.includes('jasa')) return 'jasa'
-    if (c.includes('trading') || c.includes('reseller')) return 'dagang'
-    if (c.includes('produk') || c.includes('stok') || c.includes('hybrid')) return 'produksi'
-    return 'dagang'
-  }
-
-  const matchesBusinessType = (types: string[] | null | undefined, type: 'dagang' | 'jasa' | 'produksi') => {
-    if (!types || types.length === 0) return true
-    return types.map((t) => t.toLowerCase()).includes(type)
-  }
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    const mq = window.matchMedia('(max-width: 640px)')
-    const update = () => setIsMobile(mq.matches)
-    update()
-    mq.addEventListener?.('change', update)
-    return () => mq.removeEventListener?.('change', update)
-  }, [])
-
-  useEffect(() => {
-    const loadUnits = async () => {
-      try {
-        setUnitLoading(true)
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return
-
+                                <div className="flex-shrink-0">
+                                  <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">
+                                    Rp {new Intl.NumberFormat('id-ID').format(sellPrice)}
+                                  </span>
+                                </div>
+                              </div>
+                            </button>
+                          )
+                        })}
+                      </>
+                    ) : (
+                      <div className="p-4 text-center text-sm text-gray-500">
+                        <Package className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                        <p>Tidak ada produk yang cocok</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
         const { data: config } = await supabase
           .from('business_configurations')
           .select('business_category')
@@ -158,132 +140,132 @@ export function LineItemsBuilder({
 
   const getProductStockQty = (product: any): number | null => {
     if (!product) return null
-    if (product.track_inventory === false) return null
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  value={productQuery}
+                  onChange={(e) => {
+                    if (isMobile) return
+                    const v = e.target.value
+                    setProductQuery(v)
+                    setShowDropdown(true)
+                    // Clear selection when user edits text to avoid stale product_id
+                    setSelectedProductId('')
+                    setPrice('')
+                  }}
+                  onFocus={() => {
+                    if (isMobile) {
+                      openPicker()
+                      return
+                    }
+                    setShowDropdown(true)
+                  }}
+                  onClick={() => {
+                    if (isMobile) openPicker()
+                  }}
+                  placeholder={`Ketik nama ${category === 'service_income' ? 'layanan' : 'produk'} atau pilih dari daftar`}
+                  className="w-full px-3 py-2.5 pr-9 border border-gray-300 rounded-xl bg-white text-sm sm:text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm"
+                  disabled={loadingProducts}
+                  readOnly={isMobile}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (isMobile) {
+                      openPicker()
+                      return
+                    }
+                    setShowDropdown((s) => !s)
+                  }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100"
+                  aria-label="Toggle product dropdown"
+                >
+                  <ChevronDown className="w-4 h-4" />
+                </button>
 
-    // Support multiple schemas:
-    // - stock_quantity (patched schema)
-    // - stock (legacy UI/schema)
-    // - current_stock (calculated)
-    // - quantity (some legacy exports)
-    const raw =
-      product.stock ??
-      product.stock_quantity ??
-      product.current_stock ??
-      product.quantity
-    const n = typeof raw === 'number' ? raw : Number(raw)
-    return Number.isFinite(n) ? n : 0
-  }
+                {!isMobile && showDropdown && (
+                  <div className="absolute z-50 w-full mt-2 bg-white border border-gray-200 rounded-2xl shadow-2xl ring-1 ring-black/5 max-h-72 overflow-y-auto overscroll-contain">
+                    {loadingProducts ? (
+                      <div className="p-3 text-center text-sm text-gray-500">
+                        <div className="animate-spin w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full mx-auto"></div>
+                        <p className="mt-2">Memuat produk...</p>
+                      </div>
+                    ) : filteredProducts.length > 0 ? (
+                      <>
+                        <div className="sticky top-0 z-10 bg-white/90 backdrop-blur px-4 py-2 border-b border-gray-100 text-xs text-gray-600 font-medium flex items-center gap-2">
+                          <Search className="w-3 h-3" />
+                          {filteredProducts.length} {category === 'service_income' ? 'layanan' : 'produk'} ditemukan
+                        </div>
+                        {filteredProducts.map((p) => {
+                          const stockQty = getProductStockQty(p as any)
+                          const sellPrice = getSellingPrice(p as any)
+                          return (
+                            <button
+                              key={p.id}
+                              type="button"
+                              onClick={() => {
+                                selectProduct(p as any)
+                              }}
+                              className="w-full px-4 py-3 text-left hover:bg-blue-50/60 focus:bg-blue-50/60 transition-colors border-b border-gray-100 last:border-0"
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0 flex-1">
+                                  <div className="font-semibold text-gray-900 text-sm truncate">
+                                    {p.name}
+                                  </div>
 
-  const formatStockLabel = (product: any): string => {
-    const stockQty = getProductStockQty(product)
-    if (stockQty === null) return '—'
-    return new Intl.NumberFormat('id-ID').format(stockQty)
-  }
+                                  <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
+                                    {(p as any).unit && (
+                                      <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-gray-600">
+                                        <Package className="w-3 h-3" />
+                                        {(p as any).unit}
+                                      </span>
+                                    )}
 
-  const selectedProduct = selectedProductId ? products.find((p) => p.id === selectedProductId) : undefined
-  const selectedStockQty = selectedProduct ? getProductStockQty(selectedProduct as any) : null
-  const selectedStockDisplay = selectedProduct
-    ? selectedStockQty === null
-      ? 'Tidak dilacak'
-      : `${new Intl.NumberFormat('id-ID').format(selectedStockQty)} ${(selectedProduct as any).unit || 'pcs'}`
-    : '—'
+                                    {stockQty !== null && (
+                                      <span
+                                        className={`inline-flex items-center rounded-full px-2 py-0.5 font-medium ${
+                                          stockQty > 0
+                                            ? 'bg-green-50 text-green-700'
+                                            : 'bg-red-50 text-red-700'
+                                        }`}
+                                      >
+                                        Stok: {new Intl.NumberFormat('id-ID').format(stockQty)}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
 
-  const getSellingPrice = (product: any): number => {
-    const raw =
-      product?.selling_price ??
-      product?.sell_price ??
-      product?.price ??
-      0
-    const n = typeof raw === 'number' ? raw : Number(raw)
-    return Number.isFinite(n) ? n : 0
-  }
-
-  const bumpProductPickCount = (productId: string) => {
-    try {
-      const key = 'katalara.productPickCounts.v1'
-      const raw = localStorage.getItem(key)
-      const counts: Record<string, number> = raw ? JSON.parse(raw) : {}
-      counts[productId] = (counts[productId] || 0) + 1
-      localStorage.setItem(key, JSON.stringify(counts))
-    } catch {
-      // ignore
-    }
-  }
-
-  const getTopPickedProducts = (source: Product[]) => {
-    try {
-      const raw = localStorage.getItem('katalara.productPickCounts.v1')
-      const counts: Record<string, number> = raw ? JSON.parse(raw) : {}
-      return [...source]
-        .map((p) => ({ p, c: Number(counts[p.id] || 0) }))
-        .filter((x) => x.c > 0)
-        .sort((a, b) => b.c - a.c)
-        .slice(0, 5)
-        .map((x) => x.p)
-    } catch {
-      return []
-    }
-  }
-
-  const selectProduct = (p: any) => {
-    setSelectedProductId(p.id)
-    setProductQuery(p.name || '')
-    setShowDropdown(false)
-    if (p.unit) setUnit(p.unit)
-    const sellPrice = getSellingPrice(p) || 0
-    setPrice(new Intl.NumberFormat('id-ID').format(sellPrice))
-    bumpProductPickCount(p.id)
-    closePicker()
-  }
-
-  const filteredProducts = useMemo(() => {
-    // Category-based filtering (match legacy behavior):
-    // - product_sales => show only physical products
-    // - service_income => show only services
-    // - other_income => no items
-    const desiredType: 'physical' | 'service' | null =
-      category === 'service_income'
-        ? 'service'
-        : category === 'product_sales'
-          ? 'physical'
-          : null
-
-    if (category === 'other_income') return []
-
-    const productsByType = desiredType
-      ? products.filter((p: any) => {
-          const t = (p as any).product_type
-          if (t === 'physical' || t === 'service') return t === desiredType
-
-          // Backward compatibility when `product_type` is missing:
-          // - services usually have `track_inventory = false`
-          if (desiredType === 'service') return p.track_inventory === false
-          return p.track_inventory !== false
-        })
-      : products
-
-    const q = productQuery.trim().toLowerCase()
-    if (!q) return productsByType
-    return productsByType.filter((p) => (p.name || '').toLowerCase().includes(q))
-  }, [productQuery, products, category])
-
-  const pickerProducts = useMemo(() => {
-    const desiredType: 'physical' | 'service' | null =
-      category === 'service_income'
-        ? 'service'
-        : category === 'product_sales'
-          ? 'physical'
-          : null
-
-    if (category === 'other_income') return []
-
-    const productsByType = desiredType
-      ? products.filter((p: any) => {
-          const t = (p as any).product_type
-          if (t === 'physical' || t === 'service') return t === desiredType
-          if (desiredType === 'service') return (p as any).track_inventory === false
-          return (p as any).track_inventory !== false
-        })
+                                <div className="flex-shrink-0">
+                                  <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">
+                                    Rp {new Intl.NumberFormat('id-ID').format(sellPrice)}
+                                  </span>
+                                </div>
+                              </div>
+                            </button>
+                          )
+                        })}
+                      </>
+                    ) : (
+                      <div className="p-4 text-center text-sm text-gray-500">
+                        <Package className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                        <p>Tidak ada produk yang cocok</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+              {onAddProduct && (
+                <button
+                  type="button"
+                  onClick={onAddProduct}
+                  className="px-3 py-2.5 bg-green-600 text-white rounded-xl text-sm hover:bg-green-700 whitespace-nowrap shadow-sm"
+                >
+                  + Baru
+                </button>
+              )}
+            </div>
       : products
 
     const q = pickerQuery.trim().toLowerCase()
@@ -570,23 +552,6 @@ export function LineItemsBuilder({
                 )}
               </div>
 =======
-              <select
-                value={selectedProductId}
-                onChange={(e) => setSelectedProductId(e.target.value)}
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                disabled={loadingProducts}
-              >
-                <option value="">Pilih {category === 'service_income' ? 'Layanan' : 'Produk'}...</option>
-                {products.map((p) => {
-                  const legacy = p as ProductLegacy
-                  return (
-                    <option key={p.id} value={p.id}>
-                      {p.name} - Rp {new Intl.NumberFormat('id-ID').format(legacy.selling_price || legacy.sell_price || 0)}
-                    </option>
-                  )
-                })}
-              </select>
->>>>>>> 11f62bb (Fix additional TypeScript ESLint errors in dashboard and component files)
               {onAddProduct && (
                 <button
                   type="button"

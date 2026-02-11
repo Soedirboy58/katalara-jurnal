@@ -239,12 +239,15 @@ export function ProductsView() {
     const selectedData = products.filter(p => selectedProducts.includes(p.id))
     const csv = [
       ['Nama', 'SKU', 'Kategori', 'Harga Beli', 'Harga Jual', 'Stok'].join(','),
-      ...selectedData.map(p => 
-<<<<<<< HEAD
-        [p.name, p.sku, p.category, (p as any).cost_price, (p as any).selling_price].join(',')
-=======
-        [p.name, p.sku, p.category, p.cost_price, p.selling_price, p.stock || 0].join(',')
->>>>>>> fd348ae (Enable product table view with stock field support)
+      ...selectedData.map(p =>
+        [
+          p.name,
+          p.sku,
+          p.category,
+          (p as any).cost_price ?? 0,
+          (p as any).selling_price ?? 0,
+          (p as any).stock ?? 0
+        ].join(',')
       )
     ].join('\n')
 

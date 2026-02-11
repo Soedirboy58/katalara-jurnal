@@ -893,15 +893,11 @@ export default function InputExpensesPage() {
           onRemoveItem={actions.removeItem}
           onCurrentItemChange={actions.updateCurrentItem}
           onShowProductModal={() => actions.toggleUI('showProductModal', true)}
-<<<<<<< HEAD
           mode={itemsMode}
           title={isInventoryPurchaseCategory ? 'Daftar Item Pembelian' : 'Daftar Item Pengeluaran'}
           nameLabel={isInventoryPurchaseCategory ? 'Produk' : 'Item / Deskripsi'}
           namePlaceholder={itemsNamePlaceholder}
           enableQuickCreateProduct={isInventoryPurchaseCategory}
-=======
-          categoryType={formState.category.category as 'raw_materials' | 'finished_goods' | 'services' | ''}
->>>>>>> 11f62bb (Fix additional TypeScript ESLint errors in dashboard and component files)
         />
         
         {/* Production Output (for raw materials -> finished goods) */}
