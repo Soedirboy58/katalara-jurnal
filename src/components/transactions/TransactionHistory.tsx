@@ -15,7 +15,6 @@ import { showToast } from '@/components/ui/Toast'
 export interface TransactionHistoryItem {
   id: string
   date: string
-  const { confirm, confirmState, handleConfirm, handleCancel } = useConfirm()
   category: string // category code (used for filtering)
   category_label?: string // display label
   customer_or_supplier?: string
@@ -71,6 +70,7 @@ export function TransactionHistory({
   const [viewMode, setViewMode] = useState<'list' | 'card'>('list')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [showFilters, setShowFilters] = useState(false)
+  const { confirm, confirmState, handleConfirm, handleCancel } = useConfirm()
 
   // Apply client-side filtering
   const filteredTransactions = transactions.filter(transaction => {
