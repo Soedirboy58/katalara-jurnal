@@ -10,6 +10,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { showToast, ToastContainer } from '@/components/ui/Toast';
 import ConfirmModal from '@/components/ui/ConfirmModal';
 import { useConfirm } from '@/hooks/useConfirm';
+import { createClient } from '@/lib/supabase/client';
+import { mapBusinessCategoryToConstraint } from '@/lib/business-category-mapper';
 
 export default function LapakPage() {
   const router = useRouter();
@@ -25,6 +27,7 @@ export default function LapakPage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [orderStats, setOrderStats] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<'list' | 'settings' | 'products' | 'analytics' | 'notifications'>('settings');
+  const [businessCategory, setBusinessCategory] = useState<string | null>(null);
   const [kpiModal, setKpiModal] = useState<{
     isOpen: boolean;
     type: 'views' | 'cart' | 'whatsapp' | 'orders' | null;
@@ -58,8 +61,6 @@ export default function LapakPage() {
     category: '',
     price: 0,
     compare_at_price: 0,
-    stock_quantity: 0,
-    track_inventory: true,
     is_visible: true,
     is_featured: false,
   });
@@ -70,6 +71,37 @@ export default function LapakPage() {
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const fetchBusinessCategory = async () => {
+      try {
+        const supabase = createClient();
+        const { data } = await supabase
+          .from('business_configurations')
+          .select('business_category')
+          .eq('user_id', user.id)
+          .single();
+        setBusinessCategory(data?.business_category || null);
+      } catch (error) {
+        console.error('Error loading business category:', error);
+      }
+    };
+
+    fetchBusinessCategory();
+  }, [user?.id]);
+
+  useEffect(() => {
+    const allowedTypes = getAllowedProductTypes();
+    setProductForm((prev) => {
+      const currentType = prev.product_type || 'barang';
+      if (!allowedTypes.includes(currentType)) {
+        return { ...prev, product_type: allowedTypes[0] as 'barang' | 'jasa', category: '' };
+      }
+      return prev;
+    });
+  }, [businessCategory]);
 
   const resetStorefrontState = () => {
     setStorefront(null);
@@ -308,7 +340,8 @@ export default function LapakPage() {
       }
 
       const storefrontId = storefront?.id || activeStorefrontId;
-      const payload = { ...productForm, storefront_id: storefrontId };
+      const { stock_quantity, track_inventory, ...rest } = productForm;
+      const payload = { ...rest, storefront_id: storefrontId };
 
       if (editingProduct) {
         // Update
@@ -373,15 +406,14 @@ export default function LapakPage() {
   };
 
   const resetProductForm = () => {
+    const allowedTypes = getAllowedProductTypes();
     setProductForm({
       name: '',
       description: '',
-      product_type: 'barang',
+      product_type: (allowedTypes[0] as 'barang' | 'jasa') || 'barang',
       category: '',
       price: 0,
       compare_at_price: 0,
-      stock_quantity: 999999, // Set high number for unlimited stock (especially for jasa)
-      track_inventory: false, // Default to not track inventory
       is_visible: true,
       is_featured: false,
     } as Partial<StorefrontProduct>);
@@ -402,9 +434,22 @@ export default function LapakPage() {
     return parseInt(str.replace(/\./g, ''), 10) || 0;
   };
 
+  const getAllowedProductTypes = () => {
+    const normalized = mapBusinessCategoryToConstraint(businessCategory || 'Hybrid');
+    if (normalized === 'Jasa/Layanan') return ['jasa'];
+    if (normalized === 'Produk dengan Stok' || normalized === 'Produk Tanpa Stok' || normalized === 'Trading/Reseller') {
+      return ['barang'];
+    }
+    return ['barang', 'jasa'];
+  };
+
   // Get categories based on product type
   const getAvailableCategories = () => {
-    return productForm.product_type === 'jasa' ? JASA_CATEGORIES : BARANG_CATEGORIES;
+    const allowedTypes = getAllowedProductTypes();
+    const effectiveType = allowedTypes.includes(productForm.product_type || 'barang')
+      ? productForm.product_type
+      : allowedTypes[0];
+    return effectiveType === 'jasa' ? JASA_CATEGORIES : BARANG_CATEGORIES;
   };
 
   const getStorefrontUrl = () => {
@@ -1053,19 +1098,22 @@ export default function LapakPage() {
                           {/* Jenis Produk */}
                           <div>
                             <label className="block font-medium text-gray-900 mb-2">Jenis Produk *</label>
+                            {businessCategory && (
+                              <p className="text-xs text-gray-500 mb-2">
+                                Tipe usaha: {businessCategory}
+                              </p>
+                            )}
                             <div className="grid grid-cols-2 gap-3">
-                              {PRODUCT_TYPES.map((type) => (
+                              {PRODUCT_TYPES.filter((type) => getAllowedProductTypes().includes(type.value)).map((type) => (
                                 <button
                                   key={type.value}
                                   type="button"
+                                  disabled={getAllowedProductTypes().length === 1}
                                   onClick={() => {
                                     setProductForm({ 
                                       ...productForm, 
                                       product_type: type.value,
                                       category: '', // Reset category when type changes
-                                      // For jasa: unlimited stock, don't track inventory
-                                      stock_quantity: type.value === 'jasa' ? 999999 : (productForm.stock_quantity || 0),
-                                      track_inventory: type.value === 'barang',
                                     });
                                   }}
                                   className={`p-4 border-2 rounded-lg font-medium transition-all ${
@@ -1187,40 +1235,13 @@ export default function LapakPage() {
                             </div>
                           </div>
 
-                          {/* Stok - Only for Barang */}
-                          {productForm.product_type === 'barang' && (
-                            <div>
-                              <label className="block font-medium mb-2">Stok</label>
-                              <input
-                                type="text"
-                                inputMode="numeric"
-                                value={productForm.stock_quantity || ''}
-                                onChange={(e) => {
-                                  const value = e.target.value.replace(/\D/g, '');
-                                  setProductForm({ ...productForm, stock_quantity: parseInt(value) || 0 });
-                                }}
-                                placeholder="0"
-                                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent"
-                              />
-                              <p className="text-xs text-gray-500 mt-1">
-                                Jumlah stok yang tersedia. Kosongkan jika stok tidak terbatas.
-                              </p>
-                            </div>
-                          )}
+                          {/* Opsi */}
+                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700">
+                            Stok dikelola di menu Produk. Lapak akan mengikuti stok dari menu Produk.
+                          </div>
 
                           {/* Opsi */}
                           <div className="space-y-2">
-                            {productForm.product_type === 'barang' && (
-                              <label className="flex items-center gap-2">
-                                <input
-                                  type="checkbox"
-                                  checked={productForm.track_inventory}
-                                  onChange={(e) => setProductForm({ ...productForm, track_inventory: e.target.checked })}
-                                  className="w-5 h-5 rounded"
-                                />
-                                <span>Lacak Stok (tampilkan info ketersediaan)</span>
-                              </label>
-                            )}
                             <label className="flex items-center gap-2">
                               <input
                                 type="checkbox"
