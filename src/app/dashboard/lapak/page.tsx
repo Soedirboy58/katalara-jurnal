@@ -10,6 +10,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { showToast, ToastContainer } from '@/components/ui/Toast';
 import ConfirmModal from '@/components/ui/ConfirmModal';
 import { useConfirm } from '@/hooks/useConfirm';
+import { createClient } from '@/lib/supabase/client';
+import { mapBusinessCategoryToConstraint } from '@/lib/business-category-mapper';
 
 export default function LapakPage() {
   const router = useRouter();
@@ -17,12 +19,15 @@ export default function LapakPage() {
   const { confirm, confirmState, handleConfirm, handleCancel } = useConfirm();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [storefronts, setStorefronts] = useState<Storefront[]>([]);
   const [storefront, setStorefront] = useState<Storefront | null>(null);
+  const [activeStorefrontId, setActiveStorefrontId] = useState<string | null>(null);
   const [products, setProducts] = useState<StorefrontProduct[]>([]);
   const [analytics, setAnalytics] = useState<any>(null);
   const [orders, setOrders] = useState<any[]>([]);
   const [orderStats, setOrderStats] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<'settings' | 'products' | 'analytics' | 'notifications'>('settings');
+  const [businessCategory, setBusinessCategory] = useState<string | null>(null);
   const [kpiModal, setKpiModal] = useState<{
     isOpen: boolean;
     type: 'views' | 'cart' | 'whatsapp' | 'orders' | null;
