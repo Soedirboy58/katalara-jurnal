@@ -143,6 +143,14 @@ export function useProducts(filters?: ProductFilters & { productType?: 'physical
 
       if (error) throw error
 
+      try {
+        await fetch(`/api/lapak/sync-product?productId=${encodeURIComponent(id)}`, {
+          method: 'DELETE'
+        })
+      } catch (cleanupError) {
+        console.warn('Failed to remove product from Lapak:', cleanupError)
+      }
+
       await loadProducts()
       return { error: null }
     } catch (err: unknown) {

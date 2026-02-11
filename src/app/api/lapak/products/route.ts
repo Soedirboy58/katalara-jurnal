@@ -32,7 +32,41 @@ export async function GET() {
       );
     }
 
-    return NextResponse.json({ products: products || [] });
+    let cleanedProducts = products || [];
+
+    const linkedIds = cleanedProducts
+      .map((p: any) => p.product_id)
+      .filter((id: string | null) => !!id);
+
+    if (linkedIds.length > 0) {
+      const { data: activeProducts, error: activeError } = await supabase
+        .from('products')
+        .select('id, is_active')
+        .in('id', linkedIds);
+
+      if (!activeError) {
+        const activeIdSet = new Set(
+          (activeProducts || []).filter((p: any) => p.is_active).map((p: any) => p.id)
+        );
+
+        const orphaned = cleanedProducts.filter(
+          (p: any) => p.product_id && !activeIdSet.has(p.product_id)
+        );
+
+        if (orphaned.length > 0) {
+          const orphanIds = orphaned.map((p: any) => p.id);
+          await supabase
+            .from('storefront_products')
+            .delete()
+            .in('id', orphanIds)
+            .eq('user_id', user.id);
+
+          cleanedProducts = cleanedProducts.filter((p: any) => !orphanIds.includes(p.id));
+        }
+      }
+    }
+
+    return NextResponse.json({ products: cleanedProducts });
   } catch (error) {
     console.error('Error in products API:', error);
     return NextResponse.json(
