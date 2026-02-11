@@ -38,6 +38,9 @@ import { TransactionHistory, type TransactionHistoryItem, type TransactionFilter
 import { EditTransactionModal } from '@/components/transactions/EditTransactionModal'
 import { PreviewTransactionModal } from '@/components/transactions/PreviewTransactionModal'
 import { EXPENSE_CATEGORIES_BY_TYPE, getExpenseCategoryLabel } from '@/modules/finance/types/financeTypes'
+import ConfirmModal from '@/components/ui/ConfirmModal'
+import { useConfirm } from '@/hooks/useConfirm'
+import { ToastContainer } from '@/components/ui/Toast'
 
 export const dynamic = 'force-dynamic'
 
@@ -260,6 +263,7 @@ export default function InputExpensesPage() {
     type: 'success' | 'error' | 'warning'
     message: string
   }>({ show: false, type: 'success', message: '' })
+  const { confirm, confirmState, handleConfirm, handleCancel } = useConfirm()
   
   // Tutorial modal
   const [showTutorial, setShowTutorial] = useState(false)
@@ -669,9 +673,13 @@ export default function InputExpensesPage() {
   ])
     // Transaction history handlers
   const handleDelete = async (expenseId: string) => {
-    const confirmed = confirm(
-      'Yakin ingin menghapus transaksi ini?\n\nJika transaksi berisi pembelian produk, stok akan dikembalikan seperti semula.'
-    )
+    const confirmed = await confirm({
+      title: 'Hapus transaksi?',
+      message: 'Yakin ingin menghapus transaksi ini?\n\nJika transaksi berisi pembelian produk, stok akan dikembalikan seperti semula.',
+      confirmText: 'Hapus',
+      cancelText: 'Batal',
+      type: 'danger'
+    })
     if (!confirmed) return
 
     try {
@@ -690,9 +698,18 @@ export default function InputExpensesPage() {
   }
 
   const handleBulkDelete = async (ids: string[]) => {
-    const confirmed = confirm(
-      `Yakin ingin menghapus ${ids.length} transaksi?\n\nJika transaksi berisi pembelian produk, stok akan dikembalikan seperti semula.`
-    )
+    if (ids.length === 0) {
+      showToast('warning', 'Pilih transaksi terlebih dulu')
+      return
+    }
+
+    const confirmed = await confirm({
+      title: 'Hapus banyak transaksi?',
+      message: `Yakin ingin menghapus ${ids.length} transaksi?\n\nJika transaksi berisi pembelian produk, stok akan dikembalikan seperti semula.`,
+      confirmText: 'Hapus Semua',
+      cancelText: 'Batal',
+      type: 'danger'
+    })
     if (!confirmed) return
 
     try {
@@ -1411,6 +1428,18 @@ export default function InputExpensesPage() {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={confirmState.isOpen}
+        onClose={handleCancel}
+        onConfirm={handleConfirm}
+        title={confirmState.options.title}
+        message={confirmState.options.message}
+        confirmText={confirmState.options.confirmText}
+        cancelText={confirmState.options.cancelText}
+        type={confirmState.options.type}
+      />
+      <ToastContainer />
 
       {/* Edit Modal */}
       <EditTransactionModal

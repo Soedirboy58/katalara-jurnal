@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { showToast, ToastContainer } from '@/components/ui/Toast'
 
 interface MenuItem {
   icon: React.ReactElement
@@ -172,7 +173,7 @@ export function UserMenu({ user, businessName }: UserMenuProps) {
           description: 'Tips cepat navigasi',
           href: '#',
           onClick: () => {
-            alert('Ctrl+K: Quick Search\nCtrl+N: New Transaction\nCtrl+D: Dashboard\nEsc: Close Dialog')
+            showToast('Ctrl+K: Quick Search | Ctrl+N: New Transaction | Ctrl+D: Dashboard | Esc: Close Dialog', 'info')
             setIsOpen(false)
           },
           badge: null
@@ -343,6 +344,8 @@ export function UserMenu({ user, businessName }: UserMenuProps) {
           </div>
         </>
       )}
+
+      <ToastContainer />
 
       {/* Animation CSS */}
       <style jsx>{`

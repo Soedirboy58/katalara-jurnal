@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/Button'
+import { showToast, ToastContainer } from '@/components/ui/Toast'
 
 export default function VerifyEmailPage() {
   const router = useRouter()
@@ -29,9 +30,9 @@ export default function VerifyEmailPage() {
         email: email
       })
       if (error) throw error
-      alert('Email verifikasi telah dikirim ulang!')
+      showToast('Email verifikasi telah dikirim ulang!', 'success')
     } catch (err) {
-      alert('Gagal mengirim ulang email')
+      showToast('Gagal mengirim ulang email', 'error')
     } finally {
       setResending(false)
     }
@@ -128,6 +129,7 @@ export default function VerifyEmailPage() {
           </p>
         </div>
       </div>
+      <ToastContainer />
     </div>
   )
 }

@@ -11,6 +11,7 @@ import { createClient } from '@/lib/supabase/client'
 import { getExpenseCategoryLabel, getIncomeCategoryLabel, getPaymentMethodLabel } from '@/modules/finance/types/financeTypes'
 import { IncomePrintModal } from '@/modules/finance/components/incomes/IncomePrintModal'
 import { ExpensePrintModal } from '@/modules/finance/components/expenses/ExpensePrintModal'
+import { showToast, ToastContainer } from '@/components/ui/Toast'
 
 export interface PreviewTransactionModalProps {
   isOpen: boolean
@@ -270,7 +271,7 @@ export function PreviewTransactionModal({
         }
       } catch (error) {
         console.error('Error loading transaction:', error)
-        alert('❌ Gagal memuat detail transaksi')
+        showToast('Gagal memuat detail transaksi', 'error')
         onClose()
       } finally {
         setLoading(false)
@@ -935,6 +936,7 @@ export function PreviewTransactionModal({
           }}
         />
       ) : null}
+      <ToastContainer />
     </div>
   )
 }

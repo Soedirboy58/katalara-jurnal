@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { showToast } from '@/components/ui/Toast'
 import type { Product } from '@/types'
 import { formatCurrency, formatNumber } from '@/utils/helpers'
 import { Button } from '@/components/ui/Button'
@@ -57,13 +58,13 @@ export function ProductTable({ products, loading, onEdit, onAdjustStock, onDelet
       })
       const data = await response.json()
       if (!response.ok) {
-        alert(data.error || 'Gagal sync ke Lapak')
+        showToast(data.error || 'Gagal sync ke Lapak', 'error')
         return
       }
       setSyncedProducts(prev => ({ ...prev, [product.id]: true }))
-      alert(data.message || '✅ Berhasil sync ke Lapak')
+      showToast(data.message || 'Berhasil sync ke Lapak', 'success')
     } catch {
-      alert('Terjadi kesalahan saat sync ke Lapak')
+      showToast('Terjadi kesalahan saat sync ke Lapak', 'error')
     } finally {
       setSyncingProducts(prev => ({ ...prev, [product.id]: false }))
     }
@@ -78,13 +79,13 @@ export function ProductTable({ products, loading, onEdit, onAdjustStock, onDelet
       })
       const data = await response.json()
       if (!response.ok) {
-        alert(data.error || 'Gagal hapus dari Lapak')
+        showToast(data.error || 'Gagal hapus dari Lapak', 'error')
         return
       }
       setSyncedProducts(prev => ({ ...prev, [product.id]: false }))
-      alert(data.message || '✅ Produk dihapus dari Lapak')
+      showToast(data.message || 'Produk dihapus dari Lapak', 'success')
     } catch {
-      alert('Terjadi kesalahan saat hapus dari Lapak')
+      showToast('Terjadi kesalahan saat hapus dari Lapak', 'error')
     } finally {
       setSyncingProducts(prev => ({ ...prev, [product.id]: false }))
     }

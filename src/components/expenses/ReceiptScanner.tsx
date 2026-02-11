@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { CameraIcon, XMarkIcon, CheckCircleIcon } from '@heroicons/react/24/outline'
 import Tesseract from 'tesseract.js'
+import { showToast, ToastContainer } from '@/components/ui/Toast'
 
 interface ScannedItem {
   name: string
@@ -63,7 +64,7 @@ export function ReceiptScanner({ onDataExtracted }: ReceiptScannerProps) {
       
     } catch (error) {
       console.error('OCR error:', error)
-      alert('Gagal scan struk. Coba foto yang lebih jelas atau input manual.')
+      showToast('Gagal scan struk. Coba foto yang lebih jelas atau input manual.', 'error')
     } finally {
       setScanning(false)
       setProgress(0)
@@ -318,6 +319,7 @@ export function ReceiptScanner({ onDataExtracted }: ReceiptScannerProps) {
           BETA - Free OCR with Tesseract.js
         </span>
       </div>
+      <ToastContainer />
     </div>
   )
 }

@@ -9,6 +9,7 @@ import { useState, useEffect } from 'react'
 import { X, Save, Loader2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { Income } from '@/modules/finance/types/financeTypes'
+import { showToast, ToastContainer } from '@/components/ui/Toast'
 
 export interface EditTransactionModalProps {
   isOpen: boolean
@@ -80,7 +81,7 @@ export function EditTransactionModal({
         }
       } catch (error) {
         console.error('Error loading transaction:', error)
-        alert('❌ Gagal memuat data transaksi')
+        showToast('Gagal memuat data transaksi', 'error')
         onClose()
       } finally {
         setLoading(false)
@@ -162,12 +163,12 @@ export function EditTransactionModal({
 
       if (lastError) throw lastError
 
-      alert('✅ Transaksi berhasil diperbarui')
+      showToast('Transaksi berhasil diperbarui', 'success')
       onSuccess?.()
       onClose()
     } catch (error) {
       console.error('Error updating transaction:', error)
-      alert('❌ Gagal memperbarui transaksi')
+      showToast('Gagal memperbarui transaksi', 'error')
     } finally {
       setSaving(false)
     }
@@ -352,6 +353,7 @@ export function EditTransactionModal({
           )}
         </div>
       </div>
+      <ToastContainer />
     </div>
   )
 }

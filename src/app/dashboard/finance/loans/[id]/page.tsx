@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
 import { Input } from '@/components/ui/Input'
 import { use } from 'react'
+import { showToast, ToastContainer } from '@/components/ui/Toast'
 
 interface Installment {
   id: string
@@ -56,7 +57,7 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
       if (response.ok) {
         setLoan(data.loan)
       } else {
-        alert('Gagal memuat data pinjaman')
+        showToast('Gagal memuat data pinjaman', 'error')
         window.location.href = '/dashboard/finance/loans'
       }
     } catch (error) {
@@ -95,7 +96,7 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
         throw new Error(data.error || 'Gagal memproses pembayaran')
       }
 
-      alert('✅ Pembayaran berhasil dicatat!')
+      showToast('Pembayaran berhasil dicatat!', 'success')
       setShowPayModal(false)
       setSelectedInstallment(null)
       setPaymentData({
@@ -108,7 +109,7 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
 
     } catch (error: any) {
       console.error('Error paying installment:', error)
-      alert('Error: ' + error.message)
+      showToast('Error: ' + error.message, 'error')
     } finally {
       setPaying(false)
     }
@@ -419,6 +420,7 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
           </form>
         )}
       </Modal>
+      <ToastContainer />
     </div>
   )
 }

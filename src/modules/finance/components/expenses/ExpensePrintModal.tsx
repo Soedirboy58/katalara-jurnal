@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import jsPDF from 'jspdf'
 import { getPaymentMethodLabel } from '@/modules/finance/types/financeTypes'
+import { showToast } from '@/components/ui/Toast'
 
 interface ExpensePrintModalProps {
   isOpen: boolean
@@ -180,7 +181,7 @@ export function ExpensePrintModal({ isOpen, onClose, expenseData, businessName }
 
   const shareToWhatsApp = () => {
     if (!d.supplier_phone) {
-      alert('Nomor WhatsApp supplier tidak tersedia')
+      showToast('Nomor WhatsApp supplier tidak tersedia', 'warning')
       return
     }
 

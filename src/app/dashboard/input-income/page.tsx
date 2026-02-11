@@ -20,6 +20,9 @@ import { getIncomeCategoryLabel } from '@/modules/finance/types/financeTypes'
 import { EditTransactionModal } from '@/components/transactions/EditTransactionModal'
 import { PreviewTransactionModal } from '@/components/transactions/PreviewTransactionModal'
 import { CheckCircle, HelpCircle, X } from 'lucide-react'
+import ConfirmModal from '@/components/ui/ConfirmModal'
+import { useConfirm } from '@/hooks/useConfirm'
+import { ToastContainer } from '@/components/ui/Toast'
 
 export const dynamic = 'force-dynamic'
 
@@ -62,6 +65,8 @@ export default function InputIncomePage() {
     type: 'success',
     message: ''
   })
+
+  const { confirm, confirmState, handleConfirm, handleCancel } = useConfirm()
 
   const [currentPage, setCurrentPage] = useState(1)
   const [filters, setFilters] = useState<TransactionFilters>({
@@ -137,7 +142,13 @@ export default function InputIncomePage() {
   }
 
   const handleDelete = async (incomeId: string) => {
-    const confirmed = confirm('Yakin ingin menghapus transaksi ini?')
+    const confirmed = await confirm({
+      title: 'Hapus transaksi?',
+      message: 'Yakin ingin menghapus transaksi ini?',
+      confirmText: 'Hapus',
+      cancelText: 'Batal',
+      type: 'danger'
+    })
     if (!confirmed) return
 
     const result = await deleteIncome(incomeId)
@@ -151,7 +162,18 @@ export default function InputIncomePage() {
   }
 
   const handleBulkDelete = async (ids: string[]) => {
-    const confirmed = confirm(`Hapus ${ids.length} transaksi yang dipilih?`)
+    if (ids.length === 0) {
+      showToast('warning', 'Pilih transaksi terlebih dulu')
+      return
+    }
+
+    const confirmed = await confirm({
+      title: 'Hapus banyak transaksi?',
+      message: `Hapus ${ids.length} transaksi yang dipilih?`,
+      confirmText: 'Hapus Semua',
+      cancelText: 'Batal',
+      type: 'danger'
+    })
     if (!confirmed) return
 
     const results = await Promise.all(ids.map((id) => deleteIncome(id)))
@@ -337,6 +359,18 @@ export default function InputIncomePage() {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={confirmState.isOpen}
+        onClose={handleCancel}
+        onConfirm={handleConfirm}
+        title={confirmState.options.title}
+        message={confirmState.options.message}
+        confirmText={confirmState.options.confirmText}
+        cancelText={confirmState.options.cancelText}
+        type={confirmState.options.type}
+      />
+      <ToastContainer />
 
       <ProductModal
         isOpen={showProductModal}

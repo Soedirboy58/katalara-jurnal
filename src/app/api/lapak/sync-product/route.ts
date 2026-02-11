@@ -69,13 +69,28 @@ export async function POST(request: NextRequest) {
       (product as any).price ??
       0;
     const resolvedImage = (product as any).image_url ?? null;
+    const resolvedImageUrls = Array.isArray((product as any).image_urls)
+      ? (product as any).image_urls
+      : resolvedImage
+        ? [resolvedImage]
+        : [];
+    const resolvedStockRaw =
+      (product as any).stock_quantity ??
+      (product as any).stock ??
+      (product as any).quantity ??
+      0;
+    const resolvedStock = Number.isFinite(Number(resolvedStockRaw)) ? Number(resolvedStockRaw) : 0;
+    const resolvedLowStock =
+      (product as any).min_stock_alert ??
+      (product as any).low_stock_threshold ??
+      5;
 
     // Check if product already exists in storefront_products
     const { data: existingProduct } = await supabase
       .from('storefront_products')
       .select('id')
       .eq('user_id', user.id)
-      .eq('name', product.name)
+      .or(`product_id.eq.${product.id},name.eq.${product.name}`)
       .single();
 
     if (existingProduct) {
@@ -83,17 +98,19 @@ export async function POST(request: NextRequest) {
       const { error: updateError } = await supabase
         .from('storefront_products')
         .update({
+          product_id: product.id,
           description: product.description || `${product.name} - Produk berkualitas`,
           product_type: 'barang', // Default to barang
           category: product.category || 'Lainnya',
           price: resolvedPrice,
           compare_at_price: null,
-          // ⚠️ stock_quantity removed - doesn't exist in products table
-          // Stock will be managed separately in stock_movements
+          stock_quantity: resolvedStock,
+          low_stock_threshold: resolvedLowStock,
           track_inventory: product.track_inventory !== false,
           is_visible: true,
           is_featured: false,
           image_url: resolvedImage,
+          image_urls: resolvedImageUrls,
           updated_at: new Date().toISOString(),
         })
         .eq('id', existingProduct.id);
@@ -118,18 +135,20 @@ export async function POST(request: NextRequest) {
         .insert({
           user_id: user.id,
           storefront_id: storefront.id,
+          product_id: product.id,
           name: product.name,
           description: product.description || `${product.name} - Produk berkualitas`,
           product_type: 'barang', // Default to barang
           category: product.category || 'Lainnya',
           price: resolvedPrice,
           compare_at_price: null,
-          // ⚠️ stock_quantity removed - doesn't exist in products table
-          // Stock will be managed separately in stock_movements
+          stock_quantity: resolvedStock,
+          low_stock_threshold: resolvedLowStock,
           track_inventory: product.track_inventory !== false,
           is_visible: true,
           is_featured: false,
           image_url: resolvedImage,
+          image_urls: resolvedImageUrls,
           sort_order: 0,
         })
         .select()

@@ -14,6 +14,9 @@
 
 import { useState, useEffect } from 'react'
 import type { Product } from '@/modules/inventory/types/inventoryTypes'
+import ConfirmModal from '@/components/ui/ConfirmModal'
+import { useConfirm } from '@/hooks/useConfirm'
+import { showToast } from '@/components/ui/Toast'
 
 export interface LineItem {
   id: string
@@ -51,6 +54,7 @@ export function LineItemsBuilder({
   const [price, setPrice] = useState('')
   const [showCustomUnit, setShowCustomUnit] = useState(false)
   const [customUnit, setCustomUnit] = useState('')
+  const { confirm, confirmState, handleConfirm, handleCancel } = useConfirm()
 
   // Auto-fill price and unit when product selected
   useEffect(() => {
@@ -77,9 +81,9 @@ export function LineItemsBuilder({
     return parseInt(str.replace(/\./g, '')) || 0
   }
 
-  const handleAddItem = () => {
+  const handleAddItem = async () => {
     if (!selectedProductId || !quantity || !price) {
-      alert('⚠️ Mohon lengkapi produk, jumlah, dan harga')
+      showToast('Mohon lengkapi produk, jumlah, dan harga', 'warning')
       return
     }
 
@@ -89,13 +93,13 @@ export function LineItemsBuilder({
     // Check for duplicate products
     const isDuplicate = items.some(item => item.product_id === selectedProductId)
     if (isDuplicate) {
-      alert(`⚠️ Produk "${product.name}" sudah ada dalam daftar!\n\nHapus item sebelumnya atau edit jumlahnya.`)
+      showToast(`Produk "${product.name}" sudah ada dalam daftar!`, 'warning')
       return
     }
 
     const finalUnit = unit === '__CUSTOM__' ? customUnit : unit
     if (!finalUnit) {
-      alert('⚠️ Mohon pilih atau masukkan satuan')
+      showToast('Mohon pilih atau masukkan satuan', 'warning')
       return
     }
 
@@ -105,13 +109,13 @@ export function LineItemsBuilder({
     
     // Validate quantity
     if (qty <= 0) {
-      alert('⚠️ Jumlah harus lebih dari 0')
+      showToast('Jumlah harus lebih dari 0', 'warning')
       return
     }
     
     // Validate price
     if (priceNum <= 0) {
-      alert('⚠️ Harga harus lebih dari 0')
+      showToast('Harga harus lebih dari 0', 'warning')
       return
     }
     
@@ -119,20 +123,24 @@ export function LineItemsBuilder({
     if ((product as any).track_inventory && (product as any).current_stock !== undefined) {
       const currentStock = (product as any).current_stock || 0
       if (currentStock < qty) {
-        alert(`⚠️ Stok tidak cukup!\n\nStok tersedia: ${currentStock} ${finalUnit}\nYang diminta: ${qty} ${finalUnit}`)
+        showToast(`Stok tidak cukup! Stok tersedia: ${currentStock} ${finalUnit}`, 'error')
         return
       }
     }
     
     // Warn if selling below cost price
     if (buyPrice > 0 && priceNum < buyPrice) {
-      const confirmed = confirm(
-        `⚠️ PERINGATAN: Harga Jual Lebih Rendah dari Harga Beli!\n\n` +
-        `Harga Beli: Rp ${buyPrice.toLocaleString('id-ID')}\n` +
-        `Harga Jual: Rp ${priceNum.toLocaleString('id-ID')}\n` +
-        `Rugi per unit: Rp ${(buyPrice - priceNum).toLocaleString('id-ID')}\n\n` +
-        `Apakah Anda yakin ingin melanjutkan?`
-      )
+      const confirmed = await confirm({
+        title: 'Harga jual di bawah HPP?',
+        message:
+          `Harga Beli: Rp ${buyPrice.toLocaleString('id-ID')}\n` +
+          `Harga Jual: Rp ${priceNum.toLocaleString('id-ID')}\n` +
+          `Rugi per unit: Rp ${(buyPrice - priceNum).toLocaleString('id-ID')}\n\n` +
+          'Apakah Anda yakin ingin melanjutkan?',
+        confirmText: 'Lanjutkan',
+        cancelText: 'Batal',
+        type: 'warning'
+      })
       if (!confirmed) return
     }
     
@@ -418,6 +426,17 @@ export function LineItemsBuilder({
           <p className="text-sm text-gray-500">Belum ada item. Tambahkan produk/layanan di atas.</p>
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={confirmState.isOpen}
+        onClose={handleCancel}
+        onConfirm={handleConfirm}
+        title={confirmState.options.title}
+        message={confirmState.options.message}
+        confirmText={confirmState.options.confirmText}
+        cancelText={confirmState.options.cancelText}
+        type={confirmState.options.type}
+      />
     </div>
   )
 }

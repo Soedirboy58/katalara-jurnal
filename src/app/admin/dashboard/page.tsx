@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { showToast, ToastContainer } from '@/components/ui/Toast'
 
 interface UserAnalytics {
   user_id: string
@@ -37,6 +38,9 @@ export default function AdminDashboard() {
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'pending' | 'inactive'>('all')
   const [selectedUser, setSelectedUser] = useState<UserAnalytics | null>(null)
   const [showUserModal, setShowUserModal] = useState(false)
+  const [showSuspendModal, setShowSuspendModal] = useState(false)
+  const [suspendReason, setSuspendReason] = useState('')
+  const [suspendUserId, setSuspendUserId] = useState<string | null>(null)
 
   useEffect(() => {
     checkAdminAccess()
@@ -124,32 +128,40 @@ export default function AdminDashboard() {
 
       if (error) throw error
       
-      alert('User berhasil disetujui!')
+      showToast('User berhasil disetujui!', 'success')
       await loadUsers()
       setShowUserModal(false)
     } catch (error: any) {
       console.error('Error approving user:', error)
-      alert('Gagal menyetujui user: ' + error.message)
+      showToast('Gagal menyetujui user: ' + error.message, 'error')
     }
   }
 
   const handleSuspendUser = async (userId: string) => {
-    const reason = prompt('Alasan suspend (opsional):')
-    
+    setSuspendUserId(userId)
+    setSuspendReason('')
+    setShowSuspendModal(true)
+  }
+
+  const handleConfirmSuspend = async () => {
+    if (!suspendUserId) return
+
     try {
       const { error } = await supabase.rpc('suspend_user', {
-        target_user_id: userId,
-        reason: reason || 'Suspended by admin'
+        target_user_id: suspendUserId,
+        reason: suspendReason?.trim() || 'Suspended by admin'
       })
 
       if (error) throw error
       
-      alert('User berhasil disuspend!')
+      showToast('User berhasil disuspend!', 'success')
       await loadUsers()
       setShowUserModal(false)
+      setShowSuspendModal(false)
+      setSuspendUserId(null)
     } catch (error: any) {
       console.error('Error suspending user:', error)
-      alert('Gagal suspend user: ' + error.message)
+      showToast('Gagal suspend user: ' + error.message, 'error')
     }
   }
 
@@ -161,12 +173,12 @@ export default function AdminDashboard() {
 
       if (error) throw error
       
-      alert('User berhasil diaktifkan!')
+      showToast('User berhasil diaktifkan!', 'success')
       await loadUsers()
       setShowUserModal(false)
     } catch (error: any) {
       console.error('Error activating user:', error)
-      alert('Gagal mengaktifkan user: ' + error.message)
+      showToast('Gagal mengaktifkan user: ' + error.message, 'error')
     }
   }
 
@@ -539,6 +551,44 @@ export default function AdminDashboard() {
           </div>
         </div>
       )}
+
+      {showSuspendModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setShowSuspendModal(false)}
+          ></div>
+          <div className="relative bg-white rounded-xl shadow-2xl max-w-md w-full p-5">
+            <h3 className="text-lg font-semibold text-gray-900">Suspend User</h3>
+            <p className="text-sm text-gray-600 mt-1">Masukkan alasan suspend (opsional).</p>
+
+            <textarea
+              value={suspendReason}
+              onChange={(e) => setSuspendReason(e.target.value)}
+              rows={3}
+              className="mt-4 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              placeholder="Contoh: Pelanggaran kebijakan"
+            />
+
+            <div className="mt-4 flex gap-3 justify-end">
+              <button
+                onClick={() => setShowSuspendModal(false)}
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg"
+              >
+                Batal
+              </button>
+              <button
+                onClick={handleConfirmSuspend}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg"
+              >
+                Suspend
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <ToastContainer />
     </div>
   )
 }

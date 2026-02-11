@@ -4,6 +4,9 @@ import React, { useEffect, useState } from 'react';
 import QRCode from 'react-qr-code';
 import { CartItem, CheckoutForm } from '@/types/lapak';
 import { uploadPaymentProof } from '@/lib/uploadPaymentProof';
+import ConfirmModal from '@/components/ui/ConfirmModal';
+import { useConfirm } from '@/hooks/useConfirm';
+import { showToast, ToastContainer } from '@/components/ui/Toast';
 
 interface PaymentModalProps {
   isOpen: boolean;
@@ -52,6 +55,7 @@ export default function PaymentModal({
   const [paymentProofUrl, setPaymentProofUrl] = useState<string | undefined>(undefined);
   const [paymentProofUploading, setPaymentProofUploading] = useState(false);
   const [paymentProofError, setPaymentProofError] = useState<string | null>(null);
+  const { confirm, confirmState, handleConfirm, handleCancel } = useConfirm();
 
   useEffect(() => {
     if (!isOpen) return;
@@ -102,12 +106,19 @@ export default function PaymentModal({
     setPaymentProofUploading(false);
   };
 
-  const handleCashPayment = () => {
+  const handleCashPayment = async () => {
     if (!isCustomerValid) {
-      alert('Lengkapi data pembeli terlebih dahulu.');
+      showToast('Lengkapi data pembeli terlebih dahulu.', 'warning');
       return;
     }
-    if (confirm('Konfirmasi pembayaran tunai?')) {
+    const ok = await confirm({
+      title: 'Konfirmasi pembayaran',
+      message: 'Konfirmasi pembayaran tunai?',
+      confirmText: 'Konfirmasi',
+      cancelText: 'Batal',
+      type: 'warning'
+    });
+    if (ok) {
       onPaymentComplete({
         method: 'cash',
         customer: checkoutForm,
@@ -117,16 +128,23 @@ export default function PaymentModal({
     }
   };
 
-  const handleVerifyPayment = () => {
+  const handleVerifyPayment = async () => {
     if (!isCustomerValid) {
-      alert('Lengkapi data pembeli terlebih dahulu.');
+      showToast('Lengkapi data pembeli terlebih dahulu.', 'warning');
       return;
     }
     if (requiresProof && !paymentProofUrl) {
-      alert('Mohon upload bukti pembayaran terlebih dahulu.');
+      showToast('Mohon upload bukti pembayaran terlebih dahulu.', 'warning');
       return;
     }
-    if (confirm('Konfirmasi bahwa pembayaran sudah dilakukan?')) {
+    const ok = await confirm({
+      title: 'Konfirmasi pembayaran',
+      message: 'Konfirmasi bahwa pembayaran sudah dilakukan?',
+      confirmText: 'Konfirmasi',
+      cancelText: 'Batal',
+      type: 'warning'
+    });
+    if (ok) {
       onPaymentComplete({
         method: paymentMethod || 'qris',
         customer: checkoutForm,
@@ -549,7 +567,7 @@ export default function PaymentModal({
                       <button
                         onClick={() => {
                           navigator.clipboard.writeText(businessBankAccount?.account_number || '');
-                          alert('Nomor rekening disalin!');
+                          showToast('Nomor rekening disalin!', 'success');
                         }}
                         className="text-blue-600 text-xs font-medium"
                       >
@@ -612,6 +630,17 @@ export default function PaymentModal({
           )}
         </div>
       </div>
+      <ConfirmModal
+        isOpen={confirmState.isOpen}
+        onClose={handleCancel}
+        onConfirm={handleConfirm}
+        title={confirmState.options.title}
+        message={confirmState.options.message}
+        confirmText={confirmState.options.confirmText}
+        cancelText={confirmState.options.cancelText}
+        type={confirmState.options.type}
+      />
+      <ToastContainer />
     </>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import jsPDF from 'jspdf'
+import { showToast, ToastContainer } from '@/components/ui/Toast'
 
 interface PrintModalProps {
   isOpen: boolean
@@ -389,7 +390,7 @@ export function PrintModal({ isOpen, onClose, incomeData, businessName }: PrintM
 
   const shareToWhatsApp = () => {
     if (!incomeData.customer_phone) {
-      alert('Nomor WhatsApp customer tidak tersedia')
+      showToast('Nomor WhatsApp customer tidak tersedia', 'warning')
       return
     }
     
@@ -976,6 +977,7 @@ Terima kasih! 🙏
           </div>
         </div>
       )}
+      <ToastContainer />
     </div>
   )
 }

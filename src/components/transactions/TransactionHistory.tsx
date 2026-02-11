@@ -8,10 +8,14 @@
 
 import { useState } from 'react'
 import { Search, Filter, Calendar, LayoutGrid, List, Trash2, Edit, Eye, ChevronLeft, ChevronRight } from 'lucide-react'
+import ConfirmModal from '@/components/ui/ConfirmModal'
+import { useConfirm } from '@/hooks/useConfirm'
+import { showToast } from '@/components/ui/Toast'
 
 export interface TransactionHistoryItem {
   id: string
   date: string
+  const { confirm, confirmState, handleConfirm, handleCancel } = useConfirm()
   category: string // category code (used for filtering)
   category_label?: string // display label
   customer_or_supplier?: string
@@ -149,12 +153,22 @@ export function TransactionHistory({
     setSelectedIds(newSet)
   }
 
-  const handleBulkDelete = () => {
-    if (selectedIds.size === 0) return
-    if (confirm(`Hapus ${selectedIds.size} transaksi yang dipilih?`)) {
-      onBulkDelete(Array.from(selectedIds))
-      setSelectedIds(new Set())
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) {
+      showToast('Pilih transaksi terlebih dulu', 'warning')
+      return
     }
+
+    const ok = await confirm({
+      title: 'Hapus banyak transaksi?',
+      message: `Hapus ${selectedIds.size} transaksi yang dipilih?`,
+      confirmText: 'Hapus Semua',
+      cancelText: 'Batal',
+      type: 'danger'
+    })
+    if (!ok) return
+    onBulkDelete(Array.from(selectedIds))
+    setSelectedIds(new Set())
   }
 
   const getStatusBadge = (status: string) => {
@@ -523,6 +537,17 @@ export function TransactionHistory({
           </div>
         )}
       </div>
+
+      <ConfirmModal
+        isOpen={confirmState.isOpen}
+        onClose={handleCancel}
+        onConfirm={handleConfirm}
+        title={confirmState.options.title}
+        message={confirmState.options.message}
+        confirmText={confirmState.options.confirmText}
+        cancelText={confirmState.options.cancelText}
+        type={confirmState.options.type}
+      />
     </div>
   )
 }

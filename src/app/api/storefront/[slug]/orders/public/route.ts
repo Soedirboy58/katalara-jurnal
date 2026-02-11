@@ -25,7 +25,12 @@ export async function GET(
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 
-    return NextResponse.json({ success: true, data: data || null });
+    const row = Array.isArray(data) ? data[0] : data;
+    if (!row) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({ success: true, data: row });
   } catch (error) {
     console.error('Public order status error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

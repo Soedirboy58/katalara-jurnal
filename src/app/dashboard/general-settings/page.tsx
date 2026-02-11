@@ -3,6 +3,9 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import ConfirmModal from '@/components/ui/ConfirmModal'
+import { showToast, ToastContainer } from '@/components/ui/Toast'
+import { useConfirm } from '@/hooks/useConfirm'
 
 interface Settings {
   theme: 'light' | 'dark' | 'auto'
@@ -20,7 +23,6 @@ interface Settings {
 export default function GeneralSettingsPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [showToast, setShowToast] = useState(false)
   const [settings, setSettings] = useState<Settings>({
     theme: 'light',
     language: 'id',
@@ -36,6 +38,7 @@ export default function GeneralSettingsPage() {
 
   const supabase = createClient()
   const router = useRouter()
+  const { confirm, confirmState, handleConfirm, handleCancel } = useConfirm()
 
   useEffect(() => {
     loadSettings()
@@ -117,18 +120,24 @@ export default function GeneralSettingsPage() {
         metadata: { settings }
       })
 
-      setShowToast(true)
-      setTimeout(() => setShowToast(false), 3000)
+      showToast('Pengaturan berhasil disimpan!', 'success')
     } catch (error) {
       console.error('Error saving settings:', error)
-      alert('Gagal menyimpan pengaturan')
+      showToast('Gagal menyimpan pengaturan', 'error')
     } finally {
       setSaving(false)
     }
   }
 
   const handleReset = async () => {
-    if (!confirm('Reset semua pengaturan ke default?')) return
+    const ok = await confirm({
+      title: 'Reset pengaturan?',
+      message: 'Reset semua pengaturan ke default?',
+      confirmText: 'Reset',
+      cancelText: 'Batal',
+      type: 'warning'
+    })
+    if (!ok) return
 
     const defaultSettings: Settings = {
       theme: 'light',
@@ -170,10 +179,10 @@ export default function GeneralSettingsPage() {
 
       if (error) throw error
 
-      setShowToast(true)
-      setTimeout(() => setShowToast(false), 3000)
+      showToast('Pengaturan direset ke default', 'success')
     } catch (error) {
       console.error('Error resetting settings:', error)
+      showToast('Gagal reset pengaturan', 'error')
     } finally {
       setSaving(false)
     }
@@ -421,17 +430,17 @@ export default function GeneralSettingsPage() {
         </div>
       </div>
 
-      {/* Toast Notification */}
-      {showToast && (
-        <div className="fixed bottom-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg animate-slide-up">
-          <div className="flex items-center gap-2">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-            <span className="font-medium">Pengaturan berhasil disimpan!</span>
-          </div>
-        </div>
-      )}
+      <ConfirmModal
+        isOpen={confirmState.isOpen}
+        onClose={handleCancel}
+        onConfirm={handleConfirm}
+        title={confirmState.options.title}
+        message={confirmState.options.message}
+        confirmText={confirmState.options.confirmText}
+        cancelText={confirmState.options.cancelText}
+        type={confirmState.options.type}
+      />
+      <ToastContainer />
     </div>
   )
 }

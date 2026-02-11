@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { QRCodeSVG } from 'qrcode.react'
+import { showToast, ToastContainer } from '@/components/ui/Toast'
 import { 
   CogIcon, 
   BuildingStorefrontIcon,
@@ -83,10 +84,10 @@ export default function SettingsPage() {
 
       if (error) throw error
 
-      alert('✅ Pengaturan berhasil disimpan!')
+      showToast('Pengaturan berhasil disimpan!', 'success')
     } catch (error) {
       console.error('Error saving settings:', error)
-      alert('❌ Gagal menyimpan pengaturan')
+      showToast('Gagal menyimpan pengaturan', 'error')
     } finally {
       setSaving(false)
     }
@@ -320,6 +321,7 @@ export default function SettingsPage() {
           </div>
         </div>
       </div>
+      <ToastContainer />
     </div>
   )
 }

@@ -9,6 +9,7 @@ import FloatingWhatsApp from '@/components/lapak/FloatingWhatsApp';
 import ShoppingCart from '@/components/lapak/ShoppingCart';
 import PaymentModal from '@/components/lapak/PaymentModal';
 import { Storefront, StorefrontProduct, CartItem, formatWhatsAppMessage } from '@/types/lapak';
+import { showToast, ToastContainer } from '@/components/ui/Toast';
 
 interface StorefrontPageProps {
   params: Promise<{ slug: string }>;
@@ -235,7 +236,7 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
 
     // Track order to database
     try {
-      await fetch(`/api/storefront/${slug}/orders`, {
+      const orderResponse = await fetch(`/api/storefront/${slug}/orders`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -262,8 +263,14 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
           public_tracking_code: trackingCode,
         }),
       });
+      if (!orderResponse.ok) {
+        const errJson = await orderResponse.json().catch(() => null as any);
+        console.error('Error tracking order:', errJson?.error || orderResponse.statusText);
+        showToast('Order gagal tersimpan. Mohon coba lagi.', 'error');
+      }
     } catch (err) {
       console.error('Error tracking order:', err);
+      showToast('Order gagal tersimpan. Mohon coba lagi.', 'error');
     }
 
     // Track WhatsApp click
@@ -529,6 +536,7 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
           </div>
         </div>
       </footer>
+      <ToastContainer />
     </div>
   );
 }

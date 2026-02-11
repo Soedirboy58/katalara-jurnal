@@ -16,6 +16,7 @@
 import { useState, useEffect } from 'react'
 import { LineItemsBuilder, type LineItem } from './LineItemsBuilder'
 import type { Product } from '@/modules/inventory/types/inventoryTypes'
+import { showToast } from '@/components/ui/Toast'
 import {
   INCOME_CATEGORIES_BY_TYPE,
   getIncomeCategoryLabel,
@@ -319,7 +320,7 @@ export function IncomesForm({
     const n = Number(loanTermMonths || 0)
 
     if (!P || P <= 0 || !n || n <= 0) {
-      alert('Isi jumlah pinjaman dan jangka waktu yang valid')
+      showToast('Isi jumlah pinjaman dan jangka waktu yang valid', 'warning')
       return
     }
 
@@ -382,62 +383,62 @@ export function IncomesForm({
     // Validation
     if (isIncomeCategoryNonItemMode(incomeType, category)) {
       if (otherIncomeAmount <= 0) {
-        alert('Mohon isi nominal pendapatan')
+        showToast('Mohon isi nominal pendapatan', 'warning')
         return
       }
       if (!resolvedOtherIncomeDescription.trim() && !notes.trim()) {
-        alert('Mohon isi keterangan/deskripsi pendapatan')
+        showToast('Mohon isi keterangan/deskripsi pendapatan', 'warning')
         return
       }
 
       if (isLoanCategory) {
         if (!lenderName.trim()) {
-          alert('Mohon isi nama pemberi pinjaman (Bank/Orang)')
+          showToast('Mohon isi nama pemberi pinjaman (Bank/Orang)', 'warning')
           return
         }
         if (!firstPaymentDate) {
-          alert('Mohon isi tanggal bayar pertama')
+          showToast('Mohon isi tanggal bayar pertama', 'warning')
           return
         }
         if (!loanTermMonths || loanTermMonths <= 0) {
-          alert('Mohon isi jangka waktu pinjaman (bulan)')
+          showToast('Mohon isi jangka waktu pinjaman (bulan)', 'warning')
           return
         }
         if (loanInterestRate < 0) {
-          alert('Suku bunga tidak boleh negatif')
+          showToast('Suku bunga tidak boleh negatif', 'warning')
           return
         }
       }
 
       if (isInvestorCategory) {
         if (!investorName.trim()) {
-          alert('Mohon isi nama investor')
+          showToast('Mohon isi nama investor', 'warning')
           return
         }
         if (profitSharePercent < 0 || profitSharePercent > 100) {
-          alert('Persentase bagi hasil harus 0-100')
+          showToast('Persentase bagi hasil harus 0-100', 'warning')
           return
         }
       }
     } else {
       if (lineItems.length === 0) {
-        alert('Mohon tambahkan minimal 1 item')
+        showToast('Mohon tambahkan minimal 1 item', 'warning')
         return
       }
     }
 
     if (!isAnonymous && !customerName.trim()) {
-      alert('Mohon masukkan nama pelanggan atau centang "Pelanggan Anonim"')
+      showToast('Mohon masukkan nama pelanggan atau centang "Pelanggan Anonim"', 'warning')
       return
     }
 
     if (paymentType === 'tempo') {
       if (!dueDate) {
-        alert('Mohon pilih tanggal jatuh tempo')
+        showToast('Mohon pilih tanggal jatuh tempo', 'warning')
         return
       }
       if (!customerPhone) {
-        alert('Mohon masukkan nomor WhatsApp pelanggan untuk pengingat tempo')
+        showToast('Mohon masukkan nomor WhatsApp pelanggan untuk pengingat tempo', 'warning')
         return
       }
     }
