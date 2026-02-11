@@ -6,7 +6,6 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { HelpCircle } from 'lucide-react'
 
 import { IncomesForm } from '@/modules/finance/components/incomes/IncomesForm'
 import { useIncomes } from '@/modules/finance/hooks/useIncomes'
