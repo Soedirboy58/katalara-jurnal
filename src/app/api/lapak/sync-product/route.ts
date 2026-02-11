@@ -221,12 +221,6 @@ export async function DELETE(request: NextRequest) {
 
     const { error: deleteError } = await deleteQuery;
 
-    if (storefrontId) {
-      deleteQuery = deleteQuery.eq('storefront_id', storefrontId);
-    }
-
-    const { error: deleteError } = await deleteQuery;
-
     if (deleteError) {
       console.error('Error deleting product:', deleteError);
       return NextResponse.json(
