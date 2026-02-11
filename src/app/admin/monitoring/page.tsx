@@ -25,6 +25,29 @@ interface OverviewStats {
   bugsByCategory: Record<string, number>
 }
 
+type UserStatRow = {
+  user_id: string
+  full_name: string | null
+  business_name: string | null
+  created_at: string
+  role?: string | null
+  is_active?: boolean | null
+  is_approved?: boolean | null
+  last_active_at?: string | null
+  events_7d?: number | null
+}
+
+type ActivityLogRow = {
+  id?: string
+  user_id: string
+  action?: string | null
+  description?: string | null
+  metadata?: any
+  page?: string | null
+  details?: any
+  created_at: string
+}
+
 export default function AdminMonitoringPage() {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<'overview' | 'bugs' | 'users' | 'activity'>('overview')
@@ -108,6 +131,21 @@ export default function AdminMonitoringPage() {
     }
     return styles[status as keyof typeof styles] || styles.new
   }
+
+  const formatDateTime = (iso: string) => {
+    if (!iso) return 'N/A'
+    return new Date(iso).toLocaleString('id-ID')
+  }
+
+  const filteredUserStats = (userStats as UserStatRow[]).filter((u) => {
+    const q = searchQuery.trim().toLowerCase()
+    if (!q) return true
+    return (
+      String(u.user_id || '').toLowerCase().includes(q) ||
+      String(u.full_name || '').toLowerCase().includes(q) ||
+      String(u.business_name || '').toLowerCase().includes(q)
+    )
+  })
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
@@ -341,15 +379,141 @@ export default function AdminMonitoringPage() {
 
               {/* Users Tab */}
               {activeTab === 'users' && (
-                <div>
-                  <p className="text-gray-600 text-center py-12">User stats implementation here...</p>
+                <div className="space-y-6">
+                  <div className="flex flex-col md:flex-row gap-3 md:items-center md:justify-between">
+                    <div>
+                      <h2 className="text-xl font-bold text-gray-900">Users</h2>
+                      <p className="text-sm text-gray-600">Registrasi + aktivitas 7 hari terakhir</p>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <div className="relative">
+                        <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                        <input
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          placeholder="Cari user_id / nama / bisnis"
+                          className="pl-9 pr-3 py-2 border border-gray-300 rounded-lg w-full md:w-80"
+                        />
+                      </div>
+                      <button
+                        onClick={fetchData}
+                        className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800"
+                      >
+                        Refresh
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="overflow-x-auto border border-gray-200 rounded-xl">
+                    <table className="min-w-full bg-white">
+                      <thead className="bg-gray-50">
+                        <tr className="text-left text-xs font-semibold text-gray-600">
+                          <th className="px-4 py-3">User</th>
+                          <th className="px-4 py-3">Role</th>
+                          <th className="px-4 py-3">Status</th>
+                          <th className="px-4 py-3">Registered</th>
+                          <th className="px-4 py-3">Last Active</th>
+                          <th className="px-4 py-3">Events (7d)</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {filteredUserStats.map((u) => (
+                          <tr key={u.user_id} className="text-sm text-gray-700">
+                            <td className="px-4 py-3">
+                              <div className="font-semibold text-gray-900">{u.full_name || 'Unknown'}</div>
+                              <div className="text-xs text-gray-500 truncate max-w-[320px]">{u.business_name || '—'}</div>
+                              <div className="text-xs text-gray-400 truncate max-w-[320px]">{u.user_id}</div>
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className="px-2 py-1 rounded-full bg-indigo-50 text-indigo-700 text-xs font-semibold">
+                                {u.role || 'user'}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="flex flex-wrap gap-2">
+                                <span className={`px-2 py-1 rounded-full text-xs font-semibold ${u.is_active === false ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>
+                                  {u.is_active === false ? 'inactive' : 'active'}
+                                </span>
+                                <span className={`px-2 py-1 rounded-full text-xs font-semibold ${u.is_approved ? 'bg-blue-50 text-blue-700' : 'bg-yellow-50 text-yellow-700'}`}>
+                                  {u.is_approved ? 'approved' : 'pending'}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">{formatDateTime(u.created_at)}</td>
+                            <td className="px-4 py-3 whitespace-nowrap">{u.last_active_at ? formatDateTime(u.last_active_at) : '—'}</td>
+                            <td className="px-4 py-3">
+                              <span className="font-semibold">{u.events_7d || 0}</span>
+                            </td>
+                          </tr>
+                        ))}
+
+                        {filteredUserStats.length === 0 && (
+                          <tr>
+                            <td colSpan={6} className="px-4 py-10 text-center text-gray-500">
+                              Tidak ada user ditemukan
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               )}
 
               {/* Activity Tab */}
               {activeTab === 'activity' && (
-                <div>
-                  <p className="text-gray-600 text-center py-12">Activity log implementation here...</p>
+                <div className="space-y-6">
+                  <div className="flex flex-col md:flex-row gap-3 md:items-center md:justify-between">
+                    <div>
+                      <h2 className="text-xl font-bold text-gray-900">Activity</h2>
+                      <p className="text-sm text-gray-600">Log penggunaan terbaru (limit default 100)</p>
+                    </div>
+                    <button
+                      onClick={fetchData}
+                      className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800"
+                    >
+                      Refresh
+                    </button>
+                  </div>
+
+                  <div className="space-y-3">
+                    {(activityLog as ActivityLogRow[]).map((row, idx) => (
+                      <div key={row.id || `${row.user_id}-${row.created_at}-${idx}`} className="bg-white border border-gray-200 rounded-xl p-4">
+                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                          <div>
+                            <div className="text-sm font-semibold text-gray-900">
+                              {row.action || 'activity'}
+                            </div>
+                            <div className="text-xs text-gray-500">user_id: {row.user_id}</div>
+                          </div>
+                          <div className="text-xs text-gray-500 whitespace-nowrap">{formatDateTime(row.created_at)}</div>
+                        </div>
+
+                        {(row.description || row.page) && (
+                          <div className="mt-2 text-sm text-gray-700">
+                            {row.description || row.page}
+                          </div>
+                        )}
+
+                        {(row.metadata || row.details) && (
+                          <details className="mt-2">
+                            <summary className="text-sm text-indigo-700 cursor-pointer">Detail</summary>
+                            <pre className="mt-2 bg-gray-50 border border-gray-200 rounded-lg p-3 text-xs overflow-x-auto">
+{JSON.stringify(row.metadata || row.details, null, 2)}
+                            </pre>
+                          </details>
+                        )}
+                      </div>
+                    ))}
+
+                    {(activityLog as ActivityLogRow[]).length === 0 && (
+                      <div className="text-center py-12 text-gray-500">
+                        <Activity className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                        <p>No activity logs found</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </>
