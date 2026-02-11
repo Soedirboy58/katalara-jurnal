@@ -10,7 +10,26 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [userId, setUserId] = useState('')
-  const [activeTab, setActiveTab] = useState<'financial' | 'display' | 'general'>('financial')
+  const [activeTab, setActiveTab] = useState<
+    'business-type' | 'business' | 'finance' | 'operations' | 'branding' | 'notifications' | 'security'
+  >('business-type')
+
+  type BusinessType = 'dagang' | 'jasa' | 'produksi'
+  const [businessType, setBusinessType] = useState<BusinessType>('dagang')
+
+  const categoryToBusinessType = (category?: string | null): BusinessType => {
+    const c = (category || '').toString().toLowerCase()
+    if (c.includes('jasa')) return 'jasa'
+    if (c.includes('trading') || c.includes('reseller')) return 'dagang'
+    if (c.includes('produk') || c.includes('stok') || c.includes('hybrid')) return 'produksi'
+    return 'dagang'
+  }
+
+  const businessTypeToCategory = (type: BusinessType): string => {
+    if (type === 'jasa') return 'Jasa/Layanan'
+    if (type === 'dagang') return 'Trading/Reseller'
+    return 'Produk dengan Stok'
+  }
   
   // Financial Settings state
   const [dailyExpenseLimit, setDailyExpenseLimit] = useState('')
@@ -59,6 +78,7 @@ export default function SettingsPage() {
         setNotificationThreshold(config.notification_threshold?.toString() || '80')
         setTrackROI(config.track_roi ?? true)
         setRoiPeriod(config.roi_period || 'monthly')
+        setBusinessType(categoryToBusinessType(config.business_category))
       }
     } catch (error) {
       console.error('Error loading settings:', error)
@@ -85,7 +105,7 @@ export default function SettingsPage() {
 
       const settings = {
         user_id: userId,
-        business_category: existingConfig?.business_category || 'Hybrid', // Preserve or safe default (must satisfy DB CHECK constraint in newer schema)
+        business_category: businessTypeToCategory(businessType),
         daily_expense_limit: dailyExpenseLimit ? parseFloat(dailyExpenseLimit.replace(/\./g, '')) : null,
         daily_revenue_target: dailyRevenueTarget ? parseFloat(dailyRevenueTarget.replace(/\./g, '')) : null,
         enable_expense_notifications: enableNotifications,
@@ -140,6 +160,16 @@ export default function SettingsPage() {
     setter(formatNumber(value))
   }
 
+  const tabs = [
+    { id: 'business-type', label: 'Tipe Usaha', icon: '🏷️' },
+    { id: 'business', label: 'Profil & Bisnis', icon: '🏢' },
+    { id: 'finance', label: 'Keuangan', icon: '💰' },
+    { id: 'operations', label: 'Operasional', icon: '🧩' },
+    { id: 'branding', label: 'Tampilan & Branding', icon: '🎨' },
+    { id: 'notifications', label: 'Notifikasi', icon: '🔔' },
+    { id: 'security', label: 'Akun & Keamanan', icon: '🔒' }
+  ] as const
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -161,50 +191,124 @@ export default function SettingsPage() {
       {/* Tab Navigation */}
       <div className="max-w-4xl mb-6">
         <div className="border-b border-gray-200">
-          <nav className="flex -mb-px space-x-8" aria-label="Tabs">
-            <button
-              onClick={() => setActiveTab('financial')}
-              className={`
-                whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors
-                ${activeTab === 'financial'
-                  ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }
-              `}
-            >
-              💰 Keuangan
-            </button>
-            <button
-              onClick={() => setActiveTab('display')}
-              className={`
-                whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors
-                ${activeTab === 'display'
-                  ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }
-              `}
-            >
-              🎨 Tampilan
-            </button>
-            <button
-              onClick={() => setActiveTab('general')}
-              className={`
-                whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors
-                ${activeTab === 'general'
-                  ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }
-              `}
-            >
-              ⚙️ Umum
-            </button>
+          <nav className="flex flex-wrap gap-4 -mb-px" aria-label="Tabs">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`
+                  whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-colors
+                  ${activeTab === tab.id
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }
+                `}
+              >
+                {tab.icon} {tab.label}
+              </button>
+            ))}
           </nav>
         </div>
       </div>
 
       <div className="max-w-4xl space-y-6">
+        {/* Business Type Tab Content */}
+        {activeTab === 'business-type' && (
+          <>
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div className="flex items-start gap-3 mb-4">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <h2 className="text-lg font-semibold text-gray-900">Tipe Usaha</h2>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Pilih tipe usaha untuk menyesuaikan menu, alur input, dan tampilan fitur agar lebih sederhana.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {[
+                  {
+                    value: 'dagang',
+                    title: 'Usaha Dagang',
+                    desc: 'Fokus jual beli barang, stok & supplier aktif.'
+                  },
+                  {
+                    value: 'jasa',
+                    title: 'Usaha Jasa',
+                    desc: 'Fokus layanan, stok & supplier disederhanakan.'
+                  },
+                  {
+                    value: 'produksi',
+                    title: 'Usaha Produksi',
+                    desc: 'Produksi barang dengan bahan baku & perakitan.'
+                  }
+                ].map((opt) => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setBusinessType(opt.value as BusinessType)}
+                    className={`text-left p-4 rounded-lg border transition-colors ${
+                      businessType === opt.value
+                        ? 'border-blue-600 bg-blue-50'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <div className="font-semibold text-gray-900">{opt.title}</div>
+                    <div className="text-sm text-gray-600 mt-1">{opt.desc}</div>
+                  </button>
+                ))}
+              </div>
+
+              <div className="mt-4 text-xs text-gray-500">
+                * Pilihan ini menentukan rekomendasi tampilan. Optimasi fitur akan kita lanjutkan setelah UI siap.
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="flex-1 sm:flex-none px-8 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {saving ? 'Menyimpan...' : 'Simpan Pengaturan'}
+              </button>
+              <button
+                onClick={loadSettings}
+                disabled={saving}
+                className="px-6 py-3 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+              >
+                Reset
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* Business Profile Tab Content */}
+        {activeTab === 'business' && (
+          <>
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div className="flex items-center mb-4">
+                <div className="text-2xl mr-3">🏢</div>
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">Profil & Informasi Bisnis</h2>
+                  <p className="text-sm text-gray-600">Atur identitas usaha, alamat, dan preferensi dasar</p>
+                </div>
+              </div>
+
+              <div className="text-center py-10 text-gray-500">
+                <div className="text-5xl mb-3">🚧</div>
+                <p className="text-sm">Bagian ini akan diisi setelah struktur UI final.</p>
+              </div>
+            </div>
+          </>
+        )}
+
         {/* Financial Tab Content */}
-        {activeTab === 'financial' && (
+        {activeTab === 'finance' && (
           <>
         {/* Daily Expense Limit */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -313,66 +417,6 @@ export default function SettingsPage() {
               </div>
             </div>
           )}
-        </div>
-
-        {/* Notification Settings */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <div className="flex items-start gap-3 mb-4">
-            <div className="p-2 bg-purple-100 rounded-lg">
-              <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-              </svg>
-            </div>
-            <div className="flex-1">
-              <h2 className="text-lg font-semibold text-gray-900">Notifikasi Pengeluaran</h2>
-              <p className="text-sm text-gray-600 mt-1">
-                Dapatkan peringatan otomatis saat pengeluaran mendekati limit yang ditetapkan
-              </p>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-              <div>
-                <p className="text-sm font-medium text-gray-900">Aktifkan Notifikasi</p>
-                <p className="text-xs text-gray-600 mt-1">Terima alert saat mendekati limit pengeluaran</p>
-              </div>
-              <button
-                onClick={() => setEnableNotifications(!enableNotifications)}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  enableNotifications ? 'bg-blue-600' : 'bg-gray-300'
-                }`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    enableNotifications ? 'translate-x-6' : 'translate-x-1'
-                  }`}
-                />
-              </button>
-            </div>
-
-            {enableNotifications && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Threshold Notifikasi
-                </label>
-                <select
-                  value={notificationThreshold}
-                  onChange={(e) => setNotificationThreshold(e.target.value)}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="50">50% dari limit</option>
-                  <option value="70">70% dari limit</option>
-                  <option value="80">80% dari limit (Recommended)</option>
-                  <option value="90">90% dari limit</option>
-                  <option value="95">95% dari limit</option>
-                </select>
-                <p className="text-xs text-gray-500 mt-1">
-                  Notifikasi akan muncul saat pengeluaran mencapai persentase ini
-                </p>
-              </div>
-            )}
-          </div>
         </div>
 
         {/* ROI Analysis Settings */}
@@ -493,8 +537,8 @@ export default function SettingsPage() {
           </>
         )}
 
-        {/* Display Tab Content */}
-        {activeTab === 'display' && (
+        {/* Branding Tab Content */}
+        {activeTab === 'branding' && (
           <>
             {/* Dashboard Layout */}
             <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
@@ -593,32 +637,123 @@ export default function SettingsPage() {
           </>
         )}
 
-        {/* General Tab Content */}
-        {activeTab === 'general' && (
+        {/* Operations Tab Content */}
+        {activeTab === 'operations' && (
           <>
             <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
               <div className="flex items-center mb-4">
-                <div className="text-2xl mr-3">⚙️</div>
+                <div className="text-2xl mr-3">🧩</div>
                 <div>
-                  <h2 className="text-lg font-semibold text-gray-900">Pengaturan Umum</h2>
-                  <p className="text-sm text-gray-600">Fitur pengaturan tambahan akan tersedia segera</p>
+                  <h2 className="text-lg font-semibold text-gray-900">Operasional</h2>
+                  <p className="text-sm text-gray-600">Kontrol modul produk, stok, produksi, dan relasi bisnis</p>
                 </div>
               </div>
-              
-              <div className="text-center py-12 text-gray-500">
-                <div className="text-6xl mb-4">🚧</div>
-                <p className="text-lg font-medium">Sedang Dalam Pengembangan</p>
-                <p className="text-sm mt-2">Pengaturan umum seperti bahasa, zona waktu, dan notifikasi email<br/>akan tersedia di update berikutnya</p>
+
+              <div className="text-center py-10 text-gray-500">
+                <div className="text-5xl mb-3">🚧</div>
+                <p className="text-sm">Akan diaktifkan setelah konfigurasi tipe usaha selesai.</p>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Notifications Tab Content */}
+        {activeTab === 'notifications' && (
+          <>
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div className="flex items-start gap-3 mb-4">
+                <div className="p-2 bg-purple-100 rounded-lg">
+                  <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <h2 className="text-lg font-semibold text-gray-900">Notifikasi Pengeluaran</h2>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Dapatkan peringatan otomatis saat pengeluaran mendekati limit yang ditetapkan
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">Aktifkan Notifikasi</p>
+                    <p className="text-xs text-gray-600 mt-1">Terima alert saat mendekati limit pengeluaran</p>
+                  </div>
+                  <button
+                    onClick={() => setEnableNotifications(!enableNotifications)}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      enableNotifications ? 'bg-blue-600' : 'bg-gray-300'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        enableNotifications ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {enableNotifications && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Threshold Notifikasi
+                    </label>
+                    <select
+                      value={notificationThreshold}
+                      onChange={(e) => setNotificationThreshold(e.target.value)}
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="50">50% dari limit</option>
+                      <option value="70">70% dari limit</option>
+                      <option value="80">80% dari limit (Recommended)</option>
+                      <option value="90">90% dari limit</option>
+                      <option value="95">95% dari limit</option>
+                    </select>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Notifikasi akan muncul saat pengeluaran mencapai persentase ini
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
 
             <div className="flex gap-3">
               <button
-                onClick={() => router.push('/dashboard')}
-                className="px-8 py-3 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300 transition-colors"
+                onClick={handleSave}
+                disabled={saving}
+                className="flex-1 sm:flex-none px-8 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Kembali ke Dashboard
+                {saving ? 'Menyimpan...' : 'Simpan Pengaturan'}
               </button>
+              <button
+                onClick={loadSettings}
+                disabled={saving}
+                className="px-6 py-3 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+              >
+                Reset
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* Security Tab Content */}
+        {activeTab === 'security' && (
+          <>
+            <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+              <div className="flex items-center mb-4">
+                <div className="text-2xl mr-3">🔒</div>
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">Akun & Keamanan</h2>
+                  <p className="text-sm text-gray-600">Pengaturan keamanan dan akses akun</p>
+                </div>
+              </div>
+
+              <div className="text-center py-10 text-gray-500">
+                <div className="text-5xl mb-3">🚧</div>
+                <p className="text-sm">Akan diaktifkan setelah konfigurasi UI selesai.</p>
+              </div>
             </div>
           </>
         )}
