@@ -499,9 +499,22 @@ export default function LapakPage() {
     return parseInt(str.replace(/\./g, ''), 10) || 0;
   };
 
+  const getAllowedProductTypes = () => {
+    const normalized = mapBusinessCategoryToConstraint(businessCategory || 'Hybrid');
+    if (normalized === 'Jasa/Layanan') return ['jasa'];
+    if (normalized === 'Produk dengan Stok' || normalized === 'Produk Tanpa Stok' || normalized === 'Trading/Reseller') {
+      return ['barang'];
+    }
+    return ['barang', 'jasa'];
+  };
+
   // Get categories based on product type
   const getAvailableCategories = () => {
-    return productForm.product_type === 'jasa' ? JASA_CATEGORIES : BARANG_CATEGORIES;
+    const allowedTypes = getAllowedProductTypes();
+    const effectiveType = allowedTypes.includes(productForm.product_type || 'barang')
+      ? productForm.product_type
+      : allowedTypes[0];
+    return effectiveType === 'jasa' ? JASA_CATEGORIES : BARANG_CATEGORIES;
   };
 
   const getStorefrontUrl = () => {
