@@ -485,6 +485,24 @@
                 <button
                   type="button"
                   onClick={() => {
+                    if (isMobile) {
+                      openPicker()
+                      return
+                    }
+                    setShowDropdown((s) => !s)
+                  }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100"
+                  aria-label="Toggle product dropdown"
+                >
+                  <ChevronDown className="w-4 h-4" />
+                </button>
+
+                {!isMobile && showDropdown && (
+                  <div className="absolute z-50 w-full mt-2 bg-white border border-gray-200 rounded-2xl shadow-2xl ring-1 ring-black/5 max-h-72 overflow-y-auto overscroll-contain">
+                    {loadingProducts ? (
+                      <div className="p-3 text-center text-sm text-gray-500">
+                        <div className="animate-spin w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full mx-auto"></div>
+                        <p className="mt-2">Memuat produk...</p>
                       </div>
                     ) : filteredProducts.length > 0 ? (
                       <>
@@ -551,7 +569,6 @@
                   </div>
                 )}
               </div>
-=======
               {onAddProduct && (
                 <button
                   type="button"
