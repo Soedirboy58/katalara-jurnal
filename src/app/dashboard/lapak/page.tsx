@@ -202,6 +202,55 @@ export default function LapakPage() {
     window.open(`https://wa.me/${wa}?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer')
   }
 
+  const openWhatsAppInvoice = (order: any) => {
+    const wa = normalizeWhatsAppNumber(order?.customer_phone)
+    if (!wa) {
+      showToast('Nomor WhatsApp pembeli tidak tersedia', 'warning')
+      return
+    }
+
+    const orderCode = order?.order_code || order?.id || '-'
+    const buyerName = order?.customer_name || 'Pembeli'
+    const createdAt = order?.created_at ? new Date(order.created_at).toLocaleString('id-ID') : '-'
+    const items = parseOrderItems(order?.order_items)
+
+    const itemLines = (items || [])
+      .slice(0, 30)
+      .map((it: any, idx: number) => {
+        const name = (it.product_name || it.name || `Item ${idx + 1}`).toString()
+        const qty = Number(it.quantity || it.qty || 0)
+        const price = Number(it.price || 0)
+        const subtotal = qty * price
+        return `- ${name} x${qty} @ ${formatCurrency(price)} = ${formatCurrency(subtotal)}`
+      })
+
+    const total = formatCurrency(order?.total_amount || 0)
+    const status = orderStatusLabel[order?.status] || order?.status || '-'
+    const tracking = order?.public_tracking_code ? getTrackingUrl(order) : ''
+
+    const message = [
+      `INVOICE / STRUK`,
+      `${storefront?.store_name ? `Toko: ${storefront.store_name}` : ''}`,
+      `Tanggal: ${createdAt}`,
+      `Kode Order: ${orderCode}`,
+      `Pelanggan: ${buyerName}`,
+      `Status: ${status}`,
+      ``,
+      `Rincian:`,
+      ...(itemLines.length ? itemLines : ['- (rincian item tidak tersedia)']),
+      ``,
+      `Total: ${total}`,
+      tracking ? `Tracking: ${tracking}` : '',
+      ``,
+      `Terima kasih 🙏 Simpan pesan ini sebagai bukti transaksi.`,
+      `⚠️ Demi keamanan, kami tidak pernah meminta OTP/PIN/password.`
+    ]
+      .filter(Boolean)
+      .join('\n')
+
+    window.open(`https://wa.me/${wa}?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer')
+  }
+
   const handleQuickIncomeInput = (order: any) => {
     if (!isOrderVerifiedForIncome(order)) {
       showToast('Verifikasi pembayaran dulu sebelum input pendapatan.', 'warning')
@@ -417,6 +466,13 @@ export default function LapakPage() {
         className="px-3 py-1.5 text-xs font-semibold bg-green-50 text-green-700 rounded-lg border border-green-200 hover:bg-green-100"
       >
         Chat WA Aman
+      </button>
+
+      <button
+        onClick={() => openWhatsAppInvoice(order)}
+        className="px-3 py-1.5 text-xs font-semibold bg-slate-50 text-slate-700 rounded-lg border border-slate-200 hover:bg-slate-100"
+      >
+        Kirim Invoice/Struk
       </button>
     </div>
   )

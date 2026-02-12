@@ -25,18 +25,16 @@ export async function POST(
       public_tracking_code,
     } = body;
 
-    const slugify = (value: string) =>
-      value
-        .toLowerCase()
-        .replace(/[^a-z0-9\s-]/g, '')
-        .trim()
-        .replace(/\s+/g, '-')
-        .replace(/-+/g, '-')
-        .slice(0, 32)
+    const randomToken = () => {
+      try {
+        return crypto.randomUUID().replace(/-/g, '').slice(0, 12)
+      } catch {
+        // Fallback if crypto.randomUUID is unavailable (should be rare)
+        return Math.random().toString(36).slice(2, 14)
+      }
+    }
 
-    const trackingCode =
-      public_tracking_code ||
-      (order_code ? `${order_code}-${slugify((customer_name || 'pembeli').toString())}` : null)
+    const trackingCode = public_tracking_code || `${order_code || 'ORD'}-${randomToken()}`
 
     const supabase = await createClient();
 
