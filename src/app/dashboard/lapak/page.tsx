@@ -140,6 +140,88 @@ export default function LapakPage() {
     return [];
   };
 
+  const formatCurrency = (value: number | string) => {
+    return `Rp ${Number(value || 0).toLocaleString('id-ID')}`
+  }
+
+  const normalizeWhatsAppNumber = (phone?: string) => {
+    const digits = (phone || '').replace(/\D/g, '')
+    if (!digits) return ''
+    if (digits.startsWith('62')) return digits
+    if (digits.startsWith('0')) return `62${digits.slice(1)}`
+    return `62${digits}`
+  }
+
+  const isOrderVerifiedForIncome = (order: any) => {
+    return (
+      Boolean(order?.transaction_id) ||
+      ['confirmed', 'preparing', 'shipped', 'completed'].includes(order?.status) ||
+      Boolean(order?.payment_proof_url)
+    )
+  }
+
+  const openWhatsAppForOrder = (order: any, mode: 'verification' | 'update' = 'verification') => {
+    const wa = normalizeWhatsAppNumber(order?.customer_phone)
+    if (!wa) {
+      showToast('Nomor WhatsApp pembeli tidak tersedia', 'warning')
+      return
+    }
+
+    const orderCode = order?.order_code || order?.id || '-'
+    const buyerName = order?.customer_name || 'Kak'
+    const total = formatCurrency(order?.total_amount || 0)
+    const paymentProofLine = order?.payment_proof_url
+      ? `- Bukti bayar: ${order.payment_proof_url}`
+      : '- Bukti bayar: mohon kirim screenshot transfer'
+
+    const verificationMessage = [
+      `Halo ${buyerName}, terima kasih sudah order di ${storefront?.store_name || 'Lapak kami'} 🙏`,
+      ``,
+      `Konfirmasi pesanan:`,
+      `- Kode order: ${orderCode}`,
+      `- Total: ${total}`,
+      paymentProofLine,
+      ``,
+      `Jika pembayaran sudah sesuai, pesanan akan kami proses dan kirim update status berikutnya.`,
+      ``,
+      `⚠️ Demi keamanan, kami TIDAK PERNAH meminta OTP, PIN, atau password.`
+    ].join('\n')
+
+    const updateMessage = [
+      `Halo ${buyerName}, update pesanan Anda:`,
+      `- Kode order: ${orderCode}`,
+      `- Status: ${orderStatusLabel[order?.status] || order?.status || '-'}`,
+      `- Total: ${total}`,
+      ``,
+      `Silakan balas chat ini jika ada pertanyaan.`,
+      ``,
+      `⚠️ Demi keamanan, mohon abaikan pihak yang meminta OTP/PIN atas nama toko.`
+    ].join('\n')
+
+    const message = mode === 'update' ? updateMessage : verificationMessage
+    window.open(`https://wa.me/${wa}?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer')
+  }
+
+  const handleQuickIncomeInput = (order: any) => {
+    if (!isOrderVerifiedForIncome(order)) {
+      showToast('Verifikasi pembayaran dulu sebelum input pendapatan.', 'warning')
+      setActiveTab('notifications')
+      return
+    }
+
+    const params = new URLSearchParams({
+      source: 'lapak',
+      orderId: String(order?.id || ''),
+      orderCode: String(order?.order_code || ''),
+      customer: String(order?.customer_name || ''),
+      total: String(order?.total_amount || 0),
+    })
+
+    router.push(`/dashboard/input-income?${params.toString()}`)
+  }
+
+  const recentOrders = orders.slice(0, 8)
+
   const updateOrderStatus = async (orderId: string, status: string, transactionId?: string) => {
     if (!storefront?.slug) return;
     const response = await fetch(`/api/storefront/${storefront.slug}/orders`, {
@@ -322,6 +404,20 @@ export default function LapakPage() {
           Selesai
         </button>
       )}
+
+      <button
+        onClick={() => handleQuickIncomeInput(order)}
+        className="px-3 py-1.5 text-xs font-semibold bg-emerald-50 text-emerald-700 rounded-lg border border-emerald-200 hover:bg-emerald-100"
+      >
+        Input Pendapatan
+      </button>
+
+      <button
+        onClick={() => openWhatsAppForOrder(order, 'verification')}
+        className="px-3 py-1.5 text-xs font-semibold bg-green-50 text-green-700 rounded-lg border border-green-200 hover:bg-green-100"
+      >
+        Chat WA Aman
+      </button>
     </div>
   )
 
@@ -1398,74 +1494,145 @@ export default function LapakPage() {
                   <p className="text-sm sm:text-base text-gray-600">Buat lapak terlebih dahulu</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4">
-                  {/* Pengunjung KPI */}
-                  <button
-                    onClick={() => setKpiModal({ isOpen: true, type: 'views' })}
-                    className="bg-blue-50 rounded-lg p-3 sm:p-6 hover:shadow-lg transition-all border-2 border-transparent hover:border-blue-200 text-left group"
-                  >
-                    <div className="flex items-start justify-between mb-1 sm:mb-2">
-                      <div className="text-xl sm:text-3xl font-bold text-blue-600">
-                        {analytics?.page_views || 0}
+                <div className="space-y-4 sm:space-y-6">
+                  <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4">
+                    {/* Pengunjung KPI */}
+                    <button
+                      onClick={() => setKpiModal({ isOpen: true, type: 'views' })}
+                      className="bg-blue-50 rounded-lg p-3 sm:p-6 hover:shadow-lg transition-all border-2 border-transparent hover:border-blue-200 text-left group"
+                    >
+                      <div className="flex items-start justify-between mb-1 sm:mb-2">
+                        <div className="text-xl sm:text-3xl font-bold text-blue-600">
+                          {analytics?.page_views || 0}
+                        </div>
+                        <svg className="w-4 h-4 sm:w-5 sm:h-5 text-blue-400 group-hover:text-blue-600 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
                       </div>
-                      <svg className="w-4 h-4 sm:w-5 sm:h-5 text-blue-400 group-hover:text-blue-600 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    </div>
-                    <div className="text-gray-700 text-xs sm:text-sm font-medium">👁️ Pengunjung</div>
-                    <div className="text-[10px] sm:text-xs text-blue-600 mt-1 sm:mt-2 group-hover:underline">Detail →</div>
-                  </button>
+                      <div className="text-gray-700 text-xs sm:text-sm font-medium">👁️ Pengunjung</div>
+                      <div className="text-[10px] sm:text-xs text-blue-600 mt-1 sm:mt-2 group-hover:underline">Detail →</div>
+                    </button>
 
-                  {/* Keranjang KPI */}
-                  <button
-                    onClick={() => setKpiModal({ isOpen: true, type: 'cart' })}
-                    className="bg-green-50 rounded-lg p-3 sm:p-6 hover:shadow-lg transition-all border-2 border-transparent hover:border-green-200 text-left group"
-                  >
-                    <div className="flex items-start justify-between mb-1 sm:mb-2">
-                      <div className="text-xl sm:text-3xl font-bold text-green-600">
-                        {analytics?.cart_adds || 0}
+                    {/* Keranjang KPI */}
+                    <button
+                      onClick={() => setKpiModal({ isOpen: true, type: 'cart' })}
+                      className="bg-green-50 rounded-lg p-3 sm:p-6 hover:shadow-lg transition-all border-2 border-transparent hover:border-green-200 text-left group"
+                    >
+                      <div className="flex items-start justify-between mb-1 sm:mb-2">
+                        <div className="text-xl sm:text-3xl font-bold text-green-600">
+                          {analytics?.cart_adds || 0}
+                        </div>
+                        <svg className="w-4 h-4 sm:w-5 sm:h-5 text-green-400 group-hover:text-green-600 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
                       </div>
-                      <svg className="w-4 h-4 sm:w-5 sm:h-5 text-green-400 group-hover:text-green-600 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    </div>
-                    <div className="text-gray-700 text-xs sm:text-sm font-medium">🛒 Keranjang</div>
-                    <div className="text-[10px] sm:text-xs text-green-600 mt-1 sm:mt-2 group-hover:underline">Detail →</div>
-                  </button>
+                      <div className="text-gray-700 text-xs sm:text-sm font-medium">🛒 Keranjang</div>
+                      <div className="text-[10px] sm:text-xs text-green-600 mt-1 sm:mt-2 group-hover:underline">Detail →</div>
+                    </button>
 
-                  {/* WhatsApp KPI */}
-                  <button
-                    onClick={() => setKpiModal({ isOpen: true, type: 'whatsapp' })}
-                    className="bg-purple-50 rounded-lg p-3 sm:p-6 hover:shadow-lg transition-all border-2 border-transparent hover:border-purple-200 text-left group"
-                  >
-                    <div className="flex items-start justify-between mb-1 sm:mb-2">
-                      <div className="text-xl sm:text-3xl font-bold text-purple-600">
-                        {analytics?.whatsapp_clicks || 0}
+                    {/* WhatsApp KPI */}
+                    <button
+                      onClick={() => setKpiModal({ isOpen: true, type: 'whatsapp' })}
+                      className="bg-purple-50 rounded-lg p-3 sm:p-6 hover:shadow-lg transition-all border-2 border-transparent hover:border-purple-200 text-left group"
+                    >
+                      <div className="flex items-start justify-between mb-1 sm:mb-2">
+                        <div className="text-xl sm:text-3xl font-bold text-purple-600">
+                          {analytics?.whatsapp_clicks || 0}
+                        </div>
+                        <svg className="w-4 h-4 sm:w-5 sm:h-5 text-purple-400 group-hover:text-purple-600 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
                       </div>
-                      <svg className="w-4 h-4 sm:w-5 sm:h-5 text-purple-400 group-hover:text-purple-600 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    </div>
-                    <div className="text-gray-700 text-xs sm:text-sm font-medium">💬 Chat WA</div>
-                    <div className="text-[10px] sm:text-xs text-purple-600 mt-1 sm:mt-2 group-hover:underline">Detail →</div>
-                  </button>
+                      <div className="text-gray-700 text-xs sm:text-sm font-medium">💬 Chat WA</div>
+                      <div className="text-[10px] sm:text-xs text-purple-600 mt-1 sm:mt-2 group-hover:underline">Detail →</div>
+                    </button>
 
-                  {/* Orders KPI */}
-                  <button
-                    onClick={() => setKpiModal({ isOpen: true, type: 'orders' })}
-                    className="bg-orange-50 rounded-lg p-3 sm:p-6 hover:shadow-lg transition-all border-2 border-transparent hover:border-orange-200 text-left group"
-                  >
-                    <div className="flex items-start justify-between mb-1 sm:mb-2">
-                      <div className="text-xl sm:text-3xl font-bold text-orange-600">
-                        {orderStats?.total_orders || 0}
+                    {/* Orders KPI */}
+                    <button
+                      onClick={() => setKpiModal({ isOpen: true, type: 'orders' })}
+                      className="bg-orange-50 rounded-lg p-3 sm:p-6 hover:shadow-lg transition-all border-2 border-transparent hover:border-orange-200 text-left group"
+                    >
+                      <div className="flex items-start justify-between mb-1 sm:mb-2">
+                        <div className="text-xl sm:text-3xl font-bold text-orange-600">
+                          {orderStats?.total_orders || 0}
+                        </div>
+                        <svg className="w-4 h-4 sm:w-5 sm:h-5 text-orange-400 group-hover:text-orange-600 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
                       </div>
-                      <svg className="w-4 h-4 sm:w-5 sm:h-5 text-orange-400 group-hover:text-orange-600 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
+                      <div className="text-gray-700 text-xs sm:text-sm font-medium">📦 Order</div>
+                      <div className="text-[10px] sm:text-xs text-orange-600 mt-1 sm:mt-2 group-hover:underline">Detail →</div>
+                    </button>
+                  </div>
+
+                  <div className="bg-white border border-gray-200 rounded-lg p-4 sm:p-5">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                      <div>
+                        <h4 className="font-semibold text-gray-900 text-sm sm:text-base">Order Masuk Terbaru</h4>
+                        <p className="text-xs text-gray-500 mt-1">Pantau order, verifikasi pembayaran, lalu lanjutkan ke input pendapatan.</p>
+                      </div>
+                      <button
+                        onClick={() => setActiveTab('notifications')}
+                        className="px-3 py-2 text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100"
+                      >
+                        Buka Notifikasi Order
+                      </button>
                     </div>
-                    <div className="text-gray-700 text-xs sm:text-sm font-medium">📦 Order</div>
-                    <div className="text-[10px] sm:text-xs text-orange-600 mt-1 sm:mt-2 group-hover:underline">Detail →</div>
-                  </button>
+
+                    {recentOrders.length === 0 ? (
+                      <div className="text-sm text-gray-500 py-6 text-center">Belum ada order masuk.</div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs sm:text-sm">
+                          <thead className="bg-gray-50 text-gray-600">
+                            <tr>
+                              <th className="text-left px-3 py-2 font-medium">Order</th>
+                              <th className="text-left px-3 py-2 font-medium">Pembeli</th>
+                              <th className="text-left px-3 py-2 font-medium">Total</th>
+                              <th className="text-left px-3 py-2 font-medium">Status</th>
+                              <th className="text-left px-3 py-2 font-medium">Aksi Cepat</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100">
+                            {recentOrders.map((order: any) => (
+                              <tr key={order.id} className="hover:bg-gray-50">
+                                <td className="px-3 py-3">
+                                  <div className="font-semibold text-gray-900">{order.order_code || order.id}</div>
+                                  <div className="text-[11px] text-gray-500">{new Date(order.created_at).toLocaleString('id-ID')}</div>
+                                </td>
+                                <td className="px-3 py-3">
+                                  <div className="text-gray-900">{order.customer_name || 'Pembeli'}</div>
+                                  <div className="text-[11px] text-gray-500">{order.customer_phone || '-'}</div>
+                                </td>
+                                <td className="px-3 py-3 text-gray-900">{formatCurrency(order.total_amount || 0)}</td>
+                                <td className="px-3 py-3">
+                                  <span className="text-[11px] font-semibold px-2 py-1 rounded-full bg-blue-100 text-blue-700">
+                                    {orderStatusLabel[order.status] || order.status}
+                                  </span>
+                                </td>
+                                <td className="px-3 py-3">
+                                  <div className="flex flex-wrap gap-2">
+                                    <button
+                                      onClick={() => openWhatsAppForOrder(order, 'verification')}
+                                      className="px-2.5 py-1 text-[11px] font-semibold bg-green-50 text-green-700 border border-green-200 rounded-md hover:bg-green-100"
+                                    >
+                                      WA Aman
+                                    </button>
+                                    <button
+                                      onClick={() => handleQuickIncomeInput(order)}
+                                      className="px-2.5 py-1 text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md hover:bg-emerald-100"
+                                    >
+                                      Input Pendapatan
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -1555,6 +1722,84 @@ export default function LapakPage() {
                         Ubah Nomor
                       </button>
                     </div>
+                  </div>
+
+                  {/* Order Inbox Table */}
+                  <div className="bg-white border border-gray-200 rounded-lg p-4 sm:p-5">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                      <div>
+                        <h4 className="font-semibold text-gray-900 text-sm sm:text-base">Daftar Order Masuk / Permintaan</h4>
+                        <p className="text-xs text-gray-500 mt-1">Semua order masuk tercatat di sini untuk verifikasi, komunikasi WA, dan lanjut ke pendapatan.</p>
+                      </div>
+                      <button
+                        onClick={() => setActiveTab('analytics')}
+                        className="px-3 py-2 text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100"
+                      >
+                        Kembali ke Statistik
+                      </button>
+                    </div>
+
+                    {orders.length === 0 ? (
+                      <div className="text-sm text-gray-500 py-6 text-center">Belum ada order masuk.</div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs sm:text-sm">
+                          <thead className="bg-gray-50 text-gray-600">
+                            <tr>
+                              <th className="text-left px-3 py-2 font-medium">Order</th>
+                              <th className="text-left px-3 py-2 font-medium">Pembeli</th>
+                              <th className="text-left px-3 py-2 font-medium">Metode</th>
+                              <th className="text-left px-3 py-2 font-medium">Total</th>
+                              <th className="text-left px-3 py-2 font-medium">Status</th>
+                              <th className="text-left px-3 py-2 font-medium">Aksi</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100">
+                            {orders.map((order: any) => (
+                              <tr key={order.id} className="hover:bg-gray-50">
+                                <td className="px-3 py-3">
+                                  <div className="font-semibold text-gray-900">{order.order_code || order.id}</div>
+                                  <div className="text-[11px] text-gray-500">{new Date(order.created_at).toLocaleString('id-ID')}</div>
+                                </td>
+                                <td className="px-3 py-3">
+                                  <div className="text-gray-900">{order.customer_name || 'Pembeli'}</div>
+                                  <div className="text-[11px] text-gray-500">{order.customer_phone || '-'}</div>
+                                </td>
+                                <td className="px-3 py-3 text-gray-700">{order.payment_method || '-'}</td>
+                                <td className="px-3 py-3 text-gray-900">{formatCurrency(order.total_amount || 0)}</td>
+                                <td className="px-3 py-3">
+                                  <span className="text-[11px] font-semibold px-2 py-1 rounded-full bg-blue-100 text-blue-700">
+                                    {orderStatusLabel[order.status] || order.status}
+                                  </span>
+                                </td>
+                                <td className="px-3 py-3">
+                                  <div className="flex flex-wrap gap-2">
+                                    <button
+                                      onClick={() => openWhatsAppForOrder(order, 'verification')}
+                                      className="px-2.5 py-1 text-[11px] font-semibold bg-green-50 text-green-700 border border-green-200 rounded-md hover:bg-green-100"
+                                    >
+                                      WA Verifikasi
+                                    </button>
+                                    <button
+                                      onClick={() => openWhatsAppForOrder(order, 'update')}
+                                      className="px-2.5 py-1 text-[11px] font-semibold bg-lime-50 text-lime-700 border border-lime-200 rounded-md hover:bg-lime-100"
+                                    >
+                                      WA Update
+                                    </button>
+                                    <button
+                                      onClick={() => handleQuickIncomeInput(order)}
+                                      className="px-2.5 py-1 text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md hover:bg-emerald-100"
+                                    >
+                                      Input Pendapatan
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </div>
 
                   {/* Tips Section */}
