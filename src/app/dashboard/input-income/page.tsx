@@ -6,6 +6,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 
 import { IncomesForm } from '@/modules/finance/components/incomes/IncomesForm'
 import { useIncomes } from '@/modules/finance/hooks/useIncomes'
@@ -32,11 +33,16 @@ export const dynamic = 'force-dynamic'
 type ToastType = 'success' | 'error' | 'warning'
 
 export default function InputIncomePage() {
+  const searchParams = useSearchParams()
   const { incomes, loading: loadingIncomes, error, fetchIncomes, createIncome, deleteIncome } = useIncomes({
     autoFetch: true
   })
 
   const { products, loading: loadingProducts, refresh: refreshProducts } = useProducts()
+
+  const [initialValues, setInitialValues] = useState<Partial<IncomeFormData> | undefined>(undefined)
+  const [formKey, setFormKey] = useState('default')
+  const [lapakPrefillInfo, setLapakPrefillInfo] = useState<{ orderCode?: string; customer?: string } | null>(null)
 
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState<{ show: boolean; type: 'success' | 'error' | 'warning'; message: string }>(
@@ -100,6 +106,95 @@ export default function InputIncomePage() {
   useEffect(() => {
     setCurrentPage(1)
   }, [filters.searchQuery, filters.category, filters.status, filters.dateRange?.start, filters.dateRange?.end])
+
+  useEffect(() => {
+    const source = searchParams.get('source')
+    const orderId = searchParams.get('orderId')
+    if (source !== 'lapak' || !orderId) return
+
+    let cancelled = false
+
+    const parseOrderItems = (raw: any): Array<any> => {
+      if (!raw) return []
+      if (Array.isArray(raw)) return raw
+      if (typeof raw === 'string') {
+        try {
+          const parsed = JSON.parse(raw)
+          return Array.isArray(parsed) ? parsed : []
+        } catch {
+          return []
+        }
+      }
+      return []
+    }
+
+    const run = async () => {
+      try {
+        const res = await fetch(`/api/lapak/orders/${encodeURIComponent(orderId)}`)
+        const json = await res.json().catch(() => null as any)
+        if (!res.ok || !json?.success || !json?.order) {
+          if (!cancelled) showToast('warning', json?.error || 'Gagal memuat data order Lapak')
+          return
+        }
+
+        const order = json.order
+        const orderCode = String(order.order_code || order.id || '')
+        const items = parseOrderItems(order.order_items)
+        const incomeItems = items.map((it: any) => ({
+          product_id: String(it.product_id || ''),
+          product_name: String(it.product_name || it.name || 'Item'),
+          qty: Number(it.quantity || it.qty || 0),
+          unit: String(it.unit || 'pcs'),
+          price_per_unit: Number(it.price || 0),
+          buy_price: Number(it.buy_price || 0),
+        }))
+
+        const paymentMethodRaw = String(order.payment_method || '').toLowerCase()
+        const paymentMethod = paymentMethodRaw.includes('qris')
+          ? 'qris'
+          : paymentMethodRaw.includes('transfer')
+            ? 'transfer'
+            : 'cash'
+
+        const createdAt = (order.created_at || '').toString()
+        const incomeDate = createdAt ? createdAt.slice(0, 10) : new Date().toISOString().slice(0, 10)
+
+        const nextInitial: Partial<IncomeFormData> = {
+          income_type: 'operating',
+          income_category: 'product_sales',
+          income_date: incomeDate,
+          customer_name: order.customer_name || undefined,
+          customer_phone: order.customer_phone || undefined,
+          customer_address: order.customer_address || undefined,
+          payment_method: paymentMethod,
+          payment_type: 'cash',
+          notes: `Lapak order ${orderCode}`,
+          lineItems: incomeItems,
+        }
+
+        if (cancelled) return
+
+        setInitialValues(nextInitial)
+        setLapakPrefillInfo({ orderCode, customer: order.customer_name || undefined })
+        setFormKey(`lapak-${orderId}`)
+
+        // Helpful default filter for history (so user can find it after submit)
+        setFilters((prev) => ({
+          ...prev,
+          searchQuery: prev.searchQuery || orderCode,
+        }))
+      } catch (err) {
+        console.error('Lapak prefill error:', err)
+        if (!cancelled) showToast('warning', 'Gagal memuat data order Lapak')
+      }
+    }
+
+    run()
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
 
   const handleSubmit = async (data: IncomeFormData) => {
     try {
@@ -209,7 +304,23 @@ export default function InputIncomePage() {
           </div>
         </div>
 
+        {lapakPrefillInfo && (
+          <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+            <div className="text-sm font-semibold text-emerald-900">Draft transaksi dari Lapak</div>
+            <div className="text-xs text-emerald-800 mt-1">
+              Order: <span className="font-semibold">{lapakPrefillInfo.orderCode || '-'}</span>
+              {lapakPrefillInfo.customer ? (
+                <> • Pembeli: <span className="font-semibold">{lapakPrefillInfo.customer}</span></>
+              ) : null}
+            </div>
+            <div className="text-[11px] text-emerald-800 mt-2">
+              Cek item & total, lalu klik Simpan. Transaksi ini akan otomatis masuk ke riwayat pendapatan.
+            </div>
+          </div>
+        )}
+
         <IncomesForm
+          key={formKey}
           onSubmit={handleSubmit}
           loading={saving}
           products={products as any}
@@ -217,6 +328,7 @@ export default function InputIncomePage() {
           onAddProduct={() => setShowProductModal(true)}
           onAddCustomer={() => setShowCustomerModal(true)}
           selectedCustomer={selectedCustomer}
+          initialValues={initialValues}
         />
 
         <div className="bg-white rounded-lg shadow-sm border border-gray-200">

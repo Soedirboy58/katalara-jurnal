@@ -70,7 +70,25 @@ export function IncomesForm({
   const [isAnonymous, setIsAnonymous] = useState(false)
   
   // Line items
-  const [lineItems, setLineItems] = useState<LineItem[]>([])
+  const [lineItems, setLineItems] = useState<LineItem[]>(() => {
+    const initial = initialValues?.lineItems || []
+    if (!Array.isArray(initial) || initial.length === 0) return []
+    return initial.map((it, idx) => {
+      const quantity = Number((it as any).qty || 0)
+      const price = Number((it as any).price_per_unit || 0)
+      const subtotal = quantity * price
+      return {
+        id: `init-${Date.now()}-${idx}`,
+        product_id: String((it as any).product_id || ''),
+        product_name: String((it as any).product_name || ''),
+        quantity,
+        unit: String((it as any).unit || 'pcs'),
+        price,
+        subtotal,
+        buy_price: Number((it as any).buy_price || 0) || undefined,
+      } satisfies LineItem
+    })
+  })
 
   // Other income (non-item) mode
   const [otherIncomeAmount, setOtherIncomeAmount] = useState(0)
