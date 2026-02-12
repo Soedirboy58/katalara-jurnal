@@ -34,12 +34,25 @@ export async function GET(
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
 
-    const { data: order, error: orderError } = await supabase
+    let { data: order, error: orderError } = await supabase
       .from('storefront_orders')
       .select('order_code,status,customer_name,total_amount,payment_method,order_items,created_at,updated_at,public_tracking_code')
       .eq('storefront_id', storefront.id)
       .eq('public_tracking_code', code)
       .single()
+
+    // Backward compatibility: if schema/data doesn't support public_tracking_code yet,
+    // also allow tracking by order_code.
+    if (orderError || !order) {
+      const fallback = await supabase
+        .from('storefront_orders')
+        .select('order_code,status,customer_name,total_amount,payment_method,order_items,created_at,updated_at')
+        .eq('storefront_id', storefront.id)
+        .eq('order_code', code)
+        .single()
+      order = fallback.data as any
+      orderError = fallback.error
+    }
 
     if (orderError || !order) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 })

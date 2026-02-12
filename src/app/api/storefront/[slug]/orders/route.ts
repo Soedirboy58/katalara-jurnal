@@ -50,6 +50,23 @@ export async function POST(
 
     const trackingCode = public_tracking_code || `${order_code || 'ORD'}-${randomToken()}`
 
+    const extractMissingColumn = (err: any) => {
+      const msg = ((err as any)?.message || (err as any)?.details || '').toString()
+      let m = msg.match(/Could not find the '([^']+)' column/i)
+      if (m?.[1]) return m[1]
+      m = msg.match(/column\s+[^.]+\.([^\s]+)\s+does not exist/i)
+      if (m?.[1]) return m[1].replace(/"/g, '')
+      m = msg.match(/column\s+"([^"]+)"\s+does not exist/i)
+      if (m?.[1]) return m[1]
+      return ''
+    }
+
+    const isSchemaMismatch = (err: any) => {
+      const msg = ((err as any)?.message || '').toString().toLowerCase()
+      const code = (err as any)?.code || ''
+      return code === '42703' || msg.includes('column') || msg.includes('could not find')
+    }
+
     // Prefer service-role for public order tracking to avoid RLS issues.
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -74,42 +91,66 @@ export async function POST(
       );
     }
 
-    // Insert order tracking
-    const { data: order, error: orderError } = await supabase
-      .from('storefront_orders')
-      .insert({
-        storefront_id: storefront.id,
-        customer_name,
-        customer_phone,
-        customer_address,
-        order_items,
-        total_amount: totalAmount,
-        payment_method,
-        delivery_method,
-        notes,
-        payment_proof_url,
-        order_code,
-        public_tracking_code: trackingCode,
-        session_id: sessionId,
-        user_agent: userAgent,
-        status: 'pending',
-      })
-      .select()
-      .single();
-
-    if (orderError) {
-      console.error('Error creating order:', orderError);
-      return NextResponse.json(
-        { error: 'Failed to track order' },
-        { status: 500 }
-      );
+    // Insert order tracking with schema-compatible fallback
+    let insertPayload: Record<string, any> = {
+      storefront_id: storefront.id,
+      customer_name,
+      customer_phone,
+      customer_address,
+      order_items,
+      total_amount: totalAmount,
+      payment_method,
+      delivery_method,
+      notes,
+      payment_proof_url,
+      order_code,
+      public_tracking_code: trackingCode,
+      session_id: sessionId,
+      user_agent: userAgent,
+      status: 'pending',
     }
+
+    let order: any = null
+    let orderError: any = null
+
+    for (let i = 0; i < 10; i++) {
+      const result = await supabase
+        .from('storefront_orders')
+        .insert(insertPayload)
+        .select()
+        .single()
+
+      order = result.data
+      orderError = result.error
+
+      if (!orderError) break
+      if (!isSchemaMismatch(orderError)) break
+
+      const missing = extractMissingColumn(orderError)
+      if (missing && Object.prototype.hasOwnProperty.call(insertPayload, missing)) {
+        delete insertPayload[missing]
+        continue
+      }
+
+      // If we cannot detect the column, stop retrying to avoid endless loops.
+      break
+    }
+
+    if (orderError || !order) {
+      console.error('Error creating order:', orderError)
+      return NextResponse.json(
+        { error: orderError?.message || 'Failed to track order' },
+        { status: 500 }
+      )
+    }
+
+    const responseTrackingCode = (order as any).public_tracking_code || (order as any).order_code || trackingCode
 
     return NextResponse.json({
       success: true,
       order_id: order.id,
       order_code: order.order_code,
-      public_tracking_code: order.public_tracking_code,
+      public_tracking_code: responseTrackingCode,
     });
   } catch (error) {
     console.error('Order tracking error:', error);

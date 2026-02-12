@@ -177,12 +177,11 @@ export default function PaymentModal({
           {/* Header */}
           {!paymentMethod ? (
             <div className="bg-gradient-to-r from-green-600 to-green-700 p-6 text-white text-center">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex-1" />
-                <h2 className="text-xl font-bold flex-1">Checkout Berhasil!</h2>
+              <div className="relative mb-2">
+                <h2 className="text-xl font-bold text-center">Checkout Berhasil!</h2>
                 <button
                   onClick={onClose}
-                  className="text-white/80 hover:text-white transition-colors"
+                  className="absolute right-0 top-1/2 -translate-y-1/2 text-white/80 hover:text-white transition-colors"
                 >
                   ✕
                 </button>
