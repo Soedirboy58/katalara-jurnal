@@ -27,7 +27,7 @@ interface PaymentModalProps {
     customer: CheckoutForm;
     paymentProofUrl?: string;
     orderCode: string;
-  }) => void;
+  }) => Promise<{ success: boolean; error?: string }>;
 }
 
 export default function PaymentModal({
@@ -119,12 +119,12 @@ export default function PaymentModal({
       type: 'warning'
     });
     if (ok) {
-      onPaymentComplete({
+      const result = await onPaymentComplete({
         method: 'cash',
         customer: checkoutForm,
         orderCode,
       });
-      onClose();
+      if (result?.success) onClose();
     }
   };
 
@@ -145,14 +145,16 @@ export default function PaymentModal({
       type: 'warning'
     });
     if (ok) {
-      onPaymentComplete({
+      const result = await onPaymentComplete({
         method: paymentMethod || 'qris',
         customer: checkoutForm,
         paymentProofUrl,
         orderCode,
       });
-      setShowVerification(false);
-      onClose();
+      if (result?.success) {
+        setShowVerification(false);
+        onClose();
+      }
     }
   };
 

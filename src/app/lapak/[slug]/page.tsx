@@ -193,7 +193,7 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
     };
     paymentProofUrl?: string;
     orderCode: string;
-  }) => {
+  }): Promise<{ success: boolean; error?: string }> => {
     if (!storefront) return;
 
     const { method, customer, paymentProofUrl, orderCode } = payload;
@@ -207,34 +207,8 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
       method === 'transfer' ? 'Transfer Bank (Sudah Dibayar)' :
       'Tunai (Bayar di Tempat)';
 
-    const slugify = (value: string) =>
-      value
-        .toLowerCase()
-        .replace(/[^a-z0-9\s-]/g, '')
-        .trim()
-        .replace(/\s+/g, '-')
-        .replace(/-+/g, '-')
-        .slice(0, 32)
-
-    const trackingCode = `${orderCode}-${slugify(customer.customer_name || 'pembeli')}`
-    const trackingUrl = `${window.location.origin}/lapak/${slug}/order/${trackingCode}`
-
-    const message = formatWhatsAppMessage({
-      storefront_name: storefront.store_name,
-      customer_name: customer.customer_name,
-      customer_phone: customer.customer_phone,
-      customer_address: customer.customer_address,
-      delivery_method: customer.delivery_method,
-      items: checkoutItems,
-      total_amount: total,
-      payment_method: paymentMethodText,
-      notes: customer.notes,
-      order_code: orderCode,
-      payment_proof_url: paymentProofUrl,
-      tracking_url: trackingUrl,
-    });
-
-    // Track order to database
+    // Track order to database FIRST (so tracking link is guaranteed valid)
+    let trackingCode = ''
     try {
       const orderResponse = await fetch(`/api/storefront/${slug}/orders`, {
         method: 'POST',
@@ -260,24 +234,46 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
           notes: customer.notes,
           payment_proof_url: paymentProofUrl,
           order_code: orderCode,
-          public_tracking_code: trackingCode,
         }),
       });
-      if (!orderResponse.ok) {
-        const errJson = await orderResponse.json().catch(() => null as any);
-        console.error('Error tracking order:', errJson?.error || orderResponse.statusText);
-        showToast('Order gagal tersimpan. Mohon coba lagi.', 'error');
+      const orderJson = await orderResponse.json().catch(() => null as any)
+      if (!orderResponse.ok || !orderJson?.success) {
+        console.error('Error tracking order:', orderJson?.error || orderResponse.statusText)
+        showToast('Order gagal tersimpan. Mohon coba lagi.', 'error')
+        return { success: false, error: orderJson?.error || 'Order gagal tersimpan' }
       }
+
+      trackingCode = String(orderJson?.public_tracking_code || '')
     } catch (err) {
       console.error('Error tracking order:', err);
       showToast('Order gagal tersimpan. Mohon coba lagi.', 'error');
+      return { success: false, error: 'Order gagal tersimpan' }
     }
+
+    const trackingUrl = trackingCode
+      ? `${window.location.origin}/lapak/${slug}/order/${encodeURIComponent(trackingCode)}`
+      : ''
+
+    const message = formatWhatsAppMessage({
+      storefront_name: storefront.store_name,
+      customer_name: customer.customer_name,
+      customer_phone: customer.customer_phone,
+      customer_address: customer.customer_address,
+      delivery_method: customer.delivery_method,
+      items: checkoutItems,
+      total_amount: total,
+      payment_method: paymentMethodText,
+      notes: customer.notes,
+      order_code: orderCode,
+      payment_proof_url: paymentProofUrl,
+      tracking_url: trackingUrl,
+    });
 
     // Track WhatsApp click
     trackEvent('whatsapp_click');
 
     // Open WhatsApp
-    const url = `https://wa.me/${storefront.whatsapp_number}?text=${message}`;
+    const url = `https://wa.me/${storefront.whatsapp_number}?text=${encodeURIComponent(message)}`;
     window.open(url, '_blank');
 
     // Remove checked out items from cart
@@ -287,6 +283,8 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
 
     // Close modal
     setIsPaymentModalOpen(false);
+
+    return { success: true }
   };
 
   // Filter products

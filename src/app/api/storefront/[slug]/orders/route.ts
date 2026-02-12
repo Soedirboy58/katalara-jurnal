@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { createClient as createSupabaseJsClient } from '@supabase/supabase-js'
 
 export async function POST(
   request: NextRequest,
@@ -25,6 +26,19 @@ export async function POST(
       public_tracking_code,
     } = body;
 
+    if (!Array.isArray(order_items) || order_items.length === 0) {
+      return NextResponse.json({ error: 'Order items wajib diisi' }, { status: 400 })
+    }
+
+    const totalAmount = Number(total_amount)
+    if (!Number.isFinite(totalAmount) || totalAmount <= 0) {
+      return NextResponse.json({ error: 'Total amount tidak valid' }, { status: 400 })
+    }
+
+    if (!customer_name || !customer_phone) {
+      return NextResponse.json({ error: 'Nama dan nomor HP wajib diisi' }, { status: 400 })
+    }
+
     const randomToken = () => {
       try {
         return crypto.randomUUID().replace(/-/g, '').slice(0, 12)
@@ -36,7 +50,15 @@ export async function POST(
 
     const trackingCode = public_tracking_code || `${order_code || 'ORD'}-${randomToken()}`
 
-    const supabase = await createClient();
+    // Prefer service-role for public order tracking to avoid RLS issues.
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    const supabase =
+      supabaseUrl && serviceKey
+        ? createSupabaseJsClient(supabaseUrl, serviceKey, {
+            auth: { persistSession: false, autoRefreshToken: false },
+          })
+        : await createClient();
 
     // Get storefront ID from slug
     const { data: storefront, error: storefrontError } = await supabase
@@ -61,7 +83,7 @@ export async function POST(
         customer_phone,
         customer_address,
         order_items,
-        total_amount,
+        total_amount: totalAmount,
         payment_method,
         delivery_method,
         notes,
@@ -83,7 +105,12 @@ export async function POST(
       );
     }
 
-    return NextResponse.json({ success: true, order_id: order.id });
+    return NextResponse.json({
+      success: true,
+      order_id: order.id,
+      order_code: order.order_code,
+      public_tracking_code: order.public_tracking_code,
+    });
   } catch (error) {
     console.error('Order tracking error:', error);
     return NextResponse.json(
