@@ -1,12 +1,12 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { Building2, Users, TrendingUp, Shield } from 'lucide-react'
+import { Building2, Shield } from 'lucide-react'
 
 export default function RoleSelectionPage() {
   const router = useRouter()
 
-  const handleRoleSelect = (role: 'umkm' | 'ranger') => {
+  const handleRoleSelect = (role: 'umkm') => {
     // Redirect to register with role parameter
     router.push(`/register?role=${role}`)
   }
@@ -39,7 +39,7 @@ export default function RoleSelectionPage() {
         </div>
 
         {/* Role Cards */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
+        <div className="grid grid-cols-1 gap-6 sm:gap-8 max-w-3xl mx-auto">
           {/* UMKM Card */}
           <div 
             onClick={() => handleRoleSelect('umkm')}
@@ -56,8 +56,7 @@ export default function RoleSelectionPage() {
                 Saya Pelaku UMKM
               </h2>
               <p className="text-gray-600 text-lg mb-6 leading-relaxed">
-                Kelola keuangan bisnis, inventory, dan katalog produk dengan mudah. 
-                Dapatkan bantuan dari Rangers untuk digitalisasi bisnis Anda.
+                Kelola keuangan bisnis, inventory, dan katalog produk dengan mudah.
               </p>
 
               {/* Features */}
@@ -84,14 +83,6 @@ export default function RoleSelectionPage() {
                       <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                     </svg>
                   </div>
-                  <p className="text-gray-700">📞 <strong>Panggil Ranger</strong> untuk bantuan</p>
-                </div>
-                <div className="flex items-start gap-3">
-                  <div className="flex-shrink-0 w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center mt-0.5">
-                    <svg className="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                    </svg>
-                  </div>
                   <p className="text-gray-700">📈 <strong>Business Health Score</strong></p>
                 </div>
               </div>
@@ -99,69 +90,6 @@ export default function RoleSelectionPage() {
               {/* CTA Button */}
               <button className="w-full py-4 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-bold rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all shadow-lg group-hover:shadow-xl text-lg">
                 Daftar sebagai UMKM →
-              </button>
-            </div>
-          </div>
-
-          {/* Ranger Card */}
-          <div 
-            onClick={() => handleRoleSelect('ranger')}
-            className="group cursor-pointer"
-          >
-            <div className="bg-white/95 backdrop-blur-md rounded-3xl shadow-2xl p-8 sm:p-10 h-full transition-all duration-300 hover:scale-105 hover:shadow-purple-500/20 border-2 border-transparent hover:border-purple-400">
-              {/* Icon */}
-              <div className="w-20 h-20 sm:w-24 sm:h-24 bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform shadow-lg">
-                <Users className="w-10 h-10 sm:w-12 sm:h-12 text-white" />
-              </div>
-
-              {/* Content */}
-              <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
-                Saya Katalara Ranger
-              </h2>
-              <p className="text-gray-600 text-lg mb-6 leading-relaxed">
-                Mahasiswa atau freelancer yang ingin mendapat penghasilan sambil membantu 
-                UMKM naik kelas digital. Bangun portfolio profesional!
-              </p>
-
-              {/* Features */}
-              <div className="space-y-3 mb-8">
-                <div className="flex items-start gap-3">
-                  <div className="flex-shrink-0 w-6 h-6 bg-purple-100 rounded-full flex items-center justify-center mt-0.5">
-                    <svg className="w-4 h-4 text-purple-600" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                  <p className="text-gray-700">💰 <strong>Penghasilan Fleksibel</strong> Rp 25K - 150K/job</p>
-                </div>
-                <div className="flex items-start gap-3">
-                  <div className="flex-shrink-0 w-6 h-6 bg-purple-100 rounded-full flex items-center justify-center mt-0.5">
-                    <svg className="w-4 h-4 text-purple-600" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                  <p className="text-gray-700">📸 <strong>Foto Produk</strong> & Input Data</p>
-                </div>
-                <div className="flex items-start gap-3">
-                  <div className="flex-shrink-0 w-6 h-6 bg-purple-100 rounded-full flex items-center justify-center mt-0.5">
-                    <svg className="w-4 h-4 text-purple-600" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                  <p className="text-gray-700">🎓 <strong>Portfolio</strong> & Rating profesional</p>
-                </div>
-                <div className="flex items-start gap-3">
-                  <div className="flex-shrink-0 w-6 h-6 bg-purple-100 rounded-full flex items-center justify-center mt-0.5">
-                    <svg className="w-4 h-4 text-purple-600" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                  <p className="text-gray-700">⏰ <strong>Waktu Fleksibel</strong> sesuai jadwal</p>
-                </div>
-              </div>
-
-              {/* CTA Button */}
-              <button className="w-full py-4 bg-gradient-to-r from-purple-600 to-purple-700 text-white font-bold rounded-xl hover:from-purple-700 hover:to-purple-800 transition-all shadow-lg group-hover:shadow-xl text-lg">
-                Daftar sebagai Ranger →
               </button>
             </div>
           </div>
@@ -187,8 +115,7 @@ export default function RoleSelectionPage() {
             <h3 className="text-xl font-bold text-white">100% Gratis untuk Memulai</h3>
           </div>
           <p className="text-blue-100 text-sm">
-            Tidak ada biaya pendaftaran. UMKM bisa langsung pakai semua fitur dasar. 
-            Rangers mulai dapat penghasilan dari job pertama!
+            Tidak ada biaya pendaftaran. UMKM bisa langsung pakai semua fitur dasar.
           </p>
         </div>
       </div>

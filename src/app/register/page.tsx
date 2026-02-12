@@ -2,30 +2,21 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useState, useEffect, Suspense } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useState, Suspense } from 'react'
+import { useRouter } from 'next/navigation'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { createClient } from '@/lib/supabase/client'
-import { Building2, Users } from 'lucide-react'
+import { Building2 } from 'lucide-react'
 
 function RegisterContent() {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [showSuccessModal, setShowSuccessModal] = useState(false)
   
-  // Get role from URL parameter (umkm or ranger)
-  const [selectedRole, setSelectedRole] = useState<'umkm' | 'ranger'>('umkm')
-  
-  useEffect(() => {
-    const roleParam = searchParams?.get('role')
-    if (roleParam === 'ranger' || roleParam === 'umkm') {
-      setSelectedRole(roleParam)
-    }
-  }, [searchParams])
+  const selectedRole: 'umkm' = 'umkm'
   
   const [formData, setFormData] = useState({
     email: '',
@@ -137,22 +128,9 @@ function RegisterContent() {
         <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-xl p-8">
           {/* Role Badge */}
           <div className="flex justify-center mb-6">
-            <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold ${
-              selectedRole === 'umkm' 
-                ? 'bg-blue-100 text-blue-800' 
-                : 'bg-purple-100 text-purple-800'
-            }`}>
-              {selectedRole === 'umkm' ? (
-                <>
-                  <Building2 className="w-4 h-4" />
-                  <span>Daftar sebagai UMKM</span>
-                </>
-              ) : (
-                <>
-                  <Users className="w-4 h-4" />
-                  <span>Daftar sebagai Ranger</span>
-                </>
-              )}
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold bg-blue-100 text-blue-800">
+              <Building2 className="w-4 h-4" />
+              <span>Daftar sebagai UMKM</span>
             </div>
           </div>
 
@@ -164,12 +142,6 @@ function RegisterContent() {
             <p className="text-gray-600">
               Langkah 1 dari 2: Buat akun Anda
             </p>
-            <button
-              onClick={() => router.push('/register-role')}
-              className="text-sm text-blue-600 hover:text-blue-700 underline mt-2"
-            >
-              Ganti role
-            </button>
           </div>
 
           {/* Progress Bar */}
@@ -185,9 +157,7 @@ function RegisterContent() {
             </div>
             <div className="flex justify-between mt-2 px-1">
               <span className="text-sm font-medium text-blue-600">Email & Password</span>
-              <span className="text-sm text-gray-500">
-                {selectedRole === 'umkm' ? 'Data Bisnis' : 'Data Ranger'}
-              </span>
+              <span className="text-sm text-gray-500">Data Bisnis</span>
             </div>
           </div>
 
@@ -231,9 +201,7 @@ function RegisterContent() {
             />
 
             <Button type="submit" disabled={loading} className="w-full">
-              {loading ? 'Memproses...' : (
-                selectedRole === 'umkm' ? 'Lanjut ke Data Bisnis →' : 'Lanjut ke Data Ranger →'
-              )}
+              {loading ? 'Memproses...' : 'Lanjut ke Data Bisnis →'}
             </Button>
           </form>
 
