@@ -14,6 +14,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Trash2, Plus, Package, Search, ChevronDown } from 'lucide-react'
 import type { LineItem } from '@/hooks/expenses/useExpenseForm'
 import type { Product } from '@/types'
+import { createClient } from '@/lib/supabase/client'
 
 interface ExpenseItemsTableProps {
   lineItems: LineItem[]
@@ -104,6 +105,8 @@ export const ExpenseItemsTable: React.FC<ExpenseItemsTableProps> = ({
   }, [products])
 
   useEffect(() => {
+    const supabase = createClient()
+
     const loadUnits = async () => {
       try {
         setUnitLoading(true)
@@ -163,7 +166,7 @@ export const ExpenseItemsTable: React.FC<ExpenseItemsTableProps> = ({
     }
 
     loadUnits()
-  }, [supabase])
+  }, [])
   
   // Filter products based on input
   useEffect(() => {

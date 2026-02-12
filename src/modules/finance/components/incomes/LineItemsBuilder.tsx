@@ -16,6 +16,9 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, Package, Search } from 'lucide-react'
 import type { Product } from '@/modules/inventory/types/inventoryTypes'
 import type { ProductLegacy } from '@/types/legacy'
+import ConfirmModal from '@/components/ui/ConfirmModal'
+import { useConfirm } from '@/hooks/useConfirm'
+import { showToast as showGlobalToast } from '@/components/ui/Toast'
 
 export interface LineItem {
   id: string
@@ -46,6 +49,17 @@ export function LineItemsBuilder({
   category = 'product_sales',
   onAddProduct
 }: LineItemsBuilderProps) {
+  const { confirm, confirmState, handleConfirm, handleCancel } = useConfirm()
+
+  const showToast = (message: string, type: 'success' | 'error' | 'warning' | 'info' = 'info') => {
+    if (typeof window !== 'undefined' && (window as any).showToast) {
+      showGlobalToast(message, type)
+      return
+    }
+    // Fallback when ToastContainer isn't mounted on this page
+    if (typeof window !== 'undefined') window.alert(message)
+  }
+
   // Current item being added
   const [selectedProductId, setSelectedProductId] = useState('')
   const [productQuery, setProductQuery] = useState('')
