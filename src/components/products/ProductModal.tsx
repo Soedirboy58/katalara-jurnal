@@ -10,7 +10,7 @@ import { getCostPrice, getSellingPrice } from '@/types/product-schema'
 import { generateSKU } from '@/utils/helpers'
 import { createClient } from '@/lib/supabase/client'
 import { formatRupiah, parseRupiahInput } from '@/lib/numberFormat'
-import { uploadProductImage, PRODUCT_IMAGE_BUCKET, getBucketInfo, validateImageFile, MAX_FILE_SIZE } from '@/lib/storage/productImages'
+import { uploadProductImage, PRODUCT_IMAGE_BUCKET, getBucketInfo, validateImageFile, MAX_FILE_SIZE, preprocessProductImage, isAllowedImageType } from '@/lib/storage/productImages'
 import { showToast, ToastContainer } from '@/components/ui/Toast'
 
 interface ProductModalProps {
@@ -96,42 +96,66 @@ export function ProductModal({ isOpen, onClose, product, onSuccess, onCreated }:
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.product_type])
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || [])
-    
-    // Validation: Maximum 3 images
-    if (images.length + files.length > 3) {
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = Array.from(e.target.files || [])
+    if (selectedFiles.length === 0) return
+
+    const availableSlots = 3 - images.length
+    if (availableSlots <= 0) {
       setErrorMessage('Maksimal 3 gambar. Hapus gambar lain terlebih dahulu.')
+      e.target.value = ''
       return
     }
 
-    for (const file of files) {
-      const validationError = validateImageFile(file)
-      if (validationError) {
-        setErrorMessage(`${file.name}: ${validationError}`)
-        return
-      }
+    const files = selectedFiles.slice(0, availableSlots)
+    if (selectedFiles.length > files.length) {
+      setErrorMessage('Maksimal 3 gambar. Hanya sebagian gambar yang ditambahkan.')
+    } else {
+      setErrorMessage(null)
     }
 
-    // Create previews for new files
-    files.forEach(file => {
-      const reader = new FileReader()
-      reader.onloadend = () => {
-        setImages(prev => [
-          ...prev,
-          {
-            file,
-            preview: reader.result as string,
-            isPrimary: prev.length === 0 // First image is primary by default
-          }
-        ])
-      }
-      reader.readAsDataURL(file)
-    })
+    const nextImages: ImagePreview[] = []
 
-    setErrorMessage(null)
-    // Reset input to allow selecting same file again
-    e.target.value = ''
+    try {
+      for (const file of files) {
+        if (!isAllowedImageType(file)) {
+          throw new Error(`${file.name}: Format file tidak didukung. Gunakan JPG, PNG, atau WebP`)
+        }
+
+        const processedFile = await preprocessProductImage(file)
+        const validationError = validateImageFile(processedFile)
+        if (validationError) {
+          throw new Error(`${file.name}: ${validationError}`)
+        }
+
+        const preview = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onloadend = () => resolve(reader.result as string)
+          reader.onerror = () => reject(new Error(`Gagal memuat preview untuk ${file.name}`))
+          reader.readAsDataURL(processedFile)
+        })
+
+        nextImages.push({
+          file: processedFile,
+          preview,
+        })
+      }
+
+      setImages((prev) => {
+        const baseLength = prev.length
+        return [
+          ...prev,
+          ...nextImages.map((item, index) => ({
+            ...item,
+            isPrimary: baseLength === 0 && index === 0,
+          })),
+        ]
+      })
+    } catch (error: any) {
+      setErrorMessage(error?.message || 'Gagal memproses gambar. Silakan coba lagi.')
+    } finally {
+      e.target.value = ''
+    }
   }
 
   const handleRemoveImage = (index: number) => {

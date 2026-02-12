@@ -45,6 +45,13 @@ export const MAX_FILE_SIZE = 3 * 1024 * 1024
 export const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
 
 /**
+ * Check if image MIME type is supported
+ */
+export function isAllowedImageType(file: File): boolean {
+  return ALLOWED_MIME_TYPES.includes(file.type)
+}
+
+/**
  * Upload result interface
  */
 export interface UploadProductImageResult {
@@ -71,6 +78,87 @@ export function validateImageFile(file: File): string | null {
   }
 
   return null
+}
+
+/**
+ * Preprocess image before upload for mobile reliability:
+ * - Resize to max dimension
+ * - Convert to JPG/WebP-like compressed output (JPG)
+ * - Ensure final file is under max size when possible
+ */
+export async function preprocessProductImage(
+  file: File,
+  options?: {
+    maxSizeBytes?: number
+    maxDimension?: number
+    minQuality?: number
+  }
+): Promise<File> {
+  const maxSizeBytes = options?.maxSizeBytes ?? MAX_FILE_SIZE
+  const maxDimension = options?.maxDimension ?? 1600
+  const minQuality = options?.minQuality ?? 0.5
+
+  if (!isAllowedImageType(file)) {
+    throw new Error('Format file tidak didukung. Gunakan JPG, PNG, atau WebP')
+  }
+
+  const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file)
+    const img = new Image()
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl)
+      resolve(img)
+    }
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl)
+      reject(new Error('Gagal membaca file gambar'))
+    }
+    img.src = objectUrl
+  })
+
+  const ratio = Math.min(1, maxDimension / Math.max(image.width, image.height))
+  const targetWidth = Math.max(1, Math.round(image.width * ratio))
+  const targetHeight = Math.max(1, Math.round(image.height * ratio))
+
+  const canvas = document.createElement('canvas')
+  canvas.width = targetWidth
+  canvas.height = targetHeight
+
+  const context = canvas.getContext('2d')
+  if (!context) {
+    throw new Error('Gagal memproses gambar')
+  }
+
+  context.drawImage(image, 0, 0, targetWidth, targetHeight)
+
+  let quality = 0.9
+  let blob: Blob | null = null
+
+  while (quality >= minQuality) {
+    blob = await new Promise<Blob | null>((resolve) => {
+      canvas.toBlob(resolve, 'image/jpeg', quality)
+    })
+
+    if (blob && blob.size <= maxSizeBytes) {
+      break
+    }
+
+    quality -= 0.1
+  }
+
+  if (!blob) {
+    throw new Error('Gagal mengonversi gambar')
+  }
+
+  if (blob.size > maxSizeBytes) {
+    throw new Error(`Ukuran gambar masih terlalu besar setelah kompresi. Maksimal ${MAX_FILE_SIZE / 1024 / 1024} MB`)
+  }
+
+  const originalName = file.name.replace(/\.[^/.]+$/, '')
+  return new File([blob], `${originalName}.jpg`, {
+    type: 'image/jpeg',
+    lastModified: Date.now(),
+  })
 }
 
 /**

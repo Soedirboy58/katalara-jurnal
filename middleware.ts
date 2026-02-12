@@ -2,6 +2,16 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
+  if (
+    request.nextUrl.pathname.startsWith('/dashboard/rangers') ||
+    request.nextUrl.pathname.startsWith('/register/ranger-info')
+  ) {
+    const redirectPath = request.nextUrl.pathname.startsWith('/dashboard/rangers')
+      ? '/dashboard'
+      : '/register-role'
+    return NextResponse.redirect(new URL(redirectPath, request.url))
+  }
+
   let supabaseResponse = NextResponse.next({
     request,
   })
