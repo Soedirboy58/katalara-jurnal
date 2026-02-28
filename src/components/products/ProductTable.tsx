@@ -113,7 +113,7 @@ export function ProductTable({
                   )}
                 </button>
               </th>
-              <th className="hidden sm:table-cell w-28 px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="hidden sm:table-cell w-40 px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 SKU
               </th>
               <th className="w-56 px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -163,7 +163,7 @@ export function ProductTable({
                       {isSelected ? '✓' : ''}
                     </button>
                   </td>
-                  <td className="hidden sm:table-cell px-3 sm:px-6 py-4 whitespace-normal break-words text-sm text-gray-900">
+                  <td className="hidden sm:table-cell px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {product.sku || '-'}
                   </td>
                   <td className="px-3 sm:px-6 py-4 whitespace-normal break-words">
