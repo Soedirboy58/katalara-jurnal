@@ -216,14 +216,17 @@ export function ProductsView() {
 
     const storefrontId = getActiveStorefrontId()
     const selected = products.filter((p) => selectedProducts.includes(p.id))
-    const productIds = selected.map((p) => p.id)
+    const productIds = selected.map((p) => p.id).filter(Boolean)
     const productNames = selected.map((p) => p.name).filter(Boolean)
 
+    const params = new URLSearchParams()
+    if (storefrontId) params.set('storefrontId', storefrontId)
+    if (productIds.length) params.set('productIds', productIds.join(','))
+    if (productNames.length) params.set('productNames', productNames.join(','))
+
     try {
-      const res = await fetch(`/api/lapak/sync-product${storefrontId ? `?storefrontId=${storefrontId}` : ''}`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ productIds, productNames })
+      const res = await fetch(`/api/lapak/sync-product?${params.toString()}`, {
+        method: 'DELETE'
       })
       const data = await res.json().catch(() => null)
       if (!res.ok) {

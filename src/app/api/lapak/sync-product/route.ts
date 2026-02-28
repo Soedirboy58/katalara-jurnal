@@ -196,9 +196,27 @@ export async function DELETE(request: NextRequest) {
     const productName = searchParams.get('productName');
     const productId = searchParams.get('productId');
     const storefrontId = searchParams.get('storefrontId');
+    const productIdsParam = searchParams.get('productIds');
+    const productNamesParam = searchParams.get('productNames');
     const body = await request.json().catch(() => null as any)
-    const productIds = Array.isArray(body?.productIds) ? body.productIds : null
-    const productNames = Array.isArray(body?.productNames) ? body.productNames : null
+
+    const productIds = Array.isArray(body?.productIds)
+      ? body.productIds
+      : productIdsParam
+        ? productIdsParam
+          .split(',')
+          .map((id: string) => id.trim())
+          .filter(Boolean)
+        : null
+
+    const productNames = Array.isArray(body?.productNames)
+      ? body.productNames
+      : productNamesParam
+        ? productNamesParam
+          .split(',')
+          .map((name: string) => name.trim())
+          .filter(Boolean)
+        : null
 
     if (!productName && !productId && !productIds?.length && !productNames?.length) {
       return NextResponse.json(
