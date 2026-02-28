@@ -820,11 +820,13 @@ export default function LapakPage() {
   const outletRows = useMemo(() => {
     return outletStats.map((row) => {
       const edit = outletEdits[row.id]
+      const commissionRate = edit?.commission_rate ?? String(row.commission_rate ?? '')
       return {
         ...row,
         outlet_code: edit?.outlet_code ?? row.outlet_code ?? '',
         outlet_manager_phone: edit?.outlet_manager_phone ?? row.outlet_manager_phone ?? '',
-        commission_rate: edit?.commission_rate ?? String(row.commission_rate ?? ''),
+        commission_rate: commissionRate,
+        commission_amount: (Number(row.total_revenue || 0) * (Number(commissionRate || 0) / 100)) || 0,
       }
     })
   }, [outletStats, outletEdits])
@@ -2591,6 +2593,7 @@ export default function LapakPage() {
                             <th className="py-2 pr-3">Outlet</th>
                             <th className="py-2 pr-3">Kode</th>
                             <th className="py-2 pr-3">Omzet</th>
+                            <th className="py-2 pr-3">Komisi</th>
                             <th className="py-2 pr-3">Order</th>
                             <th className="py-2 pr-3">Selesai</th>
                             <th className="py-2 pr-3">Batal</th>
@@ -2616,8 +2619,8 @@ export default function LapakPage() {
                                       ...prev,
                                       [row.id]: {
                                         outlet_code: value,
-                                        outlet_manager_phone: row.outlet_manager_phone,
-                                        commission_rate: row.commission_rate,
+                                        outlet_manager_phone: prev[row.id]?.outlet_manager_phone ?? row.outlet_manager_phone,
+                                        commission_rate: prev[row.id]?.commission_rate ?? row.commission_rate,
                                       },
                                     }))
                                   }}
@@ -2625,6 +2628,7 @@ export default function LapakPage() {
                                 />
                               </td>
                               <td className="py-2 pr-3 font-semibold text-gray-900">{formatCurrency(row.total_revenue || 0)}</td>
+                              <td className="py-2 pr-3 font-semibold text-emerald-700">{formatCurrency(row.commission_amount || 0)}</td>
                               <td className="py-2 pr-3">{row.total_orders || 0}</td>
                               <td className="py-2 pr-3">{row.completed_orders || 0}</td>
                               <td className="py-2 pr-3">{row.canceled_orders || 0}</td>
@@ -2640,8 +2644,8 @@ export default function LapakPage() {
                                     setOutletEdits((prev) => ({
                                       ...prev,
                                       [row.id]: {
-                                        outlet_code: row.outlet_code,
-                                        outlet_manager_phone: row.outlet_manager_phone,
+                                        outlet_code: prev[row.id]?.outlet_code ?? row.outlet_code,
+                                        outlet_manager_phone: prev[row.id]?.outlet_manager_phone ?? row.outlet_manager_phone,
                                         commission_rate: value,
                                       },
                                     }))
@@ -2652,18 +2656,19 @@ export default function LapakPage() {
                               <td className="py-2 pr-3">
                                 <input
                                   type="text"
-                                  value={row.outlet_manager_phone}
+                                  value={row.outlet_manager_phone || ''}
                                   onChange={(e) => {
                                     const value = e.target.value.replace(/\D/g, '')
                                     setOutletEdits((prev) => ({
                                       ...prev,
                                       [row.id]: {
-                                        outlet_code: row.outlet_code,
+                                        outlet_code: prev[row.id]?.outlet_code ?? row.outlet_code,
                                         outlet_manager_phone: value,
-                                        commission_rate: row.commission_rate,
+                                        commission_rate: prev[row.id]?.commission_rate ?? row.commission_rate,
                                       },
                                     }))
                                   }}
+                                  inputMode="numeric"
                                   className="w-36 px-2 py-1 border border-gray-300 rounded"
                                 />
                               </td>
