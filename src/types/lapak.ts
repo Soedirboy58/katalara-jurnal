@@ -28,6 +28,12 @@ export interface Storefront {
   whatsapp_number: string;
   instagram_handle?: string;
   location_text?: string;
+
+  // Outlet & Commission
+  outlet_code?: string;
+  outlet_manager_phone?: string;
+  commission_rate?: number;
+  parent_storefront_id?: string | null;
   
   // Payment Methods
   qris_image_url?: string;

@@ -427,6 +427,7 @@ export async function POST(
       payment_proof_url,
       order_code,
       public_tracking_code,
+      affiliate_code,
     } = body;
 
     if (!Array.isArray(order_items) || order_items.length === 0) {
@@ -520,6 +521,7 @@ export async function POST(
       payment_proof_url,
       order_code,
       public_tracking_code: trackingCode,
+      affiliate_code: affiliate_code || null,
       session_id: sessionId,
       user_agent: userAgent,
       status: 'pending',

@@ -121,6 +121,9 @@ export default function LapakPage() {
     bank_name: '',
     bank_account_number: '',
     bank_account_holder: '',
+    outlet_code: '',
+    outlet_manager_phone: '',
+    commission_rate: '',
     whatsapp_number: '',
     instagram_handle: '',
     location_text: '',
@@ -202,6 +205,9 @@ export default function LapakPage() {
       bank_name: '',
       bank_account_number: '',
       bank_account_holder: '',
+      outlet_code: '',
+      outlet_manager_phone: '',
+      commission_rate: '',
       whatsapp_number: '',
       instagram_handle: '',
       location_text: '',
@@ -732,6 +738,32 @@ export default function LapakPage() {
         <div><span className="text-gray-500">Total:</span> <span className="font-semibold text-gray-900">{formatCurrency(order.total_amount || 0)}</span></div>
       </div>
 
+      {(storefront?.outlet_code || storefront?.outlet_manager_phone || storefront?.commission_rate) && (
+        <div className="grid sm:grid-cols-2 gap-2 text-xs text-gray-600">
+          {storefront?.outlet_code && (
+            <div><span className="text-gray-500">Outlet:</span> {storefront.outlet_code}</div>
+          )}
+          {storefront?.outlet_manager_phone && (
+            <div><span className="text-gray-500">Pengelola:</span> +{storefront.outlet_manager_phone}</div>
+          )}
+          {Number(storefront?.commission_rate || 0) > 0 && (
+            <div>
+              <span className="text-gray-500">Komisi:</span>{' '}
+              <span className="font-semibold text-gray-800">
+                {formatCurrency((order.total_amount || 0) * (Number(storefront?.commission_rate || 0) / 100))}
+              </span>{' '}
+              <span className="text-gray-500">({storefront?.commission_rate}%)</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {order?.affiliate_code && (
+        <div className="text-xs text-gray-600">
+          <span className="text-gray-500">Afiliasi:</span> {order.affiliate_code}
+        </div>
+      )}
+
       <div>
         <div className="text-[11px] text-gray-500 mb-1.5">Progress Order</div>
         {renderOrderTimeline(order.status)}
@@ -805,6 +837,11 @@ export default function LapakPage() {
           bank_name: data.storefront.bank_name || '',
           bank_account_number: data.storefront.bank_account_number || '',
           bank_account_holder: data.storefront.bank_account_holder || '',
+          outlet_code: data.storefront.outlet_code || '',
+          outlet_manager_phone: data.storefront.outlet_manager_phone || '',
+          commission_rate: data.storefront.commission_rate !== null && data.storefront.commission_rate !== undefined
+            ? String(data.storefront.commission_rate)
+            : '',
           whatsapp_number: data.storefront.whatsapp_number,
           instagram_handle: data.storefront.instagram_handle || '',
           location_text: data.storefront.location_text || '',
@@ -927,8 +964,12 @@ export default function LapakPage() {
     setSaving(true);
     try {
       const effectiveStorefrontId = storefront?.id || activeStorefrontId || undefined;
+      const commissionRate = Number(formData.commission_rate)
       const payload = {
         ...formData,
+        outlet_code: formData.outlet_code?.trim() || null,
+        outlet_manager_phone: formData.outlet_manager_phone?.trim() || null,
+        commission_rate: Number.isFinite(commissionRate) ? commissionRate : null,
         storefront_id: effectiveStorefrontId,
         create_new: false,
       };
@@ -1495,6 +1536,46 @@ export default function LapakPage() {
                         ✓ Format final: +{formData.whatsapp_number}
                       </p>
                     )}
+                  </div>
+
+                  <div className="border border-gray-200 rounded-xl p-3 sm:p-4 bg-gray-50">
+                    <h3 className="text-sm sm:text-base font-semibold text-gray-900 mb-3">Outlet & Komisi</h3>
+                    <div className="grid sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-700 mb-1">Kode Outlet</label>
+                        <input
+                          type="text"
+                          value={formData.outlet_code}
+                          onChange={(e) => setFormData({ ...formData, outlet_code: e.target.value })}
+                          placeholder="OUTLET-01"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-700 mb-1">Nomor Pengelola Outlet</label>
+                        <input
+                          type="tel"
+                          value={formData.outlet_manager_phone}
+                          onChange={(e) => setFormData({ ...formData, outlet_manager_phone: e.target.value.replace(/\D/g, '') })}
+                          placeholder="628123456789"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent text-sm"
+                        />
+                        <p className="text-[11px] text-gray-500 mt-1">Gunakan format 62xxxxxxxxx (tanpa +).</p>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-700 mb-1">Komisi Outlet (%)</label>
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          step={0.1}
+                          value={formData.commission_rate}
+                          onChange={(e) => setFormData({ ...formData, commission_rate: e.target.value })}
+                          placeholder="5"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent text-sm"
+                        />
+                      </div>
+                    </div>
                   </div>
 
                   <div className="border border-gray-200 rounded-xl p-3 sm:p-4 bg-gray-50">

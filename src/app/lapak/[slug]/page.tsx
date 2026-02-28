@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import ProductCard from '@/components/lapak/ProductCard';
 import ProductDetailModal from '@/components/lapak/ProductDetailModal';
 import FloatingCartButton from '@/components/lapak/FloatingCartButton';
@@ -17,6 +17,7 @@ interface StorefrontPageProps {
 
 export default function StorefrontPage({ params }: StorefrontPageProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [slug, setSlug] = useState<string>('');
   const [storefront, setStorefront] = useState<Storefront | null>(null);
   const [products, setProducts] = useState<StorefrontProduct[]>([]);
@@ -33,6 +34,10 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [activeBannerIndex, setActiveBannerIndex] = useState(0)
   const productsSectionRef = useRef<HTMLElement | null>(null)
+
+  const affiliateCode = useMemo(() => {
+    return (searchParams.get('ref') || searchParams.get('aff') || '').trim()
+  }, [searchParams])
 
   // Load slug from params
   useEffect(() => {
@@ -247,6 +252,7 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
           notes: customer.notes,
           payment_proof_url: paymentProofUrl,
           order_code: orderCode,
+          affiliate_code: affiliateCode || null,
         }),
       });
       const orderJson = await orderResponse.json().catch(() => null as any)

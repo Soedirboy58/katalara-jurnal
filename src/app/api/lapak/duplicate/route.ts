@@ -190,6 +190,7 @@ export async function POST(request: NextRequest) {
     const baseName = `${baseLabel} outlet (${nextIndex})`
     const slugBase = buildSlugBase(baseName)
     const slug = await ensureUniqueSlug(supabase, slugBase)
+    const outletCode = `OUTLET-${String(nextIndex).padStart(2, '0')}`
 
     const storefrontPayload = {
       user_id: user.id,
@@ -214,6 +215,10 @@ export async function POST(request: NextRequest) {
       wa_status_templates: source.wa_status_templates || null,
       banner_image_urls: source.banner_image_urls || null,
       banner_autoplay_ms: source.banner_autoplay_ms || null,
+      outlet_code: outletCode,
+      outlet_manager_phone: source.outlet_manager_phone || null,
+      commission_rate: source.commission_rate ?? null,
+      parent_storefront_id: source.id,
       is_active: false,
       updated_at: new Date().toISOString(),
     }
