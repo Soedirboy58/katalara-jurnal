@@ -9,6 +9,24 @@ import { useConfirm } from '@/hooks/useConfirm';
 import { showToast, ToastContainer } from '@/components/ui/Toast';
 import { provinsiList, kabupatenList, kecamatanList } from '@/lib/data/wilayah-indonesia';
 
+type CustomerLookup = {
+  id?: string
+  name?: string
+  phone?: string
+  address?: string
+  province_id?: string
+  province_name?: string
+  kabupaten_id?: string
+  kabupaten_name?: string
+  kecamatan_id?: string
+  kecamatan_name?: string
+  desa_id?: string
+  desa_name?: string
+  address_detail?: string
+  rt_rw?: string
+  landmark?: string
+}
+
 interface PaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -67,6 +85,11 @@ export default function PaymentModal({
   const [desaOptions, setDesaOptions] = useState<Array<{ id: string; nama: string }>>([])
   const [desaLoading, setDesaLoading] = useState(false)
   const [manualDesa, setManualDesa] = useState('')
+  const [isManualDesa, setIsManualDesa] = useState(false)
+  const [customerMatch, setCustomerMatch] = useState<CustomerLookup | null>(null)
+  const [lookupLoading, setLookupLoading] = useState(false)
+  const [lookupError, setLookupError] = useState<string | null>(null)
+  const [lastLookupPhone, setLastLookupPhone] = useState('')
   const [paymentProofUrl, setPaymentProofUrl] = useState<string | undefined>(undefined);
   const [paymentProofUploading, setPaymentProofUploading] = useState(false);
   const [paymentProofError, setPaymentProofError] = useState<string | null>(null);
@@ -98,6 +121,11 @@ export default function PaymentModal({
       notes: '',
     });
     setManualDesa('')
+    setIsManualDesa(false)
+    setCustomerMatch(null)
+    setLookupLoading(false)
+    setLookupError(null)
+    setLastLookupPhone('')
     setOrderCode(`KNT-${Date.now().toString().slice(-8)}`);
   }, [isOpen]);
 
@@ -125,6 +153,38 @@ export default function PaymentModal({
     if (regionParts.length) addressParts.push(regionParts.join(', '))
 
     return addressParts.filter(Boolean).join(', ')
+  }
+
+  const applyCustomer = (customer: CustomerLookup) => {
+    if (!customer) return
+    const desaName = (customer.desa_name || '').trim()
+    const desaId = (customer.desa_id || '').trim()
+
+    setCheckoutForm((prev) => ({
+      ...prev,
+      customer_name: (customer.name || '').trim() || prev.customer_name,
+      customer_phone: normalizePhone(customer.phone || prev.customer_phone),
+      customer_address: (customer.address || '').trim() || prev.customer_address,
+      customer_province_id: (customer.province_id || '').trim() || prev.customer_province_id,
+      customer_province_name: (customer.province_name || '').trim() || prev.customer_province_name,
+      customer_kabupaten_id: (customer.kabupaten_id || '').trim() || prev.customer_kabupaten_id,
+      customer_kabupaten_name: (customer.kabupaten_name || '').trim() || prev.customer_kabupaten_name,
+      customer_kecamatan_id: (customer.kecamatan_id || '').trim() || prev.customer_kecamatan_id,
+      customer_kecamatan_name: (customer.kecamatan_name || '').trim() || prev.customer_kecamatan_name,
+      customer_desa_id: desaId || prev.customer_desa_id,
+      customer_desa_name: desaName || prev.customer_desa_name,
+      customer_address_detail: (customer.address_detail || '').trim() || prev.customer_address_detail,
+      customer_rt_rw: (customer.rt_rw || '').trim() || prev.customer_rt_rw,
+      customer_landmark: (customer.landmark || '').trim() || prev.customer_landmark,
+    }))
+
+    if (desaId) {
+      setManualDesa('')
+      setIsManualDesa(false)
+    } else if (desaName) {
+      setManualDesa(desaName)
+      setIsManualDesa(true)
+    }
   }
 
   const isAddressComplete = checkoutForm.delivery_method === 'pickup'
@@ -180,6 +240,60 @@ export default function PaymentModal({
 
     fetchDesa()
   }, [checkoutForm.customer_kecamatan_id])
+
+  useEffect(() => {
+    if (!isOpen) return
+
+    const phone = (checkoutForm.customer_phone || '').trim()
+    if (!phone || phone.length < 8) {
+      setCustomerMatch(null)
+      setLookupError(null)
+      return
+    }
+    if (phone === lastLookupPhone) return
+
+    setCustomerMatch(null)
+
+    const controller = new AbortController()
+    const timer = setTimeout(async () => {
+      try {
+        setLookupLoading(true)
+        setLookupError(null)
+        setLastLookupPhone(phone)
+
+        const res = await fetch(
+          `/api/storefront/${encodeURIComponent(storefrontSlug)}/customers/lookup?phone=${encodeURIComponent(phone)}`,
+          { signal: controller.signal }
+        )
+        const payload = await res.json().catch(() => null)
+
+        if (!res.ok) {
+          setCustomerMatch(null)
+          setLookupError('Gagal mencari data pelanggan.')
+          return
+        }
+
+        if (payload?.found && payload?.data) {
+          setCustomerMatch(payload.data)
+          applyCustomer(payload.data)
+        } else {
+          setCustomerMatch(null)
+        }
+      } catch (error: any) {
+        if (error?.name !== 'AbortError') {
+          setCustomerMatch(null)
+          setLookupError('Gagal mencari data pelanggan.')
+        }
+      } finally {
+        setLookupLoading(false)
+      }
+    }, 450)
+
+    return () => {
+      controller.abort()
+      clearTimeout(timer)
+    }
+  }, [checkoutForm.customer_phone, isOpen, lastLookupPhone, storefrontSlug])
 
   const handleProofUpload = async (file?: File) => {
     if (!file) return;
@@ -347,6 +461,17 @@ export default function PaymentModal({
                         className="w-full pl-12 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       />
                     </div>
+                    {lookupLoading && (
+                      <p className="text-xs text-gray-500 mt-1">Mencari data pelanggan...</p>
+                    )}
+                    {lookupError && (
+                      <p className="text-xs text-red-600 mt-1">{lookupError}</p>
+                    )}
+                    {customerMatch && !lookupLoading && (
+                      <div className="mt-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-900">
+                        Data pelanggan ditemukan dan diterapkan.
+                      </div>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Metode Pengiriman</label>
@@ -478,6 +603,7 @@ export default function PaymentModal({
                             onChange={(e) => {
                               const value = e.target.value
                               if (value === 'manual') {
+                                setIsManualDesa(true)
                                 setCheckoutForm({
                                   ...checkoutForm,
                                   customer_desa_id: '',
@@ -487,6 +613,7 @@ export default function PaymentModal({
                               }
 
                               const selected = desaOptions.find((row) => row.id === value)
+                              setIsManualDesa(false)
                               setCheckoutForm({
                                 ...checkoutForm,
                                 customer_desa_id: value,
@@ -504,7 +631,7 @@ export default function PaymentModal({
                             <option value="manual">Input manual</option>
                           </select>
                         </div>
-                        {(!desaOptions.length || checkoutForm.customer_desa_id === 'manual') && (
+                        {(!desaOptions.length || isManualDesa || manualDesa.trim()) && (
                           <div>
                             <label className="block text-xs font-semibold text-gray-600 mb-1">Nama Desa/Kelurahan *</label>
                             <input
@@ -512,6 +639,7 @@ export default function PaymentModal({
                               value={manualDesa}
                               onChange={(e) => {
                                 const value = e.target.value
+                                setIsManualDesa(true)
                                 setManualDesa(value)
                                 setCheckoutForm({
                                   ...checkoutForm,
