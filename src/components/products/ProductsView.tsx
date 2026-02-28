@@ -554,6 +554,15 @@ export function ProductsView() {
           <p className="text-xs text-gray-600">
             Pilih produk di halaman ini, lalu sync ke Lapak secara massal.
           </p>
+          <label className="mt-2 flex items-center gap-2 text-xs text-gray-700">
+            <input
+              type="checkbox"
+              checked={syncAllLapak}
+              onChange={(e) => setSyncAllLapak(e.target.checked)}
+              className="h-4 w-4 rounded border-gray-300"
+            />
+            Terapkan ke semua Lapak (termasuk duplikat)
+          </label>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button

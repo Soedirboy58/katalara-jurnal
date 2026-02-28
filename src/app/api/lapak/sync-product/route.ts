@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { createClient as createSupabaseJsClient } from '@supabase/supabase-js'
 
 // POST /api/lapak/sync-product - Sync a product from products table to storefront_products
 export async function POST(request: NextRequest) {
@@ -192,6 +193,15 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    const admin =
+      supabaseUrl && serviceKey
+        ? createSupabaseJsClient(supabaseUrl, serviceKey, {
+            auth: { persistSession: false, autoRefreshToken: false },
+          })
+        : supabase
+
     const { searchParams } = new URL(request.url);
     const productName = searchParams.get('productName');
     const productId = searchParams.get('productId');
@@ -223,6 +233,100 @@ export async function DELETE(request: NextRequest) {
         { error: 'Product name or productId is required' },
         { status: 400 }
       );
+    }
+
+    const chunkSize = 50
+
+    const collectStorefrontIds = async () => {
+      const ids: string[] = []
+
+      if (productIds?.length) {
+        for (let i = 0; i < productIds.length; i += chunkSize) {
+          let query = admin
+            .from('storefront_products')
+            .select('id')
+            .eq('user_id', user.id)
+            .in('product_id', productIds.slice(i, i + chunkSize))
+
+          if (storefrontId) query = query.eq('storefront_id', storefrontId)
+
+          const { data, error } = await query
+          if (error) return { ids, error }
+          for (const row of data || []) ids.push(String(row.id))
+        }
+      }
+
+      if (productId) {
+        let query = admin
+          .from('storefront_products')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('product_id', productId)
+
+        if (storefrontId) query = query.eq('storefront_id', storefrontId)
+
+        const { data, error } = await query
+        if (error) return { ids, error }
+        for (const row of data || []) ids.push(String(row.id))
+      }
+
+      if (productName) {
+        let query = admin
+          .from('storefront_products')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('name', productName)
+
+        if (storefrontId) query = query.eq('storefront_id', storefrontId)
+
+        const { data, error } = await query
+        if (error) return { ids, error }
+        for (const row of data || []) ids.push(String(row.id))
+      }
+
+      if (productNames?.length) {
+        for (let i = 0; i < productNames.length; i += chunkSize) {
+          let query = admin
+            .from('storefront_products')
+            .select('id')
+            .eq('user_id', user.id)
+            .in('name', productNames.slice(i, i + chunkSize))
+
+          if (storefrontId) query = query.eq('storefront_id', storefrontId)
+
+          const { data, error } = await query
+          if (error) return { ids, error }
+          for (const row of data || []) ids.push(String(row.id))
+        }
+      }
+
+      return { ids, error: null }
+    }
+
+    const { ids: storefrontProductIds, error: collectError } = await collectStorefrontIds()
+    if (collectError) {
+      console.error('Error collecting storefront products:', collectError)
+      return NextResponse.json(
+        { error: 'Gagal mengambil data Lapak' },
+        { status: 500 }
+      )
+    }
+
+    if (storefrontProductIds.length) {
+      for (let i = 0; i < storefrontProductIds.length; i += chunkSize) {
+        const { error } = await admin
+          .from('storefront_analytics')
+          .delete()
+          .in('product_id', storefrontProductIds.slice(i, i + chunkSize))
+
+        if (error) {
+          console.error('Error deleting analytics:', error)
+          return NextResponse.json(
+            { error: 'Gagal menghapus analytics Lapak' },
+            { status: 500 }
+          )
+        }
+      }
     }
 
     // Find and delete the product from storefront_products
