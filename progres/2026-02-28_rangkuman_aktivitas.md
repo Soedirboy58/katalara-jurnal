@@ -8,6 +8,8 @@
 - Perbaikan stok: pengurangan saat status confirmed, rollback saat batal.
 - Perbaikan cetak dokumen (invoice/struk) dan judul memakai nama bisnis.
 - Konfirmasi hapus transaksi di Input Income memakai UI modal (bukan alert native).
+- Setup Lapak menambah field About Us untuk konten footer.
+- Modal detail produk menambah popup share dengan template gambar produk, tombol WA/IG/FB, serta tautan lapak.
 
 ## Perubahan Utama
 1. **Checkout Lapak & pelanggan repeat**
@@ -39,6 +41,12 @@
 
 7. **UI konsistensi**
    - Konfirmasi hapus transaksi pada Input Income memakai `ConfirmModal`.
+
+8. **Lapak: About Us & Share Produk**
+   - About Us di footer bisa diedit dari Setup Lapak.
+   - Popup share menampilkan template gambar produk + logo.
+   - Tautan lapak tersedia dengan tombol salin.
+   - Tombol share WA/IG/FB minimalis (ikon).
 
 ## Status
 - **Build:** ✅ Berhasil di Vercel
