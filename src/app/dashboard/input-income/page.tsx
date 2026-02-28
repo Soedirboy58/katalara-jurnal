@@ -42,7 +42,11 @@ export default function InputIncomePage() {
 
   const [initialValues, setInitialValues] = useState<Partial<IncomeFormData> | undefined>(undefined)
   const [formKey, setFormKey] = useState('default')
-  const [lapakPrefillInfo, setLapakPrefillInfo] = useState<{ orderCode?: string; customer?: string } | null>(null)
+  const [lapakPrefillInfo, setLapakPrefillInfo] = useState<{
+    orderCode?: string
+    customer?: string
+    storefrontName?: string
+  } | null>(null)
 
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState<{ show: boolean; type: 'success' | 'error' | 'warning'; message: string }>(
@@ -142,6 +146,7 @@ export default function InputIncomePage() {
         }
 
         const order = json.order
+        const storefrontName = String(json?.storefront?.store_name || '').trim()
         const orderCode = String(order.order_code || order.id || '')
         const items = parseOrderItems(order.order_items)
         const incomeItems = items.map((it: any) => {
@@ -177,14 +182,20 @@ export default function InputIncomePage() {
           customer_address: order.customer_address || undefined,
           payment_method: paymentMethod,
           payment_type: 'cash',
-          notes: `Lapak order ${orderCode}`,
+          notes: storefrontName
+            ? `Lapak ${storefrontName} order ${orderCode}`
+            : `Lapak order ${orderCode}`,
           lineItems: incomeItems,
         }
 
         if (cancelled) return
 
         setInitialValues(nextInitial)
-        setLapakPrefillInfo({ orderCode, customer: order.customer_name || undefined })
+        setLapakPrefillInfo({
+          orderCode,
+          customer: order.customer_name || undefined,
+          storefrontName: storefrontName || undefined,
+        })
         setFormKey(`lapak-${orderId}`)
 
         // Helpful default filter for history (so user can find it after submit)
@@ -320,6 +331,9 @@ export default function InputIncomePage() {
               Order: <span className="font-semibold">{lapakPrefillInfo.orderCode || '-'}</span>
               {lapakPrefillInfo.customer ? (
                 <> • Pembeli: <span className="font-semibold">{lapakPrefillInfo.customer}</span></>
+              ) : null}
+              {lapakPrefillInfo.storefrontName ? (
+                <> • Lapak: <span className="font-semibold">{lapakPrefillInfo.storefrontName}</span></>
               ) : null}
             </div>
             <div className="text-[11px] text-emerald-800 mt-2">

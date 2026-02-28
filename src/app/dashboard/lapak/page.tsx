@@ -98,6 +98,14 @@ export default function LapakPage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [orderStats, setOrderStats] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<'settings' | 'products' | 'analytics' | 'notifications' | 'affiliates'>('settings');
+  const [affiliates, setAffiliates] = useState<any[]>([])
+  const [affiliatesLoading, setAffiliatesLoading] = useState(false)
+  const [affiliateForm, setAffiliateForm] = useState({
+    code: '',
+    name: '',
+    phone: '',
+    commission_rate: '0',
+  })
   const [businessCategory, setBusinessCategory] = useState<string | null>(null);
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
   const [kpiModal, setKpiModal] = useState<{
@@ -734,6 +742,9 @@ export default function LapakPage() {
       <div className="grid sm:grid-cols-2 gap-2 text-sm text-gray-700">
         <div><span className="text-gray-500">Pembeli:</span> {order.customer_name || 'Pembeli'}</div>
         <div><span className="text-gray-500">No. HP:</span> {order.customer_phone || '-'}</div>
+        {storefront?.store_name ? (
+          <div><span className="text-gray-500">Lapak:</span> {storefront.store_name}</div>
+        ) : null}
         <div><span className="text-gray-500">Pembayaran:</span> {getPaymentMethodLabel(order.payment_method)}</div>
         <div><span className="text-gray-500">Total:</span> <span className="font-semibold text-gray-900">{formatCurrency(order.total_amount || 0)}</span></div>
       </div>
@@ -806,6 +817,31 @@ export default function LapakPage() {
     { key: 'completed', title: 'Selesai', tone: 'bg-green-50 border-green-200 text-green-900', desc: 'Order sudah diterima pelanggan.' },
     { key: 'canceled', title: 'Dibatalkan', tone: 'bg-red-50 border-red-200 text-red-900', desc: 'Order dibatalkan.' },
   ]
+
+  const affiliateStats = useMemo(() => {
+    const totals = new Map<string, { orders: number; revenue: number }>()
+    for (const order of orders) {
+      const code = String(order?.affiliate_code || '').trim()
+      if (!code) continue
+      const prev = totals.get(code) || { orders: 0, revenue: 0 }
+      prev.orders += 1
+      prev.revenue += Number(order?.total_amount || 0)
+      totals.set(code, prev)
+    }
+
+    return affiliates.map((aff) => {
+      const code = String(aff.code || '')
+      const total = totals.get(code) || { orders: 0, revenue: 0 }
+      const rate = Number(aff.commission_rate || 0)
+      const commission = total.revenue * (rate / 100)
+      return {
+        ...aff,
+        total_orders: total.orders,
+        total_revenue: total.revenue,
+        total_commission: commission,
+      }
+    })
+  }, [affiliates, orders])
 
   const loadData = async (storefrontId?: string) => {
     const requestId = ++loadRequestIdRef.current;
@@ -895,6 +931,34 @@ export default function LapakPage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (activeTab !== 'affiliates') return
+    if (!storefront?.id) return
+
+    let cancelled = false
+    const run = async () => {
+      try {
+        setAffiliatesLoading(true)
+        const res = await fetch(`/api/lapak/affiliates?storefrontId=${storefront.id}`)
+        const json = await res.json().catch(() => null as any)
+        if (!res.ok) {
+          if (!cancelled) showToast(json?.error || 'Gagal memuat data affiliate', 'error')
+          return
+        }
+        if (!cancelled) setAffiliates(json?.affiliates || [])
+      } catch (error) {
+        if (!cancelled) showToast('Gagal memuat data affiliate', 'error')
+      } finally {
+        if (!cancelled) setAffiliatesLoading(false)
+      }
+    }
+
+    run()
+    return () => {
+      cancelled = true
+    }
+  }, [activeTab, storefront?.id])
 
   const handleSelectStorefront = async (storefrontId: string) => {
     setLoading(true);
@@ -2500,20 +2564,147 @@ export default function LapakPage() {
           {/* Affiliates Tab */}
           {activeTab === 'affiliates' && (
             <div className="p-3 sm:p-6">
-              <div className="bg-white border border-gray-200 rounded-lg p-4 sm:p-5">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                  <div>
-                    <h3 className="text-base sm:text-lg font-semibold text-gray-900">Dashboard Agent/Sales/Affiliate</h3>
-                    <p className="text-xs sm:text-sm text-gray-600 mt-1">
-                      Pantau performa per kode afiliasi, total order, dan komisi.
-                    </p>
+              <div className="space-y-4">
+                <div className="bg-white border border-gray-200 rounded-lg p-4 sm:p-5">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div>
+                      <h3 className="text-base sm:text-lg font-semibold text-gray-900">Dashboard Agent/Sales/Affiliate</h3>
+                      <p className="text-xs sm:text-sm text-gray-600 mt-1">
+                        Pantau performa per kode afiliasi, total order, dan komisi.
+                      </p>
+                    </div>
+                    <span className="text-xs font-semibold px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-700">
+                      {affiliates.length} kode aktif
+                    </span>
                   </div>
-                  <span className="text-xs font-semibold px-3 py-1.5 rounded-full bg-blue-50 text-blue-700">
-                    Coming soon
-                  </span>
                 </div>
-                <div className="mt-4 text-xs sm:text-sm text-gray-500">
-                  Setelah data afiliasi aktif, di sini akan muncul ringkasan per kode dan ekspor komisi.
+
+                <div className="bg-white border border-gray-200 rounded-lg p-4 sm:p-5">
+                  <h4 className="text-sm sm:text-base font-semibold text-gray-900 mb-3">Tambah Kode Affiliate</h4>
+                  <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    <input
+                      type="text"
+                      value={affiliateForm.code}
+                      onChange={(e) => setAffiliateForm({ ...affiliateForm, code: e.target.value })}
+                      placeholder="Kode (AFFIL-01)"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    />
+                    <input
+                      type="text"
+                      value={affiliateForm.name}
+                      onChange={(e) => setAffiliateForm({ ...affiliateForm, name: e.target.value })}
+                      placeholder="Nama agent"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    />
+                    <input
+                      type="text"
+                      value={affiliateForm.phone}
+                      onChange={(e) => setAffiliateForm({ ...affiliateForm, phone: e.target.value.replace(/\D/g, '') })}
+                      placeholder="628xxxx"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    />
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step={0.1}
+                      value={affiliateForm.commission_rate}
+                      onChange={(e) => setAffiliateForm({ ...affiliateForm, commission_rate: e.target.value })}
+                      placeholder="Komisi %"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    />
+                  </div>
+                  <div className="mt-3 flex items-center gap-2">
+                    <button
+                      onClick={async () => {
+                        if (!storefront?.id) return
+                        if (!affiliateForm.code.trim()) {
+                          showToast('Kode affiliate wajib diisi', 'warning')
+                          return
+                        }
+                        try {
+                          const res = await fetch('/api/lapak/affiliates', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              storefront_id: storefront.id,
+                              code: affiliateForm.code.trim(),
+                              name: affiliateForm.name.trim(),
+                              phone: affiliateForm.phone.trim(),
+                              commission_rate: affiliateForm.commission_rate,
+                            }),
+                          })
+                          const json = await res.json().catch(() => null as any)
+                          if (!res.ok) {
+                            showToast(json?.error || 'Gagal menambah affiliate', 'error')
+                            return
+                          }
+                          setAffiliates((prev) => [json.affiliate, ...prev])
+                          setAffiliateForm({ code: '', name: '', phone: '', commission_rate: '0' })
+                          showToast('Affiliate berhasil ditambahkan', 'success')
+                        } catch {
+                          showToast('Gagal menambah affiliate', 'error')
+                        }
+                      }}
+                      className="px-4 py-2 text-sm font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    >
+                      Tambah Affiliate
+                    </button>
+                    <span className="text-xs text-gray-500">Gunakan kode ini di link: ?ref=KODE</span>
+                  </div>
+                </div>
+
+                <div className="bg-white border border-gray-200 rounded-lg p-4 sm:p-5">
+                  <h4 className="text-sm sm:text-base font-semibold text-gray-900 mb-3">Ringkasan Per Kode</h4>
+                  {affiliatesLoading ? (
+                    <div className="text-sm text-gray-500">Memuat data affiliate...</div>
+                  ) : affiliateStats.length === 0 ? (
+                    <div className="text-sm text-gray-500">Belum ada data affiliate.</div>
+                  ) : (
+                    <div className="space-y-3">
+                      {affiliateStats.map((row) => (
+                        <div key={row.id} className="border border-gray-200 rounded-lg p-3">
+                          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                            <div>
+                              <div className="text-sm font-semibold text-gray-900">{row.code}</div>
+                              <div className="text-xs text-gray-600">
+                                {row.name || 'Tanpa nama'}{row.phone ? ` • +${row.phone}` : ''}
+                              </div>
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              Komisi {row.commission_rate || 0}%
+                            </div>
+                          </div>
+                          <div className="grid sm:grid-cols-3 gap-2 text-xs text-gray-700 mt-3">
+                            <div><span className="text-gray-500">Order:</span> {row.total_orders}</div>
+                            <div><span className="text-gray-500">Omzet:</span> {formatCurrency(row.total_revenue || 0)}</div>
+                            <div><span className="text-gray-500">Komisi:</span> {formatCurrency(row.total_commission || 0)}</div>
+                          </div>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <button
+                              onClick={async () => {
+                                try {
+                                  const res = await fetch(`/api/lapak/affiliates?id=${row.id}`, { method: 'DELETE' })
+                                  const json = await res.json().catch(() => null as any)
+                                  if (!res.ok) {
+                                    showToast(json?.error || 'Gagal menghapus affiliate', 'error')
+                                    return
+                                  }
+                                  setAffiliates((prev) => prev.filter((item) => item.id !== row.id))
+                                  showToast('Affiliate dihapus', 'success')
+                                } catch {
+                                  showToast('Gagal menghapus affiliate', 'error')
+                                }
+                              }}
+                              className="px-3 py-1.5 text-xs font-semibold text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100"
+                            >
+                              Hapus
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
