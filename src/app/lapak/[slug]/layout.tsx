@@ -1,12 +1,23 @@
 import type { Metadata } from 'next';
 import { headers } from 'next/headers';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 const buildBaseUrl = () => {
   const headerList = headers();
-  const host = headerList.get('host') || '';
+  const host = headerList.get('x-forwarded-host') || headerList.get('host') || '';
   const proto = headerList.get('x-forwarded-proto') || 'https';
-  if (!host) return '';
-  return `${proto}://${host}`;
+  if (host) return `${proto}://${host}`;
+
+  const envUrl =
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.VERCEL_URL ||
+    '';
+
+  if (!envUrl) return '';
+  return envUrl.startsWith('http') ? envUrl : `https://${envUrl}`;
 };
 
 const fetchStorefront = async (slug: string) => {
