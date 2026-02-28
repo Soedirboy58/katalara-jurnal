@@ -175,10 +175,12 @@ export function ProductsView() {
   }
 
   const handleUnsyncFromLapak = async (productId: string) => {
+    const product = products.find((p) => p.id === productId)
     setSyncingProducts((prev) => ({ ...prev, [productId]: true }))
     try {
       const storefrontId = getActiveStorefrontId()
-      const res = await fetch(`/api/lapak/sync-product?productId=${encodeURIComponent(productId)}${storefrontId ? `&storefrontId=${storefrontId}` : ''}`,
+      const nameParam = product?.name ? `&productName=${encodeURIComponent(product.name)}` : ''
+      const res = await fetch(`/api/lapak/sync-product?productId=${encodeURIComponent(productId)}${nameParam}${storefrontId ? `&storefrontId=${storefrontId}` : ''}`,
         { method: 'DELETE' }
       )
       const data = await res.json().catch(() => null)
@@ -212,8 +214,28 @@ export function ProductsView() {
       return
     }
 
-    for (const id of selectedProducts) {
-      await handleUnsyncFromLapak(id)
+    const storefrontId = getActiveStorefrontId()
+    const selected = products.filter((p) => selectedProducts.includes(p.id))
+    const productIds = selected.map((p) => p.id)
+    const productNames = selected.map((p) => p.name).filter(Boolean)
+
+    try {
+      const res = await fetch(`/api/lapak/sync-product${storefrontId ? `?storefrontId=${storefrontId}` : ''}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productIds, productNames })
+      })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) {
+        showToast(data?.error || 'Gagal hapus dari Lapak', 'error')
+        return
+      }
+      const nextMap = { ...syncedProducts }
+      for (const id of productIds) nextMap[id] = false
+      setSyncedProducts(nextMap)
+      showToast(data?.message || 'Produk dihapus dari Lapak', 'success')
+    } catch {
+      showToast('Terjadi kesalahan saat hapus dari Lapak', 'error')
     }
   }
 

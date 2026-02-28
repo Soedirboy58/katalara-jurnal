@@ -198,8 +198,9 @@ export async function DELETE(request: NextRequest) {
     const storefrontId = searchParams.get('storefrontId');
     const body = await request.json().catch(() => null as any)
     const productIds = Array.isArray(body?.productIds) ? body.productIds : null
+    const productNames = Array.isArray(body?.productNames) ? body.productNames : null
 
-    if (!productName && !productId && !productIds?.length) {
+    if (!productName && !productId && !productIds?.length && !productNames?.length) {
       return NextResponse.json(
         { error: 'Product name or productId is required' },
         { status: 400 }
@@ -218,13 +219,15 @@ export async function DELETE(request: NextRequest) {
       deleteQuery = deleteQuery.eq('product_id', productId);
     } else if (productName) {
       deleteQuery = deleteQuery.eq('name', productName);
+    } else if (productNames?.length) {
+      deleteQuery = deleteQuery.in('name', productNames)
     }
 
     if (storefrontId) {
       deleteQuery = deleteQuery.eq('storefront_id', storefrontId);
     }
 
-    const { error: deleteError } = await deleteQuery;
+    const { data: deletedRows, error: deleteError } = await deleteQuery.select('id');
 
     if (deleteError) {
       console.error('Error deleting product:', deleteError);
@@ -232,6 +235,32 @@ export async function DELETE(request: NextRequest) {
         { error: 'Gagal menghapus produk dari Lapak' },
         { status: 500 }
       );
+    }
+
+    if ((!deletedRows || deletedRows.length === 0) && (productName || productNames?.length)) {
+      let fallback = supabase
+        .from('storefront_products')
+        .delete()
+        .eq('user_id', user.id)
+
+      if (productName) {
+        fallback = fallback.eq('name', productName)
+      } else if (productNames?.length) {
+        fallback = fallback.in('name', productNames)
+      }
+
+      if (storefrontId) {
+        fallback = fallback.eq('storefront_id', storefrontId)
+      }
+
+      const { error: fallbackError } = await fallback
+      if (fallbackError) {
+        console.error('Error deleting product by name:', fallbackError)
+        return NextResponse.json(
+          { error: 'Gagal menghapus produk dari Lapak' },
+          { status: 500 }
+        )
+      }
     }
 
     return NextResponse.json({
