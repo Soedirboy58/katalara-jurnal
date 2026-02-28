@@ -90,6 +90,8 @@ export default function PaymentModal({
   const [lookupLoading, setLookupLoading] = useState(false)
   const [lookupError, setLookupError] = useState<string | null>(null)
   const [lastLookupPhone, setLastLookupPhone] = useState('')
+  const [searchLoading, setSearchLoading] = useState(false)
+  const [searchError, setSearchError] = useState<string | null>(null)
   const [paymentProofUrl, setPaymentProofUrl] = useState<string | undefined>(undefined);
   const [paymentProofUploading, setPaymentProofUploading] = useState(false);
   const [paymentProofError, setPaymentProofError] = useState<string | null>(null);
@@ -126,6 +128,8 @@ export default function PaymentModal({
     setLookupLoading(false)
     setLookupError(null)
     setLastLookupPhone('')
+    setSearchLoading(false)
+    setSearchError(null)
     setOrderCode(`KNT-${Date.now().toString().slice(-8)}`);
   }, [isOpen]);
 
@@ -275,7 +279,6 @@ export default function PaymentModal({
 
         if (payload?.found && payload?.data) {
           setCustomerMatch(payload.data)
-          applyCustomer(payload.data)
         } else {
           setCustomerMatch(null)
         }
@@ -294,6 +297,42 @@ export default function PaymentModal({
       clearTimeout(timer)
     }
   }, [checkoutForm.customer_phone, isOpen, lastLookupPhone, storefrontSlug])
+
+  const handleSearchCustomer = async () => {
+    const phone = (checkoutForm.customer_phone || '').trim()
+    if (!phone) {
+      setSearchError('Isi nomor WhatsApp terlebih dahulu.')
+      return
+    }
+
+    try {
+      setSearchLoading(true)
+      setSearchError(null)
+
+      const res = await fetch(
+        `/api/storefront/${encodeURIComponent(storefrontSlug)}/customers/lookup?phone=${encodeURIComponent(phone)}`
+      )
+      const payload = await res.json().catch(() => null)
+
+      if (!res.ok) {
+        setCustomerMatch(null)
+        setSearchError('Pencarian gagal, coba lagi.')
+        return
+      }
+
+      if (payload?.found && payload?.data) {
+        setCustomerMatch(payload.data)
+      } else {
+        setCustomerMatch(null)
+        setSearchError('Data pelanggan tidak ditemukan.')
+      }
+    } catch {
+      setCustomerMatch(null)
+      setSearchError('Pencarian gagal, coba lagi.')
+    } finally {
+      setSearchLoading(false)
+    }
+  }
 
   const handleProofUpload = async (file?: File) => {
     if (!file) return;
@@ -461,6 +500,17 @@ export default function PaymentModal({
                         className="w-full pl-12 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       />
                     </div>
+                    <div className="mt-2 flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleSearchCustomer}
+                        disabled={searchLoading}
+                        className="rounded-lg border border-blue-600 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-50 disabled:opacity-60"
+                      >
+                        {searchLoading ? 'Mencari...' : 'Cari pelanggan'}
+                      </button>
+                      {searchError && <span className="text-xs text-red-600">{searchError}</span>}
+                    </div>
                     {lookupLoading && (
                       <p className="text-xs text-gray-500 mt-1">Mencari data pelanggan...</p>
                     )}
@@ -468,8 +518,17 @@ export default function PaymentModal({
                       <p className="text-xs text-red-600 mt-1">{lookupError}</p>
                     )}
                     {customerMatch && !lookupLoading && (
-                      <div className="mt-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-900">
-                        Data pelanggan ditemukan dan diterapkan.
+                      <div className="mt-2 flex items-center justify-between gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-900">
+                        <span>
+                          Pelanggan ditemukan: {customerMatch.name || customerMatch.phone || 'Data pelanggan'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => applyCustomer(customerMatch)}
+                          className="shrink-0 rounded-md bg-blue-600 px-2 py-1 text-white hover:bg-blue-700"
+                        >
+                          Gunakan
+                        </button>
                       </div>
                     )}
                   </div>
