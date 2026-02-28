@@ -148,6 +148,56 @@ export function IncomesForm({
     if (selectedCustomer.phone) setCustomerPhone(selectedCustomer.phone)
   }, [selectedCustomer])
 
+  useEffect(() => {
+    if (!Array.isArray(products) || products.length === 0) return
+
+    const catalogIdSet = new Set(products.map((p: any) => String((p as any).id || '')))
+    const nameToProduct = new Map<string, any>()
+
+    for (const product of products as any[]) {
+      const key = String(product?.name || '').trim().toLowerCase()
+      if (!key) continue
+      if (!nameToProduct.has(key)) nameToProduct.set(key, product)
+    }
+
+    const getSellingPrice = (product: any): number => {
+      const raw = product?.selling_price ?? product?.sell_price ?? product?.price ?? 0
+      const n = typeof raw === 'number' ? raw : Number(raw)
+      return Number.isFinite(n) ? n : 0
+    }
+
+    setLineItems((prev) => {
+      let changed = false
+      const next = prev.map((item) => {
+        const existingProductId = String(item.product_id || '')
+        if (existingProductId && catalogIdSet.has(existingProductId)) return item
+
+        const nameKey = String(item.product_name || '').trim().toLowerCase()
+        if (!nameKey) return item
+
+        const matched = nameToProduct.get(nameKey)
+        if (!matched?.id) return item
+
+        changed = true
+        const nextPrice = Number(item.price || 0) > 0 ? item.price : getSellingPrice(matched)
+
+        return {
+          ...item,
+          product_id: String(matched.id),
+          unit: item.unit || String(matched.unit || 'pcs'),
+          price: nextPrice,
+          subtotal: Number(item.quantity || 0) * Number(nextPrice || 0),
+          buy_price:
+            Number(item.buy_price || 0) > 0
+              ? item.buy_price
+              : Number((matched as any).cost_price ?? (matched as any).buy_price ?? 0),
+        }
+      })
+
+      return changed ? next : prev
+    })
+  }, [products])
+
   // Calculations
   const calculateSubtotal = () => {
     if (isIncomeCategoryNonItemMode(incomeType, category)) return Math.max(0, otherIncomeAmount)

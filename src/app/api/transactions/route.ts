@@ -599,7 +599,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const normalizedItems = items.map((it) => {
+    let normalizedItems = items.map((it) => {
       const qty = toNumber(it.qty ?? it.quantity)
       const price = toNumber(it.price ?? it.price_per_unit)
       return {
@@ -611,6 +611,61 @@ export async function POST(request: NextRequest) {
         subtotal: Math.max(0, qty * price)
       }
     })
+
+    // Normalize product references for Lapak orders:
+    // some flows send storefront_products.id, while transaction_items.product_id expects products.id.
+    const rawProductIds = Array.from(
+      new Set(
+        normalizedItems
+          .map((it) => (it.product_id || '').toString())
+          .filter(Boolean)
+      )
+    )
+
+    if (rawProductIds.length) {
+      const existingProductIds = new Set<string>()
+      const storefrontToProduct = new Map<string, string>()
+
+      const { data: masterProducts } = await supabaseDb
+        .from('products')
+        .select('id')
+        .in('id', rawProductIds)
+
+      for (const p of masterProducts || []) {
+        if (p?.id) existingProductIds.add(String(p.id))
+      }
+
+      const unresolved = rawProductIds.filter((id) => !existingProductIds.has(id))
+      if (unresolved.length) {
+        const sfRes = await supabaseDb
+          .from('storefront_products')
+          .select('id, product_id')
+          .in('id', unresolved)
+
+        if (!sfRes.error) {
+          for (const row of sfRes.data || []) {
+            const sfId = (row as any)?.id ? String((row as any).id) : ''
+            const productId = (row as any)?.product_id ? String((row as any).product_id) : ''
+            if (sfId && productId) storefrontToProduct.set(sfId, productId)
+          }
+        }
+      }
+
+      normalizedItems = normalizedItems.map((it) => {
+        const currentId = (it.product_id || '').toString()
+        if (!currentId) return it
+        if (existingProductIds.has(currentId)) return it
+
+        const mappedProductId = storefrontToProduct.get(currentId)
+        if (mappedProductId) {
+          return { ...it, product_id: mappedProductId }
+        }
+
+        // Keep transaction saveable even if product mapping is unavailable.
+        // Stock deduction will be skipped for this line item.
+        return { ...it, product_id: null }
+      })
+    }
 
     const subtotal = normalizedItems.reduce((s, it) => s + it.subtotal, 0)
     const discountAmount = computeDiscountAmount(subtotal, discountMode, discountValue)

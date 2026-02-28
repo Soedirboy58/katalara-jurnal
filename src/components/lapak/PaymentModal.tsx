@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import QRCode from 'react-qr-code';
 import { CartItem, CheckoutForm } from '@/types/lapak';
 import { uploadPaymentProof } from '@/lib/uploadPaymentProof';
 import ConfirmModal from '@/components/ui/ConfirmModal';
 import { useConfirm } from '@/hooks/useConfirm';
 import { showToast, ToastContainer } from '@/components/ui/Toast';
+import { provinsiList, kabupatenList, kecamatanList } from '@/lib/data/wilayah-indonesia';
 
 interface PaymentModalProps {
   isOpen: boolean;
@@ -49,9 +50,22 @@ export default function PaymentModal({
     customer_name: '',
     customer_phone: '',
     customer_address: '',
+    customer_province_id: '',
+    customer_province_name: '',
+    customer_kabupaten_id: '',
+    customer_kabupaten_name: '',
+    customer_kecamatan_id: '',
+    customer_kecamatan_name: '',
+    customer_desa_id: '',
+    customer_desa_name: '',
+    customer_address_detail: '',
+    customer_rt_rw: '',
+    customer_landmark: '',
     delivery_method: 'delivery',
     notes: '',
   });
+  const [desaOptions, setDesaOptions] = useState<Array<{ id: string; nama: string }>>([])
+  const [desaLoading, setDesaLoading] = useState(false)
   const [paymentProofUrl, setPaymentProofUrl] = useState<string | undefined>(undefined);
   const [paymentProofUploading, setPaymentProofUploading] = useState(false);
   const [paymentProofError, setPaymentProofError] = useState<string | null>(null);
@@ -68,6 +82,17 @@ export default function PaymentModal({
       customer_name: '',
       customer_phone: '',
       customer_address: '',
+      customer_province_id: '',
+      customer_province_name: '',
+      customer_kabupaten_id: '',
+      customer_kabupaten_name: '',
+      customer_kecamatan_id: '',
+      customer_kecamatan_name: '',
+      customer_desa_id: '',
+      customer_desa_name: '',
+      customer_address_detail: '',
+      customer_rt_rw: '',
+      customer_landmark: '',
       delivery_method: 'delivery',
       notes: '',
     });
@@ -83,12 +108,78 @@ export default function PaymentModal({
     return v;
   };
 
+  const buildAddressString = (form: CheckoutForm) => {
+    const detail = (form.customer_address_detail || '').trim()
+    const rtRw = (form.customer_rt_rw || '').trim()
+    const landmark = (form.customer_landmark || '').trim()
+    const desa = (form.customer_desa_name || '').trim()
+    const kecamatan = (form.customer_kecamatan_name || '').trim()
+    const kabupaten = (form.customer_kabupaten_name || '').trim()
+    const provinsi = (form.customer_province_name || '').trim()
+
+    const addressParts = [detail]
+    if (rtRw) addressParts.push(`RT/RW ${rtRw}`)
+    if (landmark) addressParts.push(`Patokan: ${landmark}`)
+
+    const regionParts = [desa, kecamatan, kabupaten, provinsi].filter(Boolean)
+    if (regionParts.length) addressParts.push(regionParts.join(', '))
+
+    return addressParts.filter(Boolean).join(', ')
+  }
+
+  const isAddressComplete = checkoutForm.delivery_method === 'pickup'
+    ? true
+    : Boolean(
+        checkoutForm.customer_province_id &&
+        checkoutForm.customer_kabupaten_id &&
+        checkoutForm.customer_kecamatan_id &&
+        checkoutForm.customer_desa_name &&
+        checkoutForm.customer_address_detail?.trim()
+      )
+
   const isCustomerValid =
     checkoutForm.customer_name.trim().length > 0 &&
     checkoutForm.customer_phone.trim().length > 0 &&
-    (checkoutForm.delivery_method === 'pickup' || checkoutForm.customer_address.trim().length > 0);
+    isAddressComplete;
 
   const requiresProof = paymentMethod === 'qris' || paymentMethod === 'transfer';
+
+  const kabupatenOptions = useMemo(() => {
+    if (!checkoutForm.customer_province_id) return []
+    return kabupatenList.filter((row) => row.provinsi_id === checkoutForm.customer_province_id)
+  }, [checkoutForm.customer_province_id])
+
+  const kecamatanOptions = useMemo(() => {
+    if (!checkoutForm.customer_kabupaten_id) return []
+    return kecamatanList.filter((row) => row.kabupaten_id === checkoutForm.customer_kabupaten_id)
+  }, [checkoutForm.customer_kabupaten_id])
+
+  useEffect(() => {
+    const kecamatanId = checkoutForm.customer_kecamatan_id
+    if (!kecamatanId) {
+      setDesaOptions([])
+      return
+    }
+
+    const fetchDesa = async () => {
+      setDesaLoading(true)
+      try {
+        const res = await fetch(`https://www.emsifa.com/api-wilayah-indonesia/api/villages/${kecamatanId}.json`)
+        const data = await res.json().catch(() => [])
+        if (Array.isArray(data)) {
+          setDesaOptions(data.map((row: any) => ({ id: String(row.id), nama: String(row.name) })))
+        } else {
+          setDesaOptions([])
+        }
+      } catch {
+        setDesaOptions([])
+      } finally {
+        setDesaLoading(false)
+      }
+    }
+
+    fetchDesa()
+  }, [checkoutForm.customer_kecamatan_id])
 
   const handleProofUpload = async (file?: File) => {
     if (!file) return;
@@ -111,6 +202,9 @@ export default function PaymentModal({
       showToast('Lengkapi data pembeli terlebih dahulu.', 'warning');
       return;
     }
+    const resolvedAddress = checkoutForm.delivery_method === 'delivery'
+      ? buildAddressString(checkoutForm)
+      : ''
     const ok = await confirm({
       title: 'Konfirmasi pembayaran',
       message: 'Konfirmasi pembayaran tunai?',
@@ -121,7 +215,10 @@ export default function PaymentModal({
     if (ok) {
       const result = await onPaymentComplete({
         method: 'cash',
-        customer: checkoutForm,
+        customer: {
+          ...checkoutForm,
+          customer_address: resolvedAddress,
+        },
         orderCode,
       });
       if (result?.success) onClose();
@@ -133,6 +230,9 @@ export default function PaymentModal({
       showToast('Lengkapi data pembeli terlebih dahulu.', 'warning');
       return;
     }
+    const resolvedAddress = checkoutForm.delivery_method === 'delivery'
+      ? buildAddressString(checkoutForm)
+      : ''
     if (requiresProof && !paymentProofUrl) {
       showToast('Mohon upload bukti pembayaran terlebih dahulu.', 'warning');
       return;
@@ -147,7 +247,10 @@ export default function PaymentModal({
     if (ok) {
       const result = await onPaymentComplete({
         method: paymentMethod || 'qris',
-        customer: checkoutForm,
+        customer: {
+          ...checkoutForm,
+          customer_address: resolvedAddress,
+        },
         paymentProofUrl,
         orderCode,
       });
@@ -259,7 +362,22 @@ export default function PaymentModal({
                       </button>
                       <button
                         type="button"
-                        onClick={() => setCheckoutForm({ ...checkoutForm, delivery_method: 'pickup', customer_address: '' })}
+                        onClick={() => setCheckoutForm({
+                          ...checkoutForm,
+                          delivery_method: 'pickup',
+                          customer_address: '',
+                          customer_province_id: '',
+                          customer_province_name: '',
+                          customer_kabupaten_id: '',
+                          customer_kabupaten_name: '',
+                          customer_kecamatan_id: '',
+                          customer_kecamatan_name: '',
+                          customer_desa_id: '',
+                          customer_desa_name: '',
+                          customer_address_detail: '',
+                          customer_rt_rw: '',
+                          customer_landmark: '',
+                        })}
                         className={`flex-1 py-2 rounded-lg border ${
                           checkoutForm.delivery_method === 'pickup'
                             ? 'border-blue-600 bg-blue-50 text-blue-700'
@@ -272,14 +390,138 @@ export default function PaymentModal({
                   </div>
                   {checkoutForm.delivery_method === 'delivery' && (
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Alamat *</label>
-                      <textarea
-                        value={checkoutForm.customer_address}
-                        onChange={(e) => setCheckoutForm({ ...checkoutForm, customer_address: e.target.value })}
-                        rows={2}
-                        placeholder="Alamat lengkap"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      />
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Alamat Pengiriman *</label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1">Provinsi *</label>
+                          <select
+                            value={checkoutForm.customer_province_id || ''}
+                            onChange={(e) => {
+                              const value = e.target.value
+                              const selected = provinsiList.find((row) => row.id === value)
+                              setCheckoutForm({
+                                ...checkoutForm,
+                                customer_province_id: value,
+                                customer_province_name: selected?.nama || '',
+                                customer_kabupaten_id: '',
+                                customer_kabupaten_name: '',
+                                customer_kecamatan_id: '',
+                                customer_kecamatan_name: '',
+                                customer_desa_id: '',
+                                customer_desa_name: '',
+                              })
+                            }}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          >
+                            <option value="">Pilih provinsi</option>
+                            {provinsiList.map((prov) => (
+                              <option key={prov.id} value={prov.id}>{prov.nama}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1">Kabupaten/Kota *</label>
+                          <select
+                            value={checkoutForm.customer_kabupaten_id || ''}
+                            onChange={(e) => {
+                              const value = e.target.value
+                              const selected = kabupatenOptions.find((row) => row.id === value)
+                              setCheckoutForm({
+                                ...checkoutForm,
+                                customer_kabupaten_id: value,
+                                customer_kabupaten_name: selected?.nama || '',
+                                customer_kecamatan_id: '',
+                                customer_kecamatan_name: '',
+                                customer_desa_id: '',
+                                customer_desa_name: '',
+                              })
+                            }}
+                            disabled={!checkoutForm.customer_province_id}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
+                          >
+                            <option value="">Pilih kabupaten/kota</option>
+                            {kabupatenOptions.map((kab) => (
+                              <option key={kab.id} value={kab.id}>{kab.nama}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1">Kecamatan *</label>
+                          <select
+                            value={checkoutForm.customer_kecamatan_id || ''}
+                            onChange={(e) => {
+                              const value = e.target.value
+                              const selected = kecamatanOptions.find((row) => row.id === value)
+                              setCheckoutForm({
+                                ...checkoutForm,
+                                customer_kecamatan_id: value,
+                                customer_kecamatan_name: selected?.nama || '',
+                                customer_desa_id: '',
+                                customer_desa_name: '',
+                              })
+                            }}
+                            disabled={!checkoutForm.customer_kabupaten_id}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
+                          >
+                            <option value="">Pilih kecamatan</option>
+                            {kecamatanOptions.map((kec) => (
+                              <option key={kec.id} value={kec.id}>{kec.nama}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1">Desa/Kelurahan *</label>
+                          <select
+                            value={checkoutForm.customer_desa_id || ''}
+                            onChange={(e) => {
+                              const value = e.target.value
+                              const selected = desaOptions.find((row) => row.id === value)
+                              setCheckoutForm({
+                                ...checkoutForm,
+                                customer_desa_id: value,
+                                customer_desa_name: selected?.nama || '',
+                              })
+                            }}
+                            disabled={!checkoutForm.customer_kecamatan_id || desaLoading}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
+                          >
+                            <option value="">{desaLoading ? 'Memuat desa...' : 'Pilih desa/kelurahan'}</option>
+                            {desaOptions.map((desa) => (
+                              <option key={desa.id} value={desa.id}>{desa.nama}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1">RT/RW</label>
+                          <input
+                            type="text"
+                            value={checkoutForm.customer_rt_rw || ''}
+                            onChange={(e) => setCheckoutForm({ ...checkoutForm, customer_rt_rw: e.target.value })}
+                            placeholder="001/002"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1">Patokan</label>
+                          <input
+                            type="text"
+                            value={checkoutForm.customer_landmark || ''}
+                            onChange={(e) => setCheckoutForm({ ...checkoutForm, customer_landmark: e.target.value })}
+                            placeholder="Contoh: dekat masjid"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          />
+                        </div>
+                      </div>
+                      <div className="mt-3">
+                        <label className="block text-xs font-semibold text-gray-600 mb-1">Alamat Detail *</label>
+                        <textarea
+                          value={checkoutForm.customer_address_detail || ''}
+                          onChange={(e) => setCheckoutForm({ ...checkoutForm, customer_address_detail: e.target.value })}
+                          rows={2}
+                          placeholder="Nama jalan, nomor rumah, blok, dll."
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                      </div>
                     </div>
                   )}
                   <div>

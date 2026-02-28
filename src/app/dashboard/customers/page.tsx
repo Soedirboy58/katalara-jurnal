@@ -1,7 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { Modal } from '@/components/ui/Modal'
+import ConfirmModal from '@/components/ui/ConfirmModal'
+import { useConfirm } from '@/hooks/useConfirm'
+import { showToast, ToastContainer } from '@/components/ui/Toast'
+import { provinsiList, kabupatenList, kecamatanList } from '@/lib/data/wilayah-indonesia'
 
 interface Customer {
   id: string
@@ -9,6 +14,17 @@ interface Customer {
   phone: string | null
   email: string | null
   address: string | null
+  province_id?: string | null
+  province_name?: string | null
+  kabupaten_id?: string | null
+  kabupaten_name?: string | null
+  kecamatan_id?: string | null
+  kecamatan_name?: string | null
+  desa_id?: string | null
+  desa_name?: string | null
+  address_detail?: string | null
+  rt_rw?: string | null
+  landmark?: string | null
   customer_number?: string
   total_transactions?: number
   // API/DB uses total_purchase (singular)
@@ -22,11 +38,61 @@ export default function CustomersPage() {
   const [customers, setCustomers] = useState<Customer[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
+  const [showCustomerModal, setShowCustomerModal] = useState(false)
+  const [savingCustomer, setSavingCustomer] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [desaOptions, setDesaOptions] = useState<Array<{ id: string; nama: string }>>([])
+  const [desaLoading, setDesaLoading] = useState(false)
+  const { confirm, confirmState, handleConfirm, handleCancel } = useConfirm()
   const router = useRouter()
+
+  const [customerForm, setCustomerForm] = useState({
+    name: '',
+    phone: '',
+    email: '',
+    province_id: '',
+    province_name: '',
+    kabupaten_id: '',
+    kabupaten_name: '',
+    kecamatan_id: '',
+    kecamatan_name: '',
+    desa_id: '',
+    desa_name: '',
+    address_detail: '',
+    rt_rw: '',
+    landmark: '',
+  })
 
   useEffect(() => {
     fetchCustomers()
   }, [])
+
+  useEffect(() => {
+    const kecamatanId = customerForm.kecamatan_id
+    if (!kecamatanId) {
+      setDesaOptions([])
+      return
+    }
+
+    const fetchDesa = async () => {
+      setDesaLoading(true)
+      try {
+        const res = await fetch(`https://www.emsifa.com/api-wilayah-indonesia/api/villages/${kecamatanId}.json`)
+        const data = await res.json().catch(() => [])
+        if (Array.isArray(data)) {
+          setDesaOptions(data.map((row: any) => ({ id: String(row.id), nama: String(row.name) })))
+        } else {
+          setDesaOptions([])
+        }
+      } catch {
+        setDesaOptions([])
+      } finally {
+        setDesaLoading(false)
+      }
+    }
+
+    fetchDesa()
+  }, [customerForm.kecamatan_id])
 
   const fetchCustomers = async () => {
     try {
@@ -62,17 +128,131 @@ export default function CustomersPage() {
     }).format(amount)
   }
 
+  const formatAddress = (customer: Customer) => {
+    const detail = (customer.address_detail || '').trim()
+    const rtRw = (customer.rt_rw || '').trim()
+    const landmark = (customer.landmark || '').trim()
+    const desa = (customer.desa_name || '').trim()
+    const kecamatan = (customer.kecamatan_name || '').trim()
+    const kabupaten = (customer.kabupaten_name || '').trim()
+    const provinsi = (customer.province_name || '').trim()
+
+    const parts = [detail]
+    if (rtRw) parts.push(`RT/RW ${rtRw}`)
+    if (landmark) parts.push(`Patokan: ${landmark}`)
+    const region = [desa, kecamatan, kabupaten, provinsi].filter(Boolean)
+    if (region.length) parts.push(region.join(', '))
+
+    const combined = parts.filter(Boolean).join(', ')
+    if (combined) return combined
+    return (customer.address || '').trim()
+  }
+
+  const resetCustomerForm = () => {
+    setCustomerForm({
+      name: '',
+      phone: '',
+      email: '',
+      province_id: '',
+      province_name: '',
+      kabupaten_id: '',
+      kabupaten_name: '',
+      kecamatan_id: '',
+      kecamatan_name: '',
+      desa_id: '',
+      desa_name: '',
+      address_detail: '',
+      rt_rw: '',
+      landmark: '',
+    })
+    setDesaOptions([])
+  }
+
+  const handleCreateCustomer = async () => {
+    if (!customerForm.name.trim()) {
+      showToast('Nama pelanggan wajib diisi.', 'warning')
+      return
+    }
+
+    setSavingCustomer(true)
+    try {
+      const res = await fetch('/api/customers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(customerForm),
+      })
+
+      const json = await res.json().catch(() => null as any)
+      if (!res.ok || !json?.success) {
+        showToast(json?.error || 'Gagal menambahkan pelanggan', 'error')
+        return
+      }
+
+      showToast('Pelanggan berhasil ditambahkan', 'success')
+      setShowCustomerModal(false)
+      resetCustomerForm()
+      fetchCustomers()
+    } catch (error) {
+      console.error('Create customer error:', error)
+      showToast('Terjadi kesalahan saat menambahkan pelanggan', 'error')
+    } finally {
+      setSavingCustomer(false)
+    }
+  }
+
+  const handleDeleteCustomer = async (customerId: string, customerName: string) => {
+    const ok = await confirm({
+      title: 'Hapus pelanggan',
+      message: `Hapus pelanggan ${customerName}? Tindakan ini tidak dapat dibatalkan.`,
+      confirmText: 'Hapus',
+      cancelText: 'Batal',
+      type: 'danger',
+    })
+
+    if (!ok) return
+
+    setDeletingId(customerId)
+    try {
+      const res = await fetch(`/api/customers?id=${encodeURIComponent(customerId)}`, {
+        method: 'DELETE',
+      })
+      const json = await res.json().catch(() => null as any)
+      if (!res.ok || !json?.success) {
+        showToast(json?.error || 'Gagal menghapus pelanggan', 'error')
+        return
+      }
+      showToast('Pelanggan berhasil dihapus', 'success')
+      fetchCustomers()
+    } catch (error) {
+      console.error('Delete customer error:', error)
+      showToast('Terjadi kesalahan saat menghapus pelanggan', 'error')
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
   const filteredCustomers = customers.filter(customer =>
     customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     customer.phone?.includes(searchTerm) ||
     customer.email?.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
+  const kabupatenOptions = useMemo(() => {
+    if (!customerForm.province_id) return []
+    return kabupatenList.filter((row) => row.provinsi_id === customerForm.province_id)
+  }, [customerForm.province_id])
+
+  const kecamatanOptions = useMemo(() => {
+    if (!customerForm.kabupaten_id) return []
+    return kecamatanList.filter((row) => row.kabupaten_id === customerForm.kabupaten_id)
+  }, [customerForm.kabupaten_id])
+
   const totalCustomers = customers.length
   const totalSpent = customers.reduce((sum, c) => sum + Number(c.total_purchase ?? c.total_purchases ?? 0), 0)
 
   return (
     <div className="p-4 sm:p-6 lg:p-8">
+      <ToastContainer />
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
         <div>
@@ -81,8 +261,18 @@ export default function CustomersPage() {
             Kelola data pelanggan dan tracking transaksi
           </p>
         </div>
-        
-        <div />
+
+        <div>
+          <button
+            onClick={() => {
+              resetCustomerForm()
+              setShowCustomerModal(true)
+            }}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700"
+          >
+            + Tambah Pelanggan
+          </button>
+        </div>
       </div>
 
       {/* Sync Banner - Show when no customers */}
@@ -253,8 +443,10 @@ export default function CustomersPage() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">No</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Pelanggan</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kontak</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Alamat</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Transaksi</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total Pembelian</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
@@ -269,11 +461,23 @@ export default function CustomersPage() {
                       <div>{customer.phone || '-'}</div>
                       <div className="text-xs text-gray-500">{customer.email || '-'}</div>
                     </td>
+                    <td className="px-6 py-4 text-sm text-gray-600">
+                      <div className="max-w-xs line-clamp-2">{formatAddress(customer) || '-'}</div>
+                    </td>
                     <td className="px-6 py-4 text-sm text-gray-900">
                       {customer.total_transactions || 0}x
                     </td>
                     <td className="px-6 py-4 text-sm font-medium text-gray-900">
                       {formatCurrency(Number(customer.total_purchase ?? customer.total_purchases ?? 0))}
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <button
+                        onClick={() => handleDeleteCustomer(customer.id, customer.name)}
+                        disabled={deletingId === customer.id}
+                        className="text-xs font-semibold text-red-600 hover:text-red-700 disabled:opacity-60"
+                      >
+                        {deletingId === customer.id ? 'Menghapus...' : 'Hapus'}
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -311,6 +515,15 @@ export default function CustomersPage() {
                       <span className="truncate">{customer.email}</span>
                     </div>
                   )}
+                  {formatAddress(customer) && (
+                    <div className="flex items-start gap-2 text-gray-600">
+                      <svg className="w-4 h-4 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 12.414a2 2 0 00-2.828 0l-4.243 4.243a8 8 0 1111.314 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      <span className="text-xs">{formatAddress(customer)}</span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="mt-3 pt-3 border-t border-gray-200 flex items-center justify-between">
@@ -323,11 +536,224 @@ export default function CustomersPage() {
                     <div className="font-semibold text-green-600">{formatCurrency(Number(customer.total_purchase ?? customer.total_purchases ?? 0))}</div>
                   </div>
                 </div>
+                <div className="mt-3 flex justify-end">
+                  <button
+                    onClick={() => handleDeleteCustomer(customer.id, customer.name)}
+                    disabled={deletingId === customer.id}
+                    className="text-xs font-semibold text-red-600 hover:text-red-700 disabled:opacity-60"
+                  >
+                    {deletingId === customer.id ? 'Menghapus...' : 'Hapus'}
+                  </button>
+                </div>
               </div>
             ))}
           </div>
         </>
       )}
+
+      <Modal
+        isOpen={showCustomerModal}
+        onClose={() => setShowCustomerModal(false)}
+        title="Tambah Pelanggan"
+        size="lg"
+      >
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Nama *</label>
+              <input
+                type="text"
+                value={customerForm.name}
+                onChange={(e) => setCustomerForm({ ...customerForm, name: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Nama pelanggan"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">No. WhatsApp</label>
+              <input
+                type="tel"
+                value={customerForm.phone}
+                onChange={(e) => setCustomerForm({ ...customerForm, phone: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="08xxxxxxxxxx"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+              <input
+                type="email"
+                value={customerForm.email}
+                onChange={(e) => setCustomerForm({ ...customerForm, email: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="email@domain.com"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Alamat</label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Provinsi</label>
+                <select
+                  value={customerForm.province_id}
+                  onChange={(e) => {
+                    const value = e.target.value
+                    const selected = provinsiList.find((row) => row.id === value)
+                    setCustomerForm({
+                      ...customerForm,
+                      province_id: value,
+                      province_name: selected?.nama || '',
+                      kabupaten_id: '',
+                      kabupaten_name: '',
+                      kecamatan_id: '',
+                      kecamatan_name: '',
+                      desa_id: '',
+                      desa_name: '',
+                    })
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">Pilih provinsi</option>
+                  {provinsiList.map((prov) => (
+                    <option key={prov.id} value={prov.id}>{prov.nama}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Kabupaten/Kota</label>
+                <select
+                  value={customerForm.kabupaten_id}
+                  onChange={(e) => {
+                    const value = e.target.value
+                    const selected = kabupatenOptions.find((row) => row.id === value)
+                    setCustomerForm({
+                      ...customerForm,
+                      kabupaten_id: value,
+                      kabupaten_name: selected?.nama || '',
+                      kecamatan_id: '',
+                      kecamatan_name: '',
+                      desa_id: '',
+                      desa_name: '',
+                    })
+                  }}
+                  disabled={!customerForm.province_id}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
+                >
+                  <option value="">Pilih kabupaten/kota</option>
+                  {kabupatenOptions.map((kab) => (
+                    <option key={kab.id} value={kab.id}>{kab.nama}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Kecamatan</label>
+                <select
+                  value={customerForm.kecamatan_id}
+                  onChange={(e) => {
+                    const value = e.target.value
+                    const selected = kecamatanOptions.find((row) => row.id === value)
+                    setCustomerForm({
+                      ...customerForm,
+                      kecamatan_id: value,
+                      kecamatan_name: selected?.nama || '',
+                      desa_id: '',
+                      desa_name: '',
+                    })
+                  }}
+                  disabled={!customerForm.kabupaten_id}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
+                >
+                  <option value="">Pilih kecamatan</option>
+                  {kecamatanOptions.map((kec) => (
+                    <option key={kec.id} value={kec.id}>{kec.nama}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Desa/Kelurahan</label>
+                <select
+                  value={customerForm.desa_id}
+                  onChange={(e) => {
+                    const value = e.target.value
+                    const selected = desaOptions.find((row) => row.id === value)
+                    setCustomerForm({
+                      ...customerForm,
+                      desa_id: value,
+                      desa_name: selected?.nama || '',
+                    })
+                  }}
+                  disabled={!customerForm.kecamatan_id || desaLoading}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
+                >
+                  <option value="">{desaLoading ? 'Memuat desa...' : 'Pilih desa/kelurahan'}</option>
+                  {desaOptions.map((desa) => (
+                    <option key={desa.id} value={desa.id}>{desa.nama}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">RT/RW</label>
+                <input
+                  type="text"
+                  value={customerForm.rt_rw}
+                  onChange={(e) => setCustomerForm({ ...customerForm, rt_rw: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="001/002"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Patokan</label>
+                <input
+                  type="text"
+                  value={customerForm.landmark}
+                  onChange={(e) => setCustomerForm({ ...customerForm, landmark: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Contoh: dekat masjid"
+                />
+              </div>
+            </div>
+            <div className="mt-3">
+              <label className="block text-xs font-semibold text-gray-600 mb-1">Alamat Detail</label>
+              <textarea
+                value={customerForm.address_detail}
+                onChange={(e) => setCustomerForm({ ...customerForm, address_detail: e.target.value })}
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Nama jalan, nomor rumah, blok, dll."
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-4 border-t border-gray-200">
+            <button
+              onClick={() => setShowCustomerModal(false)}
+              className="px-4 py-2 text-sm font-semibold text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+            >
+              Batal
+            </button>
+            <button
+              onClick={handleCreateCustomer}
+              disabled={savingCustomer}
+              className="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-60"
+            >
+              {savingCustomer ? 'Menyimpan...' : 'Simpan'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      <ConfirmModal
+        isOpen={confirmState.isOpen}
+        onClose={handleCancel}
+        onConfirm={handleConfirm}
+        title={confirmState.options.title}
+        message={confirmState.options.message}
+        confirmText={confirmState.options.confirmText}
+        cancelText={confirmState.options.cancelText}
+        type={confirmState.options.type}
+      />
     </div>
   )
 }

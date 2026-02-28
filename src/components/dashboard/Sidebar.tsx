@@ -177,12 +177,25 @@ export function Sidebar({ isOpen, onClose, collapsed, onToggleCollapse }: Sideba
                 <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-yellow-400 rounded-full"></div>
                 
                 <img
-                  src="https://usradkbchlkcfoabxvbo.supabase.co/storage/v1/object/public/assets/Artboard%201.png"
+                  src="https://zhuxonyuksnhplxinikl.supabase.co/storage/v1/object/public/Assets/dd75e5f1-bf44-4ac9-b7b3-9a085b2d1d58/Company%20Profile%20Surga%20Buah%20(8).png"
                   alt="Katalara"
                   className={`object-contain transition-all duration-300 ${
                     collapsed ? 'h-8 w-8' : 'h-12 w-12'
                   }`}
+                  onError={(event) => {
+                    const target = event.currentTarget
+                    target.style.display = 'none'
+                    const fallback = target.nextElementSibling as HTMLElement | null
+                    if (fallback) fallback.style.display = 'flex'
+                  }}
                 />
+                <div
+                  className={`hidden items-center justify-center text-xs font-bold text-blue-700 ${
+                    collapsed ? 'h-8 w-8' : 'h-12 w-12'
+                  }`}
+                >
+                  K
+                </div>
               </div>
               
               {/* Brand Name */}

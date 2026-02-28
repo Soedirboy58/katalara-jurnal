@@ -301,6 +301,17 @@ export interface Database {
           name: string
           phone: string | null
           address: string | null
+          province_id: string | null
+          province_name: string | null
+          kabupaten_id: string | null
+          kabupaten_name: string | null
+          kecamatan_id: string | null
+          kecamatan_name: string | null
+          desa_id: string | null
+          desa_name: string | null
+          address_detail: string | null
+          rt_rw: string | null
+          landmark: string | null
           total_transactions: number
           total_purchase: number
           last_transaction_date: string | null
@@ -313,6 +324,17 @@ export interface Database {
           name: string
           phone?: string | null
           address?: string | null
+          province_id?: string | null
+          province_name?: string | null
+          kabupaten_id?: string | null
+          kabupaten_name?: string | null
+          kecamatan_id?: string | null
+          kecamatan_name?: string | null
+          desa_id?: string | null
+          desa_name?: string | null
+          address_detail?: string | null
+          rt_rw?: string | null
+          landmark?: string | null
           total_transactions?: number
           total_purchase?: number
           last_transaction_date?: string | null
@@ -325,6 +347,17 @@ export interface Database {
           name?: string
           phone?: string | null
           address?: string | null
+          province_id?: string | null
+          province_name?: string | null
+          kabupaten_id?: string | null
+          kabupaten_name?: string | null
+          kecamatan_id?: string | null
+          kecamatan_name?: string | null
+          desa_id?: string | null
+          desa_name?: string | null
+          address_detail?: string | null
+          rt_rw?: string | null
+          landmark?: string | null
           total_transactions?: number
           total_purchase?: number
           last_transaction_date?: string | null

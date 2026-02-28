@@ -16,7 +16,7 @@ export default function ImageCropper({
   imageSrc,
   onCropComplete,
   onCancel,
-  aspectRatio = 1,
+  aspectRatio,
   circularCrop = false,
 }: ImageCropperProps) {
   const imgRef = useRef<HTMLImageElement>(null);

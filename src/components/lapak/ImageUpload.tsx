@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { uploadImage, deleteImage, compressImage } from '@/lib/uploadImage';
 import { showToast } from '@/components/ui/Toast';
 import dynamic from 'next/dynamic';
@@ -10,6 +10,7 @@ const ImageCropper = dynamic(() => import('@/components/ui/ImageCropper'), { ssr
 interface ImageUploadProps {
   currentImageUrl?: string;
   onImageUploaded: (url: string) => void;
+  onUploadingChange?: (uploading: boolean) => void;
   folder: 'products' | 'logos' | 'qris';
   userId: string;
   label: string;
@@ -21,6 +22,7 @@ interface ImageUploadProps {
 export default function ImageUpload({
   currentImageUrl,
   onImageUploaded,
+  onUploadingChange,
   folder,
   userId,
   label,
@@ -33,6 +35,10 @@ export default function ImageUpload({
   const [showCropper, setShowCropper] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setPreview(currentImageUrl || undefined);
+  }, [currentImageUrl]);
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -73,6 +79,7 @@ export default function ImageUpload({
   };
 
   const uploadImageFile = async (file: File | Blob) => {
+    onUploadingChange?.(true);
     setUploading(true);
 
     try {
@@ -109,6 +116,7 @@ export default function ImageUpload({
       setPreview(currentImageUrl);
     } finally {
       setUploading(false);
+      onUploadingChange?.(false);
       // Reset input
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
@@ -135,6 +143,7 @@ export default function ImageUpload({
 
     if (!confirm('Hapus foto ini?')) return;
 
+    onUploadingChange?.(true);
     setUploading(true);
 
     try {
@@ -151,6 +160,7 @@ export default function ImageUpload({
       showToast('Gagal menghapus foto', 'error');
     } finally {
       setUploading(false);
+      onUploadingChange?.(false);
     }
   };
 
@@ -164,6 +174,12 @@ export default function ImageUpload({
         return 'aspect-auto';
     }
   };
+
+  const getCropAspectRatio = () => {
+    if (aspectRatio === 'square') return 1
+    if (aspectRatio === 'wide') return 16 / 9
+    return undefined
+  }
 
   return (
     <div>
@@ -278,7 +294,7 @@ export default function ImageUpload({
           imageSrc={selectedImage}
           onCropComplete={handleCropComplete}
           onCancel={handleCropCancel}
-          aspectRatio={folder === 'logos' ? 1 : folder === 'products' ? 1 : 16 / 9}
+          aspectRatio={getCropAspectRatio()}
           circularCrop={folder === 'logos'}
         />
       )}

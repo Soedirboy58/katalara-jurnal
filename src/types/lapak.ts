@@ -15,7 +15,14 @@ export interface Storefront {
   // Branding
   logo_url?: string;
   cover_image_url?: string;
+  banner_image_urls?: string[];
+  banner_autoplay_ms?: number;
   theme_color: string;
+  hero_title?: string;
+  hero_subtitle?: string;
+  hero_cta_label?: string;
+  products_title?: string;
+  products_subtitle?: string;
   
   // Contact
   whatsapp_number: string;
@@ -27,6 +34,7 @@ export interface Storefront {
   bank_name?: string;
   bank_account_number?: string;
   bank_account_holder?: string;
+  wa_status_templates?: Partial<Record<'pending' | 'confirmed' | 'preparing' | 'shipped' | 'completed', string>>;
   
   // Status
   is_active: boolean;
@@ -44,6 +52,7 @@ export interface StorefrontProduct {
   id: string;
   storefront_id: string;
   user_id: string;
+  product_id?: string | null;
   
   // Product Info
   name: string;
@@ -152,12 +161,25 @@ export interface CheckoutForm {
   customer_name: string;
   customer_phone: string;
   customer_address: string;
+  customer_province_id?: string;
+  customer_province_name?: string;
+  customer_kabupaten_id?: string;
+  customer_kabupaten_name?: string;
+  customer_kecamatan_id?: string;
+  customer_kecamatan_name?: string;
+  customer_desa_id?: string;
+  customer_desa_name?: string;
+  customer_address_detail?: string;
+  customer_rt_rw?: string;
+  customer_landmark?: string;
   delivery_method: 'pickup' | 'delivery';
   notes?: string;
 }
 
 export interface WhatsAppOrder {
   storefront_name: string;
+  business_category?: string;
+  store_description?: string;
   customer_name: string;
   customer_phone: string;
   customer_address: string;
@@ -170,6 +192,47 @@ export interface WhatsAppOrder {
   payment_proof_url?: string;
   tracking_url?: string;
 }
+
+const inferBusinessModel = (businessCategory?: string, storeDescription?: string): 'product' | 'service' | 'hybrid' => {
+  const source = `${businessCategory || ''} ${storeDescription || ''}`.toLowerCase();
+
+  const serviceKeywords = ['jasa', 'layanan', 'service', 'konsultasi', 'desain', 'fotografi', 'kursus', 'maintenance'];
+  const productKeywords = ['kuliner', 'produk', 'makanan', 'minuman', 'retail', 'fashion', 'reseller', 'stok', 'barang'];
+
+  const hasService = serviceKeywords.some((keyword) => source.includes(keyword));
+  const hasProduct = productKeywords.some((keyword) => source.includes(keyword));
+
+  if (hasService && !hasProduct) return 'service';
+  if (hasProduct && !hasService) return 'product';
+  return 'hybrid';
+};
+
+const getBusinessTemplateTerms = (model: 'product' | 'service' | 'hybrid') => {
+  if (model === 'service') {
+    return {
+      title: 'PERMINTAAN ORDER BARU',
+      detailLabel: 'Detail Permintaan',
+      availabilityPrompt: 'ketersediaan jadwal/layanan',
+      itemLabel: 'layanan',
+    };
+  }
+
+  if (model === 'product') {
+    return {
+      title: 'PESANAN BARU',
+      detailLabel: 'Detail Pesanan',
+      availabilityPrompt: 'ketersediaan produk',
+      itemLabel: 'produk',
+    };
+  }
+
+  return {
+    title: 'ORDER BARU',
+    detailLabel: 'Detail Order',
+    availabilityPrompt: 'ketersediaan item pesanan',
+    itemLabel: 'item',
+  };
+};
 
 // Theme presets
 export const THEME_PRESETS = [
@@ -247,6 +310,9 @@ export const JASA_CATEGORIES = [
 
 // Helper function to format WhatsApp message
 export function formatWhatsAppMessage(order: WhatsAppOrder): string {
+  const model = inferBusinessModel(order.business_category, order.store_description);
+  const terms = getBusinessTemplateTerms(model);
+
   const itemsList = order.items
     .map((item, index) => {
       const variant = item.variant ? ` (${item.variant})` : '';
@@ -255,11 +321,18 @@ export function formatWhatsAppMessage(order: WhatsAppOrder): string {
     })
     .join('\n\n');
 
-  const message = `*PESANAN BARU - ${order.storefront_name}*
+  const businessProfile = [
+    order.business_category ? `Kategori usaha: ${order.business_category}` : '',
+    order.store_description ? `Deskripsi usaha: ${order.store_description}` : '',
+  ].filter(Boolean);
+
+  const message = `*${terms.title} - ${order.storefront_name}*
 
 ${order.order_code ? `🧾 *Kode Order:* ${order.order_code}\n` : ''}
 
-📦 *Detail Pesanan:*
+${businessProfile.length ? `🏷️ *Profil Bisnis:*\n${businessProfile.join('\n')}\n` : ''}
+
+📦 *${terms.detailLabel}:*
 ${itemsList}
 
 💰 *Total: Rp ${order.total_amount.toLocaleString('id-ID')}*
@@ -276,9 +349,9 @@ ${order.payment_proof_url ? `📎 *Bukti Pembayaran:*\n${order.payment_proof_url
 
 ${order.tracking_url ? `🔎 *Tracking Order:*\n${order.tracking_url}` : ''}
 
-Mohon konfirmasi ketersediaan produk. Terima kasih! 🙏`;
+Mohon konfirmasi ${terms.availabilityPrompt}. Terima kasih! 🙏`;
 
-  return encodeURIComponent(message);
+  return message;
 }
 
 // Helper function to calculate discount percentage

@@ -45,6 +45,24 @@ export default function SettingsPage() {
   const [dashboardLayout, setDashboardLayout] = useState('grid') // grid, list
   const [compactMode, setCompactMode] = useState(false)
   const [showAnimations, setShowAnimations] = useState(true)
+
+  const [resetLoading, setResetLoading] = useState(false)
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [resetConfirmation, setResetConfirmation] = useState('')
+  const [resetPreviewReport, setResetPreviewReport] = useState<Array<{ scope: string; ok: boolean; detail?: string }>>([])
+  const [fullResetLoading, setFullResetLoading] = useState(false)
+  const [fullResetPreviewLoading, setFullResetPreviewLoading] = useState(false)
+  const [fullResetConfirmation, setFullResetConfirmation] = useState('')
+  const [fullResetPreviewReport, setFullResetPreviewReport] = useState<Array<{ scope: string; ok: boolean; detail?: string }>>([])
+  const [resetTargets, setResetTargets] = useState<Record<string, boolean>>({
+    customers: false,
+    suppliers: false,
+    transactions: false,
+    products: false,
+    incomes: false,
+    expenses: false,
+    lapak_orders: false,
+  })
   
   // Toast
   const [toast, setToast] = useState<{show: boolean, type: 'success' | 'error', message: string}>({
@@ -166,6 +184,170 @@ export default function SettingsPage() {
   const showToast = (type: 'success' | 'error', message: string) => {
     setToast({ show: true, type, message })
     setTimeout(() => setToast({ show: false, type, message: '' }), 4000)
+  }
+
+  const toggleResetTarget = (key: string) => {
+    setResetPreviewReport([])
+    setResetTargets((prev) => ({ ...prev, [key]: !prev[key] }))
+  }
+
+  const handleResetData = async () => {
+    const scopes = Object.entries(resetTargets)
+      .filter(([, checked]) => checked)
+      .map(([key]) => key)
+
+    if (scopes.length === 0) {
+      showToast('error', 'Pilih minimal satu jenis data yang ingin dihapus')
+      return
+    }
+
+    if (resetConfirmation !== 'HAPUS') {
+      showToast('error', 'Ketik HAPUS untuk konfirmasi')
+      return
+    }
+
+    try {
+      setResetLoading(true)
+
+      const response = await fetch('/api/settings/reset-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scopes, confirmation: resetConfirmation }),
+      })
+
+      const data = await response.json().catch(() => null)
+      if (!response.ok) {
+        showToast('error', data?.error || 'Gagal reset data')
+        return
+      }
+
+      showToast('success', 'Data terpilih berhasil dihapus')
+      setResetTargets({
+        customers: false,
+        suppliers: false,
+        transactions: false,
+        products: false,
+        incomes: false,
+        expenses: false,
+        lapak_orders: false,
+      })
+      setResetConfirmation('')
+      setResetPreviewReport([])
+    } catch (error) {
+      console.error('Error resetting data:', error)
+      showToast('error', 'Terjadi kesalahan saat reset data')
+    } finally {
+      setResetLoading(false)
+    }
+  }
+
+  const handlePreviewResetImpact = async () => {
+    const scopes = Object.entries(resetTargets)
+      .filter(([, checked]) => checked)
+      .map(([key]) => key)
+
+    if (scopes.length === 0) {
+      showToast('error', 'Pilih minimal satu jenis data untuk preview')
+      return
+    }
+
+    try {
+      setPreviewLoading(true)
+
+      const response = await fetch('/api/settings/reset-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scopes, mode: 'preview' }),
+      })
+
+      const data = await response.json().catch(() => null)
+      if (!response.ok) {
+        showToast('error', data?.error || 'Gagal menghitung dampak reset')
+        return
+      }
+
+      const report = Array.isArray(data?.report) ? data.report : []
+      setResetPreviewReport(report)
+      showToast('success', 'Preview reset berhasil dihitung')
+    } catch (error) {
+      console.error('Error previewing reset data:', error)
+      showToast('error', 'Terjadi kesalahan saat preview reset')
+    } finally {
+      setPreviewLoading(false)
+    }
+  }
+
+  const handlePreviewFullReset = async () => {
+    try {
+      setFullResetPreviewLoading(true)
+
+      const response = await fetch('/api/settings/reset-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scopes: ['full_platform'], mode: 'preview' }),
+      })
+
+      const data = await response.json().catch(() => null)
+      if (!response.ok) {
+        showToast('error', data?.error || 'Gagal menghitung dampak reset total')
+        return
+      }
+
+      const report = Array.isArray(data?.report) ? data.report : []
+      setFullResetPreviewReport(report)
+      showToast('success', 'Preview reset total berhasil dihitung')
+    } catch (error) {
+      console.error('Error previewing full reset:', error)
+      showToast('error', 'Terjadi kesalahan saat preview reset total')
+    } finally {
+      setFullResetPreviewLoading(false)
+    }
+  }
+
+  const handleFullPlatformReset = async () => {
+    if (fullResetConfirmation !== 'RESET SEMUA') {
+      showToast('error', 'Ketik RESET SEMUA untuk konfirmasi reset total platform')
+      return
+    }
+
+    try {
+      setFullResetLoading(true)
+
+      const response = await fetch('/api/settings/reset-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          scopes: ['full_platform'],
+          confirmation: fullResetConfirmation,
+        }),
+      })
+
+      const data = await response.json().catch(() => null)
+      if (!response.ok) {
+        showToast('error', data?.error || 'Gagal reset total platform')
+        return
+      }
+
+      showToast('success', 'Reset total platform berhasil dilakukan')
+      setFullResetConfirmation('')
+      setFullResetPreviewReport([])
+      setResetPreviewReport([])
+      setResetTargets({
+        customers: false,
+        suppliers: false,
+        transactions: false,
+        products: false,
+        incomes: false,
+        expenses: false,
+        lapak_orders: false,
+      })
+      setResetConfirmation('')
+    } catch (error) {
+      console.error('Error resetting full platform data:', error)
+      showToast('error', 'Terjadi kesalahan saat reset total platform')
+    } finally {
+      setFullResetLoading(false)
+    }
   }
 
   const handleSave = async () => {
@@ -932,6 +1114,131 @@ export default function SettingsPage() {
                 <div className="text-5xl mb-3">🚧</div>
                 <p className="text-sm">Akan diaktifkan setelah konfigurasi UI selesai.</p>
               </div>
+            </div>
+
+            <div className="bg-white rounded-lg shadow-sm border border-red-200 p-6">
+              <h2 className="text-xl font-semibold text-red-700">⚠️ Reset Data Terpilih</h2>
+              <p className="text-sm text-gray-600 mt-1">
+                Hapus permanen data tertentu tanpa menghapus akun.
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
+                {[
+                  { key: 'customers', label: 'Pelanggan' },
+                  { key: 'suppliers', label: 'Pemasok' },
+                  { key: 'transactions', label: 'Transaksi Penjualan' },
+                  { key: 'products', label: 'Produk & Inventori' },
+                  { key: 'incomes', label: 'Pendapatan Manual' },
+                  { key: 'expenses', label: 'Pengeluaran' },
+                  { key: 'lapak_orders', label: 'Order Lapak' },
+                ].map((item) => (
+                  <label key={item.key} className="flex items-center gap-2 text-sm text-gray-800">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(resetTargets[item.key])}
+                      onChange={() => toggleResetTarget(item.key)}
+                      className="w-4 h-4 rounded border-gray-300"
+                    />
+                    <span>{item.label}</span>
+                  </label>
+                ))}
+              </div>
+
+              <div className="mt-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Ketik <span className="font-bold">HAPUS</span> untuk konfirmasi
+                </label>
+                <input
+                  value={resetConfirmation}
+                  onChange={(e) => setResetConfirmation(e.target.value)}
+                  placeholder="HAPUS"
+                  className="w-full sm:max-w-xs px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                />
+              </div>
+
+              <button
+                onClick={handleResetData}
+                disabled={resetLoading}
+                className="mt-4 px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-colors disabled:bg-gray-400"
+              >
+                {resetLoading ? 'Memproses...' : 'Hapus Data Terpilih'}
+              </button>
+
+              <button
+                onClick={handlePreviewResetImpact}
+                disabled={previewLoading}
+                className="mt-4 ml-0 sm:ml-3 px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-800 font-medium rounded-lg transition-colors disabled:bg-gray-100 disabled:text-gray-500"
+              >
+                {previewLoading ? 'Menghitung...' : 'Preview Dampak'}
+              </button>
+
+              {resetPreviewReport.length > 0 && (
+                <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
+                  <h3 className="text-sm font-semibold text-gray-900 mb-2">Ringkasan Dampak Reset</h3>
+                  <div className="space-y-1.5 text-sm">
+                    {resetPreviewReport.map((row) => (
+                      <div key={row.scope} className="flex items-start justify-between gap-3">
+                        <span className="font-medium text-gray-800">{row.scope}</span>
+                        <span className={row.ok ? 'text-gray-700' : 'text-red-700'}>{row.detail || '-'}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="bg-white rounded-lg shadow-sm border border-red-300 p-6">
+              <h2 className="text-xl font-semibold text-red-700">🧨 Reset Total Platform (Mode Uji Coba)</h2>
+              <p className="text-sm text-gray-600 mt-1">
+                Mengembalikan platform seperti awal (hapus seluruh data operasional), tetapi akun/login tetap aman.
+              </p>
+
+              <div className="mt-4 p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-800">
+                Gunakan fitur ini hanya untuk skenario testing. Untuk mencegah salah klik, wajib ketik <strong>RESET SEMUA</strong>.
+              </div>
+
+              <div className="mt-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Ketik <span className="font-bold">RESET SEMUA</span> untuk konfirmasi
+                </label>
+                <input
+                  value={fullResetConfirmation}
+                  onChange={(e) => setFullResetConfirmation(e.target.value)}
+                  placeholder="RESET SEMUA"
+                  className="w-full sm:max-w-xs px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                />
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-3">
+                <button
+                  onClick={handlePreviewFullReset}
+                  disabled={fullResetPreviewLoading}
+                  className="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-800 font-medium rounded-lg transition-colors disabled:bg-gray-100 disabled:text-gray-500"
+                >
+                  {fullResetPreviewLoading ? 'Menghitung...' : 'Preview Reset Total'}
+                </button>
+                <button
+                  onClick={handleFullPlatformReset}
+                  disabled={fullResetLoading}
+                  className="px-5 py-2.5 bg-red-700 hover:bg-red-800 text-white font-medium rounded-lg transition-colors disabled:bg-gray-400"
+                >
+                  {fullResetLoading ? 'Memproses...' : 'Reset Total Platform'}
+                </button>
+              </div>
+
+              {fullResetPreviewReport.length > 0 && (
+                <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
+                  <h3 className="text-sm font-semibold text-gray-900 mb-2">Ringkasan Dampak Reset Total</h3>
+                  <div className="space-y-1.5 text-sm">
+                    {fullResetPreviewReport.map((row) => (
+                      <div key={row.scope} className="flex items-start justify-between gap-3">
+                        <span className="font-medium text-gray-800">{row.scope}</span>
+                        <span className={row.ok ? 'text-gray-700' : 'text-red-700'}>{row.detail || '-'}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </>
         )}

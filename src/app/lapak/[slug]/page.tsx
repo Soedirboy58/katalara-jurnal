@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import ProductCard from '@/components/lapak/ProductCard';
 import ProductDetailModal from '@/components/lapak/ProductDetailModal';
@@ -31,6 +31,8 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
   const [checkoutItems, setCheckoutItems] = useState<CartItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [activeBannerIndex, setActiveBannerIndex] = useState(0)
+  const productsSectionRef = useRef<HTMLElement | null>(null)
 
   // Load slug from params
   useEffect(() => {
@@ -230,6 +232,17 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
           customer_name: customer.customer_name,
           customer_phone: customer.customer_phone,
           customer_address: customer.customer_address,
+          customer_province_id: customer.customer_province_id,
+          customer_province_name: customer.customer_province_name,
+          customer_kabupaten_id: customer.customer_kabupaten_id,
+          customer_kabupaten_name: customer.customer_kabupaten_name,
+          customer_kecamatan_id: customer.customer_kecamatan_id,
+          customer_kecamatan_name: customer.customer_kecamatan_name,
+          customer_desa_id: customer.customer_desa_id,
+          customer_desa_name: customer.customer_desa_name,
+          customer_address_detail: customer.customer_address_detail,
+          customer_rt_rw: customer.customer_rt_rw,
+          customer_landmark: customer.customer_landmark,
           delivery_method: customer.delivery_method,
           notes: customer.notes,
           payment_proof_url: paymentProofUrl,
@@ -256,6 +269,7 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
 
     const message = formatWhatsAppMessage({
       storefront_name: storefront.store_name,
+      store_description: storefront.description || '',
       customer_name: customer.customer_name,
       customer_phone: customer.customer_phone,
       customer_address: customer.customer_address,
@@ -298,6 +312,87 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
   // Get unique categories
   const categories = Array.from(new Set(products.map(p => p.category).filter(Boolean)));
 
+  const categoryCounts = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const product of products) {
+      const category = (product.category || '').trim()
+      if (!category) continue
+      counts.set(category, (counts.get(category) || 0) + 1)
+    }
+    return counts
+  }, [products])
+
+  const quickActionCategories = useMemo(() => {
+    return Array.from(categoryCounts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map(([name]) => name)
+  }, [categoryCounts])
+
+  const highlightCategories = useMemo(() => {
+    const fromQuick = quickActionCategories.slice(0, 2)
+    if (fromQuick.length > 0) return fromQuick
+    return categories.slice(0, 2)
+  }, [quickActionCategories, categories])
+
+  const bannerImages = useMemo(() => {
+    const raw = (storefront as any)?.banner_image_urls
+    const parsed = Array.isArray(raw)
+      ? raw
+      : typeof raw === 'string'
+        ? (() => {
+            try {
+              return JSON.parse(raw)
+            } catch {
+              return []
+            }
+          })()
+        : []
+
+    const cleaned = (Array.isArray(parsed) ? parsed : [])
+      .map((item) => String(item || '').trim())
+      .filter(Boolean)
+      .slice(0, 6)
+
+    if (cleaned.length > 0) return cleaned
+    if (storefront?.cover_image_url) return [storefront.cover_image_url]
+    return []
+  }, [storefront])
+
+  const bannerAutoplayMs = useMemo(() => {
+    const raw = Number((storefront as any)?.banner_autoplay_ms)
+    if (!Number.isFinite(raw)) return 3500
+    return Math.max(1200, Math.min(10000, Math.round(raw)))
+  }, [storefront])
+
+  const heroTitle = (storefront?.hero_title || '').trim() || 'Healthy Organic Food'
+  const heroSubtitle = (storefront?.hero_subtitle || '').trim() || 'Produk segar dan alami untuk gaya hidup sehat setiap hari.'
+  const heroCtaLabel = (storefront?.hero_cta_label || '').trim() || 'Belanja Sekarang'
+  const productsTitle = (storefront?.products_title || '').trim() || 'Our Products'
+  const productsSubtitle = (storefront?.products_subtitle || '').trim() || 'Pilihan terbaik untuk kebutuhan harian.'
+
+  useEffect(() => {
+    setActiveBannerIndex(0)
+  }, [slug, bannerImages.length])
+
+  useEffect(() => {
+    if (bannerImages.length <= 1) return
+    const timer = window.setInterval(() => {
+      setActiveBannerIndex((prev) => (prev + 1) % bannerImages.length)
+    }, bannerAutoplayMs)
+
+    return () => window.clearInterval(timer)
+  }, [bannerImages.length, bannerAutoplayMs])
+
+  const handleScrollToProducts = () => {
+    if (!productsSectionRef.current) return
+    productsSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
+  const handleShoppingNow = () => {
+    setIsCartOpen(true)
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -324,104 +419,193 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Cover Image */}
-      {storefront.cover_image_url && (
-        <div className="relative h-48 sm:h-64 bg-gray-200">
-          <img
-            src={storefront.cover_image_url}
-            alt={storefront.store_name}
-            className="w-full h-full object-cover"
-          />
-          <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/30" />
+    <div className="min-h-screen bg-[#F6F8F4] text-[#2F3B2F]">
+      {/* Header */}
+      <header className="bg-[#F6F8F4] border-b border-[#E3E9DE]">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
+            <div className="flex items-center gap-3">
+              {storefront.logo_url ? (
+                <img
+                  src={storefront.logo_url}
+                  alt={storefront.store_name}
+                  className="w-10 h-10 rounded-full border border-white shadow-sm object-cover"
+                />
+              ) : (
+                <div className="w-10 h-10 rounded-full bg-[#DCE7D6] flex items-center justify-center text-sm font-bold">
+                  {storefront.store_name.slice(0, 2).toUpperCase()}
+                </div>
+              )}
+              <div>
+                <div className="text-base font-semibold text-[#243024]">{storefront.store_name}</div>
+                {storefront.location_text && (
+                  <div className="text-xs text-[#5B6B5B]">{storefront.location_text}</div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex-1 flex justify-center">
+              <div className="relative w-full max-w-xl">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Cari produk organik..."
+                  className="w-full px-4 py-2.5 pl-11 text-sm bg-white border border-[#DDE6D8] rounded-full focus:outline-none focus:ring-2 focus:ring-current"
+                  style={{ '--tw-ring-color': storefront.theme_color } as React.CSSProperties}
+                />
+                <svg className="absolute left-4 top-2.5 w-4 h-4 text-[#8C9A8C]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 justify-end">
+              <button className="w-10 h-10 rounded-full border border-[#DDE6D8] bg-white text-[#6B7A6B] hover:bg-[#EFF4EA]">
+                <svg className="w-5 h-5 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.75 7.5A3.75 3.75 0 0112 11.25 3.75 3.75 0 018.25 7.5 3.75 3.75 0 0112 3.75a3.75 3.75 0 013.75 3.75z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4.5 20.25a7.5 7.5 0 0115 0" />
+                </svg>
+              </button>
+              <button className="w-10 h-10 rounded-full border border-[#DDE6D8] bg-white text-[#6B7A6B] hover:bg-[#EFF4EA]">
+                <svg className="w-5 h-5 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13l-1.5 6h13L17 13M9 21a1 1 0 100-2 1 1 0 000 2zm8 0a1 1 0 100-2 1 1 0 000 2z" />
+                </svg>
+              </button>
+              <button className="w-10 h-10 rounded-full border border-[#DDE6D8] bg-white text-[#6B7A6B] hover:bg-[#EFF4EA]">
+                <svg className="w-5 h-5 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 6 4 4 6.5 4c1.74 0 3.41 1.01 4.13 2.6C11.09 5.01 12.76 4 14.5 4 17 4 19 6 19 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+                </svg>
+              </button>
+            </div>
+          </div>
         </div>
+      </header>
+
+      {/* Hero Carousel */}
+      {bannerImages.length > 0 && (
+        <section className="bg-[#EEF3E8] border-b border-[#E3E9DE]">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-12">
+            <div className="grid lg:grid-cols-2 gap-8 items-center">
+              <div>
+                <div className="text-xs uppercase tracking-[0.2em] text-[#7C8C7A] mb-3">Fresh Organic</div>
+                <h2 className="text-3xl sm:text-4xl lg:text-5xl font-semibold text-[#243024] leading-tight mb-4">
+                  {heroTitle}
+                </h2>
+                <p className="text-sm sm:text-base text-[#5F6D5F] mb-6 max-w-lg">
+                  {heroSubtitle}
+                </p>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={handleShoppingNow}
+                    className="px-5 py-2.5 rounded-full text-sm font-semibold text-white shadow-sm"
+                    style={{ backgroundColor: storefront.theme_color }}
+                  >
+                    {heroCtaLabel}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleScrollToProducts}
+                    className="px-5 py-2.5 rounded-full text-sm font-semibold text-[#4B5A4B] border border-[#C9D6C5] bg-white"
+                  >
+                    Lihat Kategori
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <div className="relative rounded-3xl bg-[#E5ECDD] p-3 shadow-[0_18px_50px_rgba(48,64,48,0.18)]">
+                  <div className="relative aspect-video overflow-hidden rounded-2xl">
+                    <img
+                      key={bannerImages[activeBannerIndex]}
+                      src={bannerImages[activeBannerIndex]}
+                      alt={`${storefront.store_name} banner ${activeBannerIndex + 1}`}
+                      className="w-full h-full object-cover"
+                      loading={activeBannerIndex === 0 ? 'eager' : 'lazy'}
+                      fetchPriority={activeBannerIndex === 0 ? 'high' : 'auto'}
+                      decoding="async"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-tr from-white/10 via-transparent to-black/20" />
+                  </div>
+
+                  {bannerImages.length > 1 && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setActiveBannerIndex((prev) => (prev - 1 + bannerImages.length) % bannerImages.length)}
+                        className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white/80 text-[#314031] shadow hover:bg-white"
+                        aria-label="Banner sebelumnya"
+                      >
+                        ‹
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActiveBannerIndex((prev) => (prev + 1) % bannerImages.length)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white/80 text-[#314031] shadow hover:bg-white"
+                        aria-label="Banner berikutnya"
+                      >
+                        ›
+                      </button>
+                      <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-white/80 px-3 py-2 rounded-full shadow">
+                        {bannerImages.map((_, index) => (
+                          <button
+                            key={`dot-${index}`}
+                            type="button"
+                            onClick={() => setActiveBannerIndex(index)}
+                            className={`h-2 rounded-full transition-all ${activeBannerIndex === index ? 'w-6 bg-[#4B5A4B]' : 'w-2 bg-[#C7D3C2]'}`}
+                            aria-label={`Pilih banner ${index + 1}`}
+                          />
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
       )}
 
-      {/* Store Header - Mobile Optimized */}
-      <div className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-30">
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-3 sm:py-4">
-          <div className="flex items-start sm:items-center gap-3">
-            {/* Store Logo */}
-            {storefront.logo_url && (
-              <img
-                src={storefront.logo_url}
-                alt={storefront.store_name}
-                className="w-14 h-14 sm:w-20 sm:h-20 rounded-full border-2 sm:border-4 border-white shadow-lg object-cover flex-shrink-0"
-              />
-            )}
-
-            {/* Store Info */}
-            <div className="flex-1 min-w-0">
-              <h1 className="text-lg sm:text-3xl font-bold text-gray-900 leading-tight">
-                {storefront.store_name}
-              </h1>
-              {storefront.description && (
-                <p className="text-xs sm:text-base text-gray-600 mt-0.5 sm:mt-1 line-clamp-1 sm:line-clamp-2">{storefront.description}</p>
-              )}
-              {storefront.location_text && (
-                <p className="text-xs sm:text-sm text-gray-500 mt-1 flex items-center gap-1">
-                  <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                  <span className="truncate">{storefront.location_text}</span>
-                </p>
-              )}
-            </div>
-          </div>
-
-          {/* Search Bar */}
-          <div className="mt-3 sm:mt-4">
-            <div className="relative">
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Cari produk..."
-                className="w-full px-3 sm:px-4 py-2 sm:py-3 pl-9 sm:pl-11 text-sm sm:text-base bg-gray-50 border border-gray-300 rounded-lg sm:rounded-xl focus:outline-none focus:ring-2 focus:ring-current focus:border-transparent"
-                style={{ '--tw-ring-color': storefront.theme_color } as React.CSSProperties}
-              />
-              <svg className="absolute left-2.5 sm:left-3 top-2.5 sm:top-3.5 w-4 h-4 sm:w-5 sm:h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-            </div>
-          </div>
-
-          {/* Categories */}
-          {categories.length > 0 && (
-            <div className="mt-2 sm:mt-4 flex gap-2 overflow-x-auto pb-2 scrollbar-hide -mx-3 px-3 sm:mx-0 sm:px-0">
-              <button
-                onClick={() => setSelectedCategory('all')}
-                className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-medium whitespace-nowrap transition-all ${
-                  selectedCategory === 'all'
-                    ? 'text-white shadow-md'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-                style={selectedCategory === 'all' ? { backgroundColor: storefront.theme_color } : {}}
-              >
-                Semua
-              </button>
-              {categories.map(category => (
-                <button
-                  key={category}
-                  onClick={() => setSelectedCategory(category!)}
-                  className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-medium whitespace-nowrap transition-all ${
-                    selectedCategory === category
-                      ? 'text-white shadow-md'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                  style={selectedCategory === category ? { backgroundColor: storefront.theme_color } : {}}
-                >
-                  {category}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
       {/* Products Grid */}
-      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8">
+      <main ref={productsSectionRef} className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between mb-6">
+          <div>
+            <div className="text-xs uppercase tracking-[0.2em] text-[#7C8C7A]">{productsTitle}</div>
+            <h3 className="text-2xl sm:text-3xl font-semibold text-[#243024]">{productsTitle}</h3>
+            <p className="text-sm text-[#5F6D5F]">{productsSubtitle}</p>
+          </div>
+        </div>
+
+        {categories.length > 0 && (
+          <div className="mb-6 flex flex-wrap gap-2">
+            <button
+              onClick={() => setSelectedCategory('all')}
+              className={`px-4 py-2 rounded-full text-xs sm:text-sm font-semibold border transition-all ${
+                selectedCategory === 'all'
+                  ? 'text-white border-transparent'
+                  : 'bg-white text-[#4B5A4B] border-[#DCE7D6] hover:bg-[#EEF3E8]'
+              }`}
+              style={selectedCategory === 'all' ? { backgroundColor: storefront.theme_color } : {}}
+            >
+              Semua
+            </button>
+            {categories.map(category => (
+              <button
+                key={`cat-${category}`}
+                onClick={() => setSelectedCategory(category!)}
+                className={`px-4 py-2 rounded-full text-xs sm:text-sm font-semibold border transition-all ${
+                  selectedCategory === category
+                    ? 'text-white border-transparent'
+                    : 'bg-white text-[#4B5A4B] border-[#DCE7D6] hover:bg-[#EEF3E8]'
+                }`}
+                style={selectedCategory === category ? { backgroundColor: storefront.theme_color } : {}}
+              >
+                {category}
+              </button>
+            ))}
+          </div>
+        )}
         {filteredProducts.length === 0 ? (
           <div className="text-center py-8 sm:py-12">
             <svg className="w-24 h-24 text-gray-300 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -449,7 +633,29 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
             ))}
           </div>
         )}
-      </div>
+        {highlightCategories.length > 0 && (
+          <section className="mt-10">
+            <div className="grid gap-4 sm:grid-cols-2">
+              {highlightCategories.map((category, index) => (
+                <div
+                  key={`highlight-${category}`}
+                  className={`rounded-2xl p-6 border shadow-sm ${index % 2 === 0 ? 'bg-[#E7EFE1] border-[#D4E0CE]' : 'bg-[#F2F4E8] border-[#E3E6D6]'}`}
+                >
+                  <div className="text-xs uppercase tracking-[0.2em] text-[#7C8C7A] mb-2">Category</div>
+                  <h4 className="text-xl font-semibold text-[#243024] mb-3">{category}</h4>
+                  <p className="text-sm text-[#5F6D5F] mb-4">Pilihan terbaik untuk gaya hidup sehat dan seimbang.</p>
+                  <button
+                    onClick={() => setSelectedCategory(category)}
+                    className="px-4 py-2 rounded-full text-xs font-semibold bg-white text-[#4B5A4B] border border-[#C9D6C5] hover:bg-[#EEF3E8]"
+                  >
+                    Jelajahi Produk
+                  </button>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+      </main>
 
       {/* Product Detail Modal */}
       {selectedProduct && (
@@ -511,27 +717,39 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
       />
 
       {/* Footer */}
-      <footer className="bg-white border-t border-gray-200 mt-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="text-center">
-            <p className="text-gray-600 mb-2">© {new Date().getFullYear()} {storefront.store_name}</p>
-            {storefront.instagram_handle && (
-              <a
-                href={`https://instagram.com/${storefront.instagram_handle.replace('@', '')}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 text-gray-500 hover:text-pink-600 transition-colors"
-              >
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
-                </svg>
-                @{storefront.instagram_handle.replace('@', '')}
-              </a>
-            )}
-            <p className="text-sm text-gray-400 mt-4">
-              Powered by <span className="font-semibold" style={{ color: storefront.theme_color }}>Katalara</span>
-            </p>
+      <footer className="bg-[#314031] text-[#E7EFE1] mt-12">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+          <div className="grid gap-8 sm:grid-cols-3">
+            <div>
+              <div className="text-sm uppercase tracking-[0.2em] text-[#C8D4C2]">About Us</div>
+              <p className="text-sm text-[#E1E8DA] mt-3">
+                {storefront.store_name} hadir dengan pilihan produk segar dan alami untuk gaya hidup sehat setiap hari.
+              </p>
+            </div>
+            <div>
+              <div className="text-sm uppercase tracking-[0.2em] text-[#C8D4C2]">Quick Links</div>
+              <ul className="mt-3 space-y-2 text-sm text-[#E1E8DA]">
+                <li><a className="hover:text-white" href="#">Home</a></li>
+                <li><a className="hover:text-white" href="#">Shop</a></li>
+                <li><a className="hover:text-white" href="#">About</a></li>
+                <li><a className="hover:text-white" href="#">Contact</a></li>
+              </ul>
+            </div>
+            <div>
+              <div className="text-sm uppercase tracking-[0.2em] text-[#C8D4C2]">Follow Us</div>
+              <div className="mt-3 flex items-center gap-3 text-[#E1E8DA]">
+                <span className="w-9 h-9 rounded-full border border-[#4E5C4E] flex items-center justify-center">IG</span>
+                <span className="w-9 h-9 rounded-full border border-[#4E5C4E] flex items-center justify-center">FB</span>
+                <span className="w-9 h-9 rounded-full border border-[#4E5C4E] flex items-center justify-center">X</span>
+              </div>
+              {storefront.instagram_handle && (
+                <div className="text-xs text-[#C8D4C2] mt-3">
+                  @{storefront.instagram_handle.replace('@', '')}
+                </div>
+              )}
+            </div>
           </div>
+          <div className="mt-8 text-xs text-[#C8D4C2]">© {new Date().getFullYear()} {storefront.store_name}. Powered by Katalara.</div>
         </div>
       </footer>
       <ToastContainer />

@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
+export const dynamic = 'force-dynamic'
+
+const NO_STORE_HEADERS = {
+  'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+  Pragma: 'no-cache',
+  Expires: '0',
+}
+
 // GET /api/storefront/[slug] - Get storefront details by slug (public)
 export async function GET(
   request: NextRequest,
@@ -21,7 +29,7 @@ export async function GET(
     if (storefrontError || !storefront) {
       return NextResponse.json(
         { error: 'Toko tidak ditemukan' },
-        { status: 404 }
+        { status: 404, headers: NO_STORE_HEADERS }
       );
     }
 
@@ -39,7 +47,7 @@ export async function GET(
       console.error('Error fetching products:', productsError);
       return NextResponse.json(
         { error: 'Gagal memuat produk' },
-        { status: 500 }
+        { status: 500, headers: NO_STORE_HEADERS }
       );
     }
 
@@ -63,12 +71,12 @@ export async function GET(
     return NextResponse.json({
       storefront,
       products: products || [],
-    });
+    }, { headers: NO_STORE_HEADERS });
   } catch (error) {
     console.error('Error in storefront API:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
-      { status: 500 }
+      { status: 500, headers: NO_STORE_HEADERS }
     );
   }
 }

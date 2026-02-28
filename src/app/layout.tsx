@@ -7,8 +7,8 @@ export const metadata: Metadata = {
   description: "Platform all-in-one untuk mengelola keuangan, inventori, dan operasional bisnis UMKM Anda dengan mudah dan efisien",
   manifest: '/manifest.webmanifest',
   icons: {
-    icon: 'https://usradkbchlkcfoabxvbo.supabase.co/storage/v1/object/public/assets/Logo.png',
-    apple: 'https://usradkbchlkcfoabxvbo.supabase.co/storage/v1/object/public/assets/Logo.png',
+    icon: 'https://zhuxonyuksnhplxinikl.supabase.co/storage/v1/object/public/Assets/dd75e5f1-bf44-4ac9-b7b3-9a085b2d1d58/Logo%20only.png',
+    apple: 'https://zhuxonyuksnhplxinikl.supabase.co/storage/v1/object/public/Assets/dd75e5f1-bf44-4ac9-b7b3-9a085b2d1d58/Logo%20only.png',
   },
 };
 
@@ -37,8 +37,8 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        <link rel="icon" href="https://usradkbchlkcfoabxvbo.supabase.co/storage/v1/object/public/assets/Logo.png" />
-        <link rel="apple-touch-icon" href="https://usradkbchlkcfoabxvbo.supabase.co/storage/v1/object/public/assets/Logo.png" />
+        <link rel="icon" href="https://zhuxonyuksnhplxinikl.supabase.co/storage/v1/object/public/Assets/dd75e5f1-bf44-4ac9-b7b3-9a085b2d1d58/Logo%20only.png" />
+        <link rel="apple-touch-icon" href="https://zhuxonyuksnhplxinikl.supabase.co/storage/v1/object/public/Assets/dd75e5f1-bf44-4ac9-b7b3-9a085b2d1d58/Logo%20only.png" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="mobile-web-app-capable" content="yes" />

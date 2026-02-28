@@ -31,6 +31,17 @@ export default function SettingsPage() {
   // QR Code
   const [showQR, setShowQR] = useState(false)
   const [storeUrl, setStoreUrl] = useState('')
+  const [resetLoading, setResetLoading] = useState(false)
+  const [resetConfirmation, setResetConfirmation] = useState('')
+  const [resetTargets, setResetTargets] = useState<Record<string, boolean>>({
+    customers: false,
+    suppliers: false,
+    transactions: false,
+    products: false,
+    incomes: false,
+    expenses: false,
+    lapak_orders: false,
+  })
 
   useEffect(() => {
     loadSettings()
@@ -118,6 +129,59 @@ export default function SettingsPage() {
     }
 
     img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)))
+  }
+
+  const toggleResetTarget = (key: string) => {
+    setResetTargets((prev) => ({ ...prev, [key]: !prev[key] }))
+  }
+
+  const handleResetData = async () => {
+    const scopes = Object.entries(resetTargets)
+      .filter(([, checked]) => checked)
+      .map(([key]) => key)
+
+    if (scopes.length === 0) {
+      showToast('Pilih minimal satu jenis data yang ingin dihapus', 'warning')
+      return
+    }
+
+    if (resetConfirmation !== 'HAPUS') {
+      showToast('Ketik HAPUS untuk konfirmasi', 'warning')
+      return
+    }
+
+    try {
+      setResetLoading(true)
+
+      const response = await fetch('/api/settings/reset-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scopes, confirmation: resetConfirmation }),
+      })
+
+      const data = await response.json().catch(() => null)
+      if (!response.ok) {
+        showToast(data?.error || 'Gagal reset data', 'error')
+        return
+      }
+
+      showToast('Data terpilih berhasil dihapus', 'success')
+      setResetTargets({
+        customers: false,
+        suppliers: false,
+        transactions: false,
+        products: false,
+        incomes: false,
+        expenses: false,
+        lapak_orders: false,
+      })
+      setResetConfirmation('')
+    } catch (error) {
+      console.error('Error resetting data:', error)
+      showToast('Terjadi kesalahan saat reset data', 'error')
+    } finally {
+      setResetLoading(false)
+    }
   }
 
   if (loading) {
@@ -297,6 +361,55 @@ export default function SettingsPage() {
             </div>
           )}
         </div>
+      </div>
+
+      <div className="mt-6 bg-white rounded-lg shadow-sm border border-red-200 p-6">
+        <h2 className="text-xl font-semibold text-red-700">⚠️ Reset Data Terpilih</h2>
+        <p className="text-sm text-gray-600 mt-1">
+          Hapus permanen data tertentu tanpa menghapus akun.
+        </p>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
+          {[
+            { key: 'customers', label: 'Pelanggan' },
+            { key: 'suppliers', label: 'Pemasok' },
+            { key: 'transactions', label: 'Transaksi Penjualan' },
+            { key: 'products', label: 'Produk & Inventori' },
+            { key: 'incomes', label: 'Pendapatan Manual' },
+            { key: 'expenses', label: 'Pengeluaran' },
+            { key: 'lapak_orders', label: 'Order Lapak' },
+          ].map((item) => (
+            <label key={item.key} className="flex items-center gap-2 text-sm text-gray-800">
+              <input
+                type="checkbox"
+                checked={Boolean(resetTargets[item.key])}
+                onChange={() => toggleResetTarget(item.key)}
+                className="w-4 h-4 rounded border-gray-300"
+              />
+              <span>{item.label}</span>
+            </label>
+          ))}
+        </div>
+
+        <div className="mt-4">
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Ketik <span className="font-bold">HAPUS</span> untuk konfirmasi
+          </label>
+          <input
+            value={resetConfirmation}
+            onChange={(e) => setResetConfirmation(e.target.value)}
+            placeholder="HAPUS"
+            className="w-full sm:max-w-xs px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+          />
+        </div>
+
+        <button
+          onClick={handleResetData}
+          disabled={resetLoading}
+          className="mt-4 px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-colors disabled:bg-gray-400"
+        >
+          {resetLoading ? 'Memproses...' : 'Hapus Data Terpilih'}
+        </button>
       </div>
 
       {/* Info Box */}

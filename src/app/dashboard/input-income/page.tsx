@@ -120,10 +120,14 @@ export default function InputIncomePage() {
       if (typeof raw === 'string') {
         try {
           const parsed = JSON.parse(raw)
-          return Array.isArray(parsed) ? parsed : []
+          return parseOrderItems(parsed)
         } catch {
           return []
         }
+      }
+      if (typeof raw === 'object') {
+        if (Array.isArray((raw as any).items)) return (raw as any).items
+        if (Array.isArray((raw as any).order_items)) return (raw as any).order_items
       }
       return []
     }
@@ -140,14 +144,19 @@ export default function InputIncomePage() {
         const order = json.order
         const orderCode = String(order.order_code || order.id || '')
         const items = parseOrderItems(order.order_items)
-        const incomeItems = items.map((it: any) => ({
+        const incomeItems = items.map((it: any) => {
+          const qtyRaw = Number(it.quantity ?? it.qty ?? 1)
+          const qty = Number.isFinite(qtyRaw) && qtyRaw > 0 ? qtyRaw : 1
+
+          return {
           product_id: String(it.product_id || ''),
           product_name: String(it.product_name || it.name || 'Item'),
-          qty: Number(it.quantity || it.qty || 0),
+          qty,
           unit: String(it.unit || 'pcs'),
           price_per_unit: Number(it.price || 0),
           buy_price: Number(it.buy_price || 0),
-        }))
+          }
+        })
 
         const paymentMethodRaw = String(order.payment_method || '').toLowerCase()
         const paymentMethod = paymentMethodRaw.includes('qris')

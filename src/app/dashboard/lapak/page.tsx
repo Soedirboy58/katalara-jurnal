@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import QRCode from 'react-qr-code';
 import { Storefront, StorefrontProduct, THEME_PRESETS, PRODUCT_TYPES, BARANG_CATEGORIES, JASA_CATEGORIES } from '@/types/lapak';
@@ -12,6 +12,77 @@ import ConfirmModal from '@/components/ui/ConfirmModal';
 import { useConfirm } from '@/hooks/useConfirm';
 import { createClient } from '@/lib/supabase/client';
 import { mapBusinessCategoryToConstraint } from '@/lib/business-category-mapper';
+
+type WhatsAppStatusKey = 'pending' | 'confirmed' | 'preparing' | 'shipped' | 'completed'
+
+const DEFAULT_WA_STATUS_TEMPLATES: Record<WhatsAppStatusKey, string> = {
+  pending:
+    'Halo {{buyer_name}}, pesanan {{business_offering}} Anda sudah kami terima.\nKode order: {{order_code}}\nTotal: {{total}}\n\nStatus saat ini: {{status_label}}\nKami akan update lagi setelah proses verifikasi pembayaran.',
+  confirmed:
+    'Halo {{buyer_name}}, pembayaran untuk order {{order_code}} sudah kami konfirmasi ✅\n\nStatus: {{status_label}}\nKami sedang memproses {{business_offering}} Anda.',
+  preparing:
+    'Halo {{buyer_name}}, order {{order_code}} sedang kami siapkan.\n\nStatus: {{status_label}}\nKami akan kirim update berikutnya saat pesanan siap dikirim.',
+  shipped:
+    'Halo {{buyer_name}}, order {{order_code}} sudah dikirim 🚚\n\nStatus: {{status_label}}\n{{tracking_url}}',
+  completed:
+    'Halo {{buyer_name}}, order {{order_code}} dinyatakan selesai.\n\nStatus: {{status_label}}\nTerima kasih sudah berbelanja di {{store_name}} 🙏',
+}
+
+const DEFAULT_LANDING_COPY = {
+  hero_title: 'Healthy Organic Food',
+  hero_subtitle: 'Produk segar dan alami untuk gaya hidup sehat setiap hari.',
+  hero_cta_label: 'Belanja Sekarang',
+  products_title: 'Our Products',
+  products_subtitle: 'Pilihan terbaik untuk kebutuhan harian.',
+}
+
+const normalizeWaStatusTemplates = (raw: any): Record<WhatsAppStatusKey, string> => {
+  const parsed = typeof raw === 'string'
+    ? (() => {
+        try {
+          return JSON.parse(raw)
+        } catch {
+          return {}
+        }
+      })()
+    : (raw || {})
+
+  return {
+    pending: typeof parsed.pending === 'string' && parsed.pending.trim() ? parsed.pending : DEFAULT_WA_STATUS_TEMPLATES.pending,
+    confirmed: typeof parsed.confirmed === 'string' && parsed.confirmed.trim() ? parsed.confirmed : DEFAULT_WA_STATUS_TEMPLATES.confirmed,
+    preparing: typeof parsed.preparing === 'string' && parsed.preparing.trim() ? parsed.preparing : DEFAULT_WA_STATUS_TEMPLATES.preparing,
+    shipped: typeof parsed.shipped === 'string' && parsed.shipped.trim() ? parsed.shipped : DEFAULT_WA_STATUS_TEMPLATES.shipped,
+    completed: typeof parsed.completed === 'string' && parsed.completed.trim() ? parsed.completed : DEFAULT_WA_STATUS_TEMPLATES.completed,
+  }
+}
+
+const renderWaTemplate = (template: string, vars: Record<string, string>) => {
+  return template.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_match, key) => vars[key] ?? '')
+}
+
+const normalizeBannerImageUrls = (raw: any): string[] => {
+  const parsed = typeof raw === 'string'
+    ? (() => {
+        try {
+          return JSON.parse(raw)
+        } catch {
+          return []
+        }
+      })()
+    : raw
+
+  if (!Array.isArray(parsed)) return []
+  return parsed
+    .map((item) => String(item || '').trim())
+    .filter(Boolean)
+    .slice(0, 6)
+}
+
+const clampBannerAutoplayMs = (raw: any): number => {
+  const n = Number(raw)
+  if (!Number.isFinite(n)) return 3500
+  return Math.max(1200, Math.min(10000, Math.round(n)))
+}
 
 export default function LapakPage() {
   const router = useRouter();
@@ -28,12 +99,16 @@ export default function LapakPage() {
   const [orderStats, setOrderStats] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<'settings' | 'products' | 'analytics' | 'notifications'>('settings');
   const [businessCategory, setBusinessCategory] = useState<string | null>(null);
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
   const [kpiModal, setKpiModal] = useState<{
     isOpen: boolean;
     type: 'views' | 'cart' | 'whatsapp' | 'orders' | null;
   }>({ isOpen: false, type: null });
   const [deleteProductModal, setDeleteProductModal] = useState<{ isOpen: boolean; productId: string | null }>({ isOpen: false, productId: null });
   const [deleteLapakModal, setDeleteLapakModal] = useState(false);
+  const loadRequestIdRef = useRef(0);
+  const [activeUploadCount, setActiveUploadCount] = useState(0);
+  const [resetOrdersInProgress, setResetOrdersInProgress] = useState(false);
 
   // Form states
   const [formData, setFormData] = useState({
@@ -41,6 +116,8 @@ export default function LapakPage() {
     description: '',
     logo_url: '',
     qris_image_url: '',
+    banner_image_urls: [] as string[],
+    banner_autoplay_ms: 3500,
     bank_name: '',
     bank_account_number: '',
     bank_account_holder: '',
@@ -49,6 +126,12 @@ export default function LapakPage() {
     location_text: '',
     theme_color: '#3B82F6',
     is_active: true,
+    wa_status_templates: normalizeWaStatusTemplates(null),
+    hero_title: DEFAULT_LANDING_COPY.hero_title,
+    hero_subtitle: DEFAULT_LANDING_COPY.hero_subtitle,
+    hero_cta_label: DEFAULT_LANDING_COPY.hero_cta_label,
+    products_title: DEFAULT_LANDING_COPY.products_title,
+    products_subtitle: DEFAULT_LANDING_COPY.products_subtitle,
   });
 
   // Product form state
@@ -69,7 +152,10 @@ export default function LapakPage() {
 
   // Load data
   useEffect(() => {
-    loadData();
+    const storedId = typeof window !== 'undefined'
+      ? localStorage.getItem('katalara_active_lapak_id') || undefined
+      : undefined
+    loadData(storedId);
   }, []);
 
   useEffect(() => {
@@ -111,6 +197,8 @@ export default function LapakPage() {
       description: '',
       logo_url: '',
       qris_image_url: '',
+      banner_image_urls: [] as string[],
+      banner_autoplay_ms: 3500,
       bank_name: '',
       bank_account_number: '',
       bank_account_holder: '',
@@ -119,6 +207,12 @@ export default function LapakPage() {
       location_text: '',
       theme_color: '#3B82F6',
       is_active: true,
+      wa_status_templates: normalizeWaStatusTemplates(null),
+      hero_title: DEFAULT_LANDING_COPY.hero_title,
+      hero_subtitle: DEFAULT_LANDING_COPY.hero_subtitle,
+      hero_cta_label: DEFAULT_LANDING_COPY.hero_cta_label,
+      products_title: DEFAULT_LANDING_COPY.products_title,
+      products_subtitle: DEFAULT_LANDING_COPY.products_subtitle,
     });
     setProducts([]);
     setAnalytics(null);
@@ -174,29 +268,50 @@ export default function LapakPage() {
       ? `- Bukti bayar: ${order.payment_proof_url}`
       : '- Bukti bayar: mohon kirim screenshot transfer'
 
+    const businessProfile = [
+      storefront?.store_name ? `- Nama usaha: ${storefront.store_name}` : '',
+      businessCategory ? `- Kategori usaha: ${businessCategory}` : '',
+      storefront?.description ? `- Deskripsi: ${storefront.description}` : '',
+    ].filter(Boolean)
+
     const verificationMessage = [
       `Halo ${buyerName}, terima kasih sudah order di ${storefront?.store_name || 'Lapak kami'} 🙏`,
       ``,
-      `Konfirmasi pesanan:`,
+      `Konfirmasi pesanan ${businessTerms.offering}:`,
       `- Kode order: ${orderCode}`,
       `- Total: ${total}`,
       paymentProofLine,
+      businessProfile.length ? '' : '',
+      businessProfile.length ? 'Profil usaha:' : '',
+      ...businessProfile,
       ``,
-      `Jika pembayaran sudah sesuai, pesanan akan kami proses dan kirim update status berikutnya.`,
+      `Jika pembayaran sudah sesuai, kami lanjutkan ${businessTerms.fulfillment} dan kirim update status berikutnya.`,
       ``,
       `⚠️ Demi keamanan, kami TIDAK PERNAH meminta OTP, PIN, atau password.`
     ].join('\n')
 
-    const updateMessage = [
-      `Halo ${buyerName}, update pesanan Anda:`,
-      `- Kode order: ${orderCode}`,
-      `- Status: ${orderStatusLabel[order?.status] || order?.status || '-'}`,
-      `- Total: ${total}`,
-      ``,
-      `Silakan balas chat ini jika ada pertanyaan.`,
-      ``,
-      `⚠️ Demi keamanan, mohon abaikan pihak yang meminta OTP/PIN atas nama toko.`
-    ].join('\n')
+    const statusKey: WhatsAppStatusKey = (
+      order?.status === 'pending' ||
+      order?.status === 'confirmed' ||
+      order?.status === 'preparing' ||
+      order?.status === 'shipped' ||
+      order?.status === 'completed'
+    )
+      ? order.status
+      : 'pending'
+
+    const statusLabel = orderStatusLabel[order?.status] || order?.status || '-'
+    const trackingUrl = getTrackingUrl(order)
+    const template = formData.wa_status_templates?.[statusKey] || DEFAULT_WA_STATUS_TEMPLATES[statusKey]
+    const updateMessage = renderWaTemplate(template, {
+      buyer_name: buyerName,
+      store_name: storefront?.store_name || 'Toko kami',
+      order_code: String(orderCode),
+      status_label: String(statusLabel),
+      total: String(total),
+      tracking_url: trackingUrl ? `Link tracking: ${trackingUrl}` : 'Link tracking akan dikirim menyusul.',
+      business_offering: businessTerms.offering,
+    })
 
     const message = mode === 'update' ? updateMessage : verificationMessage
     window.open(`https://wa.me/${wa}?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer')
@@ -231,6 +346,7 @@ export default function LapakPage() {
     const message = [
       `INVOICE / STRUK`,
       `${storefront?.store_name ? `Toko: ${storefront.store_name}` : ''}`,
+      `${businessCategory ? `Kategori: ${businessCategory}` : ''}`,
       `Tanggal: ${createdAt}`,
       `Kode Order: ${orderCode}`,
       `Pelanggan: ${buyerName}`,
@@ -349,6 +465,68 @@ export default function LapakPage() {
     }
   };
 
+  const handleResetLapakHistory = async () => {
+    const confirmed = await confirm({
+      title: 'Restart Riwayat Lapak',
+      message:
+        'Aksi ini akan menghapus riwayat order masuk di Notifikasi Order sekaligus mereset data Statistik Lapak. Lanjutkan?',
+      type: 'danger',
+      confirmText: 'Ya, Restart Riwayat',
+      cancelText: 'Batal',
+    })
+
+    if (!confirmed) return
+
+    setResetOrdersInProgress(true)
+
+    try {
+      const response = await fetch('/api/settings/reset-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scopes: ['lapak_orders'], confirmation: 'HAPUS' }),
+      })
+
+      const data = await response.json().catch(() => null as any)
+      if (!response.ok) {
+        showToast(data?.error || 'Gagal restart riwayat lapak', 'error')
+        return
+      }
+
+      const lapakReport = Array.isArray(data?.report)
+        ? data.report.find((row: any) => row?.scope === 'lapak_orders')
+        : null
+      const detailText = typeof lapakReport?.detail === 'string' ? lapakReport.detail : ''
+      showToast(
+        detailText
+          ? `Riwayat order & statistik lapak berhasil direset (${detailText})`
+          : 'Riwayat order & statistik lapak berhasil direset',
+        'success'
+      )
+      // Clear order state immediately - DO NOT reload from server to prevent cache issues
+      setOrders([])
+      setOrderStats({ total_orders: 0, total_revenue: 0, pending_orders: 0 })
+      setAnalytics((prev: any) => ({
+        ...(prev || {}),
+        page_views: 0,
+        page_views_today: 0,
+        page_views_7d: 0,
+        unique_visitors_30d: 0,
+        cart_adds: 0,
+        cart_adds_today: 0,
+        whatsapp_clicks: 0,
+        whatsapp_clicks_today: 0,
+      }))
+      // REMOVED: await loadData() - don't fetch orders again to prevent showing cached/stale data
+      
+      // Keep flag active for 2 seconds to prevent immediate loadData() from fetching orders
+      setTimeout(() => setResetOrdersInProgress(false), 2000)
+    } catch (error) {
+      console.error('Error resetting lapak history:', error)
+      showToast('Terjadi kesalahan saat restart riwayat', 'error')
+      setResetOrdersInProgress(false)
+    }
+  }
+
   const getTrackingUrl = (order: any) => {
     if (typeof window === 'undefined' || !storefront?.slug || !order?.public_tracking_code) return ''
     return `${window.location.origin}/lapak/${storefront.slug}/order/${order.public_tracking_code}`
@@ -361,6 +539,53 @@ export default function LapakPage() {
     shipped: 'Dalam Pengiriman',
     completed: 'Selesai',
     canceled: 'Dibatalkan',
+  }
+
+  const resolvedBusinessType = mapBusinessCategoryToConstraint(businessCategory || storefront?.description || 'Hybrid')
+  const businessTerms = (() => {
+    if (resolvedBusinessType === 'Jasa/Layanan') {
+      return {
+        offering: 'layanan',
+        availability: 'ketersediaan jadwal/layanan',
+        fulfillment: 'penjadwalan layanan',
+      }
+    }
+
+    if (
+      resolvedBusinessType === 'Produk dengan Stok' ||
+      resolvedBusinessType === 'Produk Tanpa Stok' ||
+      resolvedBusinessType === 'Trading/Reseller'
+    ) {
+      return {
+        offering: 'produk',
+        availability: 'ketersediaan produk',
+        fulfillment: 'proses penyiapan produk',
+      }
+    }
+
+    return {
+      offering: 'item pesanan',
+      availability: 'ketersediaan item pesanan',
+      fulfillment: 'proses pemenuhan pesanan',
+    }
+  })()
+
+  const orderStatusBadgeTone: Record<string, string> = {
+    pending: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+    confirmed: 'bg-blue-100 text-blue-800 border-blue-200',
+    preparing: 'bg-indigo-100 text-indigo-800 border-indigo-200',
+    shipped: 'bg-purple-100 text-purple-800 border-purple-200',
+    completed: 'bg-green-100 text-green-800 border-green-200',
+    canceled: 'bg-red-100 text-red-800 border-red-200',
+  }
+
+  const getPaymentMethodLabel = (method?: string) => {
+    if (!method) return '-'
+    const normalized = method.toLowerCase()
+    if (normalized === 'transfer') return 'Transfer Bank'
+    if (normalized === 'qris') return 'QRIS'
+    if (normalized === 'cash') return 'Tunai'
+    return method
   }
 
   const orderStatusSteps = [
@@ -409,71 +634,135 @@ export default function LapakPage() {
   }
 
   const renderOrderActions = (order: any) => (
-    <div className="flex flex-wrap gap-2">
-      {order.status === 'pending' && (
-        <>
+    <div className="space-y-2">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
+        {order.status === 'pending' && (
+          <>
+            <button
+              onClick={() => handleConfirmOrder(order)}
+              className="px-3 py-2 text-xs font-semibold bg-green-600 text-white rounded-lg hover:bg-green-700"
+            >
+              ✅ Konfirmasi
+            </button>
+            <button
+              onClick={() => handleAdvanceStatus(order, 'canceled')}
+              className="px-3 py-2 text-xs font-semibold bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+            >
+              ❌ Batalkan
+            </button>
+          </>
+        )}
+
+        {order.status === 'confirmed' && (
           <button
-            onClick={() => handleConfirmOrder(order)}
-            className="px-3 py-1.5 text-xs font-semibold bg-green-600 text-white rounded-lg hover:bg-green-700"
+            onClick={() => handleAdvanceStatus(order, 'preparing')}
+            className="px-3 py-2 text-xs font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-700"
           >
-            Konfirmasi & Catat Pendapatan
+            🧰 Proses
           </button>
+        )}
+
+        {order.status === 'preparing' && (
           <button
-            onClick={() => handleAdvanceStatus(order, 'canceled')}
-            className="px-3 py-1.5 text-xs font-semibold bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+            onClick={() => handleAdvanceStatus(order, 'shipped')}
+            className="px-3 py-2 text-xs font-semibold bg-purple-600 text-white rounded-lg hover:bg-purple-700"
           >
-            Batalkan
+            🚚 Kirim
           </button>
-        </>
-      )}
+        )}
 
-      {order.status === 'confirmed' && (
+        {order.status === 'shipped' && (
+          <button
+            onClick={() => handleAdvanceStatus(order, 'completed')}
+            className="px-3 py-2 text-xs font-semibold bg-green-700 text-white rounded-lg hover:bg-green-800"
+          >
+            🏁 Selesai
+          </button>
+        )}
+
         <button
-          onClick={() => handleAdvanceStatus(order, 'preparing')}
-          className="px-3 py-1.5 text-xs font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          onClick={() => handleQuickIncomeInput(order)}
+          className="px-3 py-2 text-xs font-semibold bg-emerald-50 text-emerald-700 rounded-lg border border-emerald-200 hover:bg-emerald-100"
         >
-          Proses
+          💰 Pendapatan
         </button>
-      )}
+      </div>
 
-      {order.status === 'preparing' && (
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
         <button
-          onClick={() => handleAdvanceStatus(order, 'shipped')}
-          className="px-3 py-1.5 text-xs font-semibold bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+          onClick={() => openWhatsAppForOrder(order, 'verification')}
+          className="px-3 py-2 text-xs font-semibold bg-green-50 text-green-700 rounded-lg border border-green-200 hover:bg-green-100"
         >
-          Kirim
+          💬 WA Verifikasi
         </button>
-      )}
 
-      {order.status === 'shipped' && (
         <button
-          onClick={() => handleAdvanceStatus(order, 'completed')}
-          className="px-3 py-1.5 text-xs font-semibold bg-green-700 text-white rounded-lg hover:bg-green-800"
+          onClick={() => openWhatsAppForOrder(order, 'update')}
+          className="px-3 py-2 text-xs font-semibold bg-lime-50 text-lime-700 rounded-lg border border-lime-200 hover:bg-lime-100"
         >
-          Selesai
+          🔔 WA Update
         </button>
+
+        <button
+          onClick={() => openWhatsAppInvoice(order)}
+          className="px-3 py-2 text-xs font-semibold bg-slate-50 text-slate-700 rounded-lg border border-slate-200 hover:bg-slate-100"
+        >
+          🧾 Invoice
+        </button>
+      </div>
+    </div>
+  )
+
+  const renderOrderCard = (order: any) => (
+    <div key={order.id} className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="font-semibold text-gray-900">{order.order_code || order.id}</div>
+          <div className="text-xs text-gray-500 mt-0.5">{new Date(order.created_at).toLocaleString('id-ID')}</div>
+        </div>
+        <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full border ${orderStatusBadgeTone[order.status] || 'bg-gray-100 text-gray-700 border-gray-200'}`}>
+          {orderStatusLabel[order.status] || order.status}
+        </span>
+      </div>
+
+      <div className="grid sm:grid-cols-2 gap-2 text-sm text-gray-700">
+        <div><span className="text-gray-500">Pembeli:</span> {order.customer_name || 'Pembeli'}</div>
+        <div><span className="text-gray-500">No. HP:</span> {order.customer_phone || '-'}</div>
+        <div><span className="text-gray-500">Pembayaran:</span> {getPaymentMethodLabel(order.payment_method)}</div>
+        <div><span className="text-gray-500">Total:</span> <span className="font-semibold text-gray-900">{formatCurrency(order.total_amount || 0)}</span></div>
+      </div>
+
+      <div>
+        <div className="text-[11px] text-gray-500 mb-1.5">Progress Order</div>
+        {renderOrderTimeline(order.status)}
+      </div>
+
+      {(order.payment_proof_url || order.public_tracking_code) && (
+        <div className="flex flex-wrap gap-3 text-xs">
+          {order.payment_proof_url && (
+            <a
+              href={order.payment_proof_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 hover:underline"
+            >
+              Lihat bukti pembayaran
+            </a>
+          )}
+          {order.public_tracking_code && (
+            <a
+              href={getTrackingUrl(order)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 hover:underline"
+            >
+              Lihat tracking publik
+            </a>
+          )}
+        </div>
       )}
 
-      <button
-        onClick={() => handleQuickIncomeInput(order)}
-        className="px-3 py-1.5 text-xs font-semibold bg-emerald-50 text-emerald-700 rounded-lg border border-emerald-200 hover:bg-emerald-100"
-      >
-        Input Pendapatan
-      </button>
-
-      <button
-        onClick={() => openWhatsAppForOrder(order, 'verification')}
-        className="px-3 py-1.5 text-xs font-semibold bg-green-50 text-green-700 rounded-lg border border-green-200 hover:bg-green-100"
-      >
-        Chat WA Aman
-      </button>
-
-      <button
-        onClick={() => openWhatsAppInvoice(order)}
-        className="px-3 py-1.5 text-xs font-semibold bg-slate-50 text-slate-700 rounded-lg border border-slate-200 hover:bg-slate-100"
-      >
-        Kirim Invoice/Struk
-      </button>
+      {renderOrderActions(order)}
     </div>
   )
 
@@ -487,10 +776,16 @@ export default function LapakPage() {
   ]
 
   const loadData = async (storefrontId?: string) => {
+    const requestId = ++loadRequestIdRef.current;
     try {
-      const url = storefrontId ? `/api/lapak?storefrontId=${storefrontId}` : '/api/lapak';
-      const response = await fetch(url);
+      const nonce = Date.now()
+      const url = storefrontId
+        ? `/api/lapak?storefrontId=${storefrontId}&_t=${nonce}`
+        : `/api/lapak?_t=${nonce}`;
+      const response = await fetch(url, { cache: 'no-store' });
       const data = await response.json();
+
+      if (requestId !== loadRequestIdRef.current) return;
 
       setStorefronts(data.storefronts || []);
 
@@ -505,6 +800,8 @@ export default function LapakPage() {
           description: data.storefront.description || '',
           logo_url: data.storefront.logo_url || '',
           qris_image_url: data.storefront.qris_image_url || '',
+          banner_image_urls: normalizeBannerImageUrls(data.storefront.banner_image_urls),
+          banner_autoplay_ms: clampBannerAutoplayMs(data.storefront.banner_autoplay_ms),
           bank_name: data.storefront.bank_name || '',
           bank_account_number: data.storefront.bank_account_number || '',
           bank_account_holder: data.storefront.bank_account_holder || '',
@@ -513,22 +810,37 @@ export default function LapakPage() {
           location_text: data.storefront.location_text || '',
           theme_color: data.storefront.theme_color,
           is_active: data.storefront.is_active,
+          wa_status_templates: normalizeWaStatusTemplates(data.storefront.wa_status_templates),
+          hero_title: (data.storefront.hero_title || '').trim() || DEFAULT_LANDING_COPY.hero_title,
+          hero_subtitle: (data.storefront.hero_subtitle || '').trim() || DEFAULT_LANDING_COPY.hero_subtitle,
+          hero_cta_label: (data.storefront.hero_cta_label || '').trim() || DEFAULT_LANDING_COPY.hero_cta_label,
+          products_title: (data.storefront.products_title || '').trim() || DEFAULT_LANDING_COPY.products_title,
+          products_subtitle: (data.storefront.products_subtitle || '').trim() || DEFAULT_LANDING_COPY.products_subtitle,
         });
         setAnalytics(data.analytics);
 
         // Load products
-        const productsResponse = await fetch(`/api/lapak/products?storefrontId=${data.storefront.id}`);
+        const productsResponse = await fetch(`/api/lapak/products?storefrontId=${data.storefront.id}&_t=${nonce}`, { cache: 'no-store' });
         const productsData = await productsResponse.json();
+        if (requestId !== loadRequestIdRef.current) return;
         setProducts(productsData.products || []);
 
-        // Load orders
-        if (data.storefront.slug) {
-          const ordersResponse = await fetch(`/api/storefront/${data.storefront.slug}/orders`);
+        // Load orders (skip if reset is in progress to prevent showing deleted orders from cache)
+        setOrders([])
+        setOrderStats(null)
+        if (data.storefront.slug && !resetOrdersInProgress) {
+          const ordersResponse = await fetch(`/api/storefront/${data.storefront.slug}/orders?_t=${nonce}`, { cache: 'no-store' });
           if (ordersResponse.ok) {
             const ordersData = await ordersResponse.json();
+            if (requestId !== loadRequestIdRef.current) return;
             setOrders(ordersData.orders || []);
             setOrderStats(ordersData.stats);
+          } else {
+            setOrders([])
+            setOrderStats({ total_orders: 0, total_revenue: 0, pending_orders: 0 })
           }
+        } else if (resetOrdersInProgress) {
+          console.log('⏸️ Skipping order load - reset in progress')
         }
       } else {
         resetStorefrontState();
@@ -537,8 +849,10 @@ export default function LapakPage() {
         }
       }
 
+      if (requestId !== loadRequestIdRef.current) return;
       setLoading(false);
     } catch (error) {
+      if (requestId !== loadRequestIdRef.current) return;
       console.error('Error loading data:', error);
       resetStorefrontState();
       setLoading(false);
@@ -551,6 +865,51 @@ export default function LapakPage() {
     setActiveTab('settings');
   };
 
+  const handleDuplicateStorefront = async (source: Storefront) => {
+    const confirmed = await confirm({
+      title: 'Duplikat Lapak',
+      message: 'Lapak akan disalin beserta produk dan tampil sebagai draft. Lanjutkan?',
+      confirmText: 'Duplikat',
+      cancelText: 'Batal',
+      type: 'warning',
+    })
+
+    if (!confirmed) return
+
+    setDuplicatingId(source.id)
+    try {
+      const response = await fetch('/api/lapak/duplicate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ storefront_id: source.id }),
+      })
+
+      const data = await response.json().catch(() => null as any)
+      if (!response.ok) {
+        const detail = data?.detail ? ` (${data.detail})` : ''
+        showToast(`${data?.error || 'Gagal duplikat lapak'}${detail}`, 'error')
+        return
+      }
+
+      if (data?.storefront?.id) {
+        if (data?.warning) {
+          showToast(data.warning, 'warning')
+        } else {
+          showToast('Lapak berhasil diduplikat', 'success')
+        }
+        await loadData(data.storefront.id)
+        setActiveTab('settings')
+      } else {
+        showToast('Lapak berhasil diduplikat, tapi belum bisa dimuat. Coba refresh.', 'warning')
+      }
+    } catch (error) {
+      console.error('Error duplicating storefront:', error)
+      showToast('Terjadi kesalahan saat duplikat lapak', 'error')
+    } finally {
+      setDuplicatingId(null)
+    }
+  }
+
   const handleCreateNewStorefront = () => {
     resetStorefrontState();
     if (typeof window !== 'undefined') {
@@ -560,12 +919,18 @@ export default function LapakPage() {
   };
 
   const handleSaveStorefront = async () => {
+    if (activeUploadCount > 0) {
+      showToast('Tunggu proses upload gambar selesai sebelum menyimpan lapak.', 'warning')
+      return
+    }
+
     setSaving(true);
     try {
+      const effectiveStorefrontId = storefront?.id || activeStorefrontId || undefined;
       const payload = {
         ...formData,
-        storefront_id: activeStorefrontId || undefined,
-        create_new: !activeStorefrontId,
+        storefront_id: effectiveStorefrontId,
+        create_new: false,
       };
       const response = await fetch('/api/lapak', {
         method: 'POST',
@@ -584,8 +949,15 @@ export default function LapakPage() {
           }
           return [data.storefront, ...prev];
         });
-        showToast('Lapak berhasil disimpan!', 'success');
+        if (data?.warning) {
+          showToast(data.warning, 'warning');
+        } else {
+          showToast('Lapak berhasil disimpan!', 'success');
+        }
       } else {
+        if (data?.detail) {
+          console.error('Lapak save detail:', data.detail);
+        }
         showToast(data.error, 'error');
       }
     } catch (error) {
@@ -772,11 +1144,21 @@ export default function LapakPage() {
         <div className="max-w-6xl mx-auto w-full">
           {/* Header */}
           <div className="mb-4 sm:mb-6 px-1">
-          <h1 className="text-xl sm:text-3xl font-bold text-gray-900 mb-1 sm:mb-2">🏪 Lapak Online</h1>
-          <p className="text-sm sm:text-base text-gray-600">
-            Kelola toko online Anda dan jual produk lewat link yang bisa dishare
-          </p>
-        </div>
+            <div className="flex items-center gap-3 mb-2">
+              <img
+                src="https://zhuxonyuksnhplxinikl.supabase.co/storage/v1/object/public/Assets/dd75e5f1-bf44-4ac9-b7b3-9a085b2d1d58/Logo%20only.png"
+                alt="Katalara Logo"
+                className="h-9 w-9 rounded-lg bg-white border border-gray-200 object-contain"
+              />
+              <div>
+                <h1 className="text-xl sm:text-3xl font-bold text-gray-900">Lapak Online</h1>
+                <p className="text-xs text-gray-500">Katalara Business Platform</p>
+              </div>
+            </div>
+            <p className="text-sm sm:text-base text-gray-600">
+              Kelola toko online Anda dan jual produk lewat link yang bisa dishare
+            </p>
+          </div>
 
         {/* Tabs */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-4 sm:mb-6 overflow-hidden">
@@ -881,6 +1263,19 @@ export default function LapakPage() {
                           {activeStorefrontId === sf.id ? 'Sedang Aktif' : 'Kelola'}
                         </button>
                         <button
+                          onClick={() => handleSelectStorefront(sf.id)}
+                          className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50"
+                        >
+                          Edit Lapak
+                        </button>
+                        <button
+                          onClick={() => handleDuplicateStorefront(sf)}
+                          disabled={duplicatingId === sf.id}
+                          className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-amber-300 text-amber-700 hover:bg-amber-50 disabled:opacity-60"
+                        >
+                          {duplicatingId === sf.id ? 'Menduplikasi...' : 'Duplikat'}
+                        </button>
+                        <button
                           onClick={() => window.open(`${window.location.origin}/lapak/${sf.slug}`, '_blank')}
                           className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50"
                         >
@@ -924,15 +1319,146 @@ export default function LapakPage() {
                     />
                   </div>
 
+                  <div className="border border-gray-200 rounded-xl p-3 sm:p-4 bg-gray-50 space-y-3">
+                    <div>
+                      <h3 className="text-sm sm:text-base font-semibold text-gray-900">Teks Landing Page</h3>
+                      <p className="text-xs text-gray-500 mt-0.5">Atur judul, subjudul, dan tombol utama yang tampil di landing page.</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">Judul Hero</label>
+                      <input
+                        type="text"
+                        value={formData.hero_title}
+                        onChange={(e) => setFormData({ ...formData, hero_title: e.target.value })}
+                        placeholder={DEFAULT_LANDING_COPY.hero_title}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent text-sm"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">Subjudul Hero</label>
+                      <textarea
+                        value={formData.hero_subtitle}
+                        onChange={(e) => setFormData({ ...formData, hero_subtitle: e.target.value })}
+                        placeholder={DEFAULT_LANDING_COPY.hero_subtitle}
+                        rows={2}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent text-sm resize-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">Label Tombol Utama</label>
+                      <input
+                        type="text"
+                        value={formData.hero_cta_label}
+                        onChange={(e) => setFormData({ ...formData, hero_cta_label: e.target.value })}
+                        placeholder={DEFAULT_LANDING_COPY.hero_cta_label}
+                        className="w-full sm:max-w-xs px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent text-sm"
+                      />
+                    </div>
+
+                    <div className="grid sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-700 mb-1">Judul Produk</label>
+                        <input
+                          type="text"
+                          value={formData.products_title}
+                          onChange={(e) => setFormData({ ...formData, products_title: e.target.value })}
+                          placeholder={DEFAULT_LANDING_COPY.products_title}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-700 mb-1">Subjudul Produk</label>
+                        <input
+                          type="text"
+                          value={formData.products_subtitle}
+                          onChange={(e) => setFormData({ ...formData, products_subtitle: e.target.value })}
+                          placeholder={DEFAULT_LANDING_COPY.products_subtitle}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent text-sm"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
                   <ImageUpload
                     currentImageUrl={formData.logo_url}
-                    onImageUploaded={(url) => setFormData({ ...formData, logo_url: url })}
+                    onImageUploaded={(url) => setFormData((prev) => ({ ...prev, logo_url: url }))}
+                    onUploadingChange={(uploading) =>
+                      setActiveUploadCount((prev) => (uploading ? prev + 1 : Math.max(0, prev - 1)))
+                    }
                     folder="logos"
                     userId={user?.id || ''}
                     label="Logo Bisnis"
                     aspectRatio="square"
                     enableCrop={true}
                   />
+
+                  <div className="border border-gray-200 rounded-xl p-3 sm:p-4 bg-gray-50 space-y-3">
+                    <div>
+                      <h3 className="text-sm sm:text-base font-semibold text-gray-900">Main Banner Carousel</h3>
+                      <p className="text-xs text-gray-500 mt-0.5">Banner tampil di landing page tepat di bawah pencarian. Maksimal 6 gambar.</p>
+                    </div>
+
+                    <div className="grid sm:grid-cols-2 gap-3">
+                      {Array.from({ length: 3 }).map((_, idx) => {
+                        const currentUrl = formData.banner_image_urls[idx] || ''
+                        return (
+                          <div key={idx} className="bg-white rounded-lg border border-gray-200 p-3">
+                            <div className="text-xs font-semibold text-gray-700 mb-2">Banner {idx + 1}</div>
+                            <ImageUpload
+                              currentImageUrl={currentUrl}
+                              onImageUploaded={(url) => {
+                                setFormData((prev) => {
+                                  const next = [...prev.banner_image_urls]
+                                  next[idx] = url
+                                  return { ...prev, banner_image_urls: normalizeBannerImageUrls(next) }
+                                })
+                              }}
+                              onUploadingChange={(uploading) =>
+                                setActiveUploadCount((prev) => (uploading ? prev + 1 : Math.max(0, prev - 1)))
+                              }
+                              folder="products"
+                              userId={user?.id || ''}
+                              label={`Gambar Banner ${idx + 1}`}
+                              aspectRatio="wide"
+                              enableCrop={true}
+                            />
+                            {currentUrl && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setFormData((prev) => {
+                                    const next = [...prev.banner_image_urls]
+                                    next[idx] = ''
+                                    return { ...prev, banner_image_urls: normalizeBannerImageUrls(next) }
+                                  })
+                                }}
+                                className="mt-2 px-2.5 py-1 text-xs font-semibold text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100"
+                              >
+                                Hapus Banner {idx + 1}
+                              </button>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    <div className="bg-white rounded-lg border border-gray-200 p-3">
+                      <label className="block text-xs font-semibold text-gray-700 mb-2">Kecepatan Slide Banner (ms)</label>
+                      <input
+                        type="number"
+                        min={1200}
+                        max={10000}
+                        step={100}
+                        value={formData.banner_autoplay_ms}
+                        onChange={(e) => setFormData({ ...formData, banner_autoplay_ms: clampBannerAutoplayMs(e.target.value) })}
+                        className="w-full sm:max-w-xs px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent text-sm"
+                      />
+                      <p className="text-[11px] text-gray-500 mt-1">Rentang: 1200-10000 ms. Rekomendasi 3000-4000 ms untuk pengalaman halus.</p>
+                    </div>
+                  </div>
 
                   <div>
                     <label className="block font-medium text-gray-900 mb-2 text-sm sm:text-base">
@@ -971,6 +1497,52 @@ export default function LapakPage() {
                     )}
                   </div>
 
+                  <div className="border border-gray-200 rounded-xl p-3 sm:p-4 bg-gray-50">
+                    <div className="flex items-center justify-between gap-3 mb-3">
+                      <div>
+                        <h3 className="text-sm sm:text-base font-semibold text-gray-900">Template WA Update per Status</h3>
+                        <p className="text-xs text-gray-500 mt-0.5">Dipakai saat klik tombol <span className="font-semibold">WA Update</span> di order.</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, wa_status_templates: normalizeWaStatusTemplates(null) })}
+                        className="px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-gray-300 text-gray-700 hover:bg-white"
+                      >
+                        Reset Default
+                      </button>
+                    </div>
+
+                    <div className="space-y-3">
+                      {[
+                        { key: 'pending', label: '1) Order Dibuat' },
+                        { key: 'confirmed', label: '2) Diproses' },
+                        { key: 'preparing', label: '3) Siap Dikirim' },
+                        { key: 'shipped', label: '4) Dalam Pengiriman' },
+                        { key: 'completed', label: '5) Selesai' },
+                      ].map((item) => (
+                        <div key={item.key}>
+                          <label className="block text-xs font-semibold text-gray-700 mb-1">{item.label}</label>
+                          <textarea
+                            value={(formData.wa_status_templates as any)?.[item.key] || ''}
+                            onChange={(e) => {
+                              const nextTemplates = {
+                                ...formData.wa_status_templates,
+                                [item.key]: e.target.value,
+                              }
+                              setFormData({ ...formData, wa_status_templates: normalizeWaStatusTemplates(nextTemplates) })
+                            }}
+                            rows={4}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent resize-y text-xs sm:text-sm bg-white"
+                          />
+                        </div>
+                      ))}
+                    </div>
+
+                    <p className="text-[11px] text-gray-500 mt-3">
+                      Variabel yang bisa dipakai: {'{{buyer_name}}'}, {'{{store_name}}'}, {'{{order_code}}'}, {'{{status_label}}'}, {'{{total}}'}, {'{{tracking_url}}'}, {'{{business_offering}}'}
+                    </p>
+                  </div>
+
                   <div>
                     <label className="block font-medium text-gray-900 mb-2 text-sm sm:text-base">Instagram</label>
                     <input
@@ -999,7 +1571,10 @@ export default function LapakPage() {
                     
                     <ImageUpload
                       currentImageUrl={formData.qris_image_url}
-                      onImageUploaded={(url) => setFormData({ ...formData, qris_image_url: url })}
+                      onImageUploaded={(url) => setFormData((prev) => ({ ...prev, qris_image_url: url }))}
+                      onUploadingChange={(uploading) =>
+                        setActiveUploadCount((prev) => (uploading ? prev + 1 : Math.max(0, prev - 1)))
+                      }
                       folder="qris"
                       userId={user?.id || ''}
                       label="QRIS Code"
@@ -1091,10 +1666,16 @@ export default function LapakPage() {
                   <div className="space-y-3">
                     <button
                       onClick={handleSaveStorefront}
-                      disabled={saving || !formData.store_name || !formData.whatsapp_number}
+                      disabled={saving || activeUploadCount > 0 || !formData.store_name || !formData.whatsapp_number}
                       className="w-full py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
-                      {saving ? 'Menyimpan...' : storefront ? 'Perbarui Lapak' : 'Buat Lapak'}
+                      {saving
+                        ? 'Menyimpan...'
+                        : activeUploadCount > 0
+                          ? 'Menunggu upload selesai...'
+                          : storefront
+                            ? 'Perbarui Lapak'
+                            : 'Buat Lapak'}
                     </button>
 
                     {storefront && (
@@ -1551,6 +2132,19 @@ export default function LapakPage() {
                 </div>
               ) : (
                 <div className="space-y-4 sm:space-y-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div>
+                      <h3 className="text-base sm:text-lg font-semibold text-gray-900">Statistik Lapak</h3>
+                      <p className="text-xs text-gray-500 mt-1">Pantau KPI kunjungan, keranjang, chat WA, dan order.</p>
+                    </div>
+                    <button
+                      onClick={handleResetLapakHistory}
+                      className="px-3 py-2 text-xs font-semibold text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100"
+                    >
+                      Restart Riwayat Statistik
+                    </button>
+                  </div>
+
                   <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4">
                     {/* Pengunjung KPI */}
                     <button
@@ -1638,54 +2232,8 @@ export default function LapakPage() {
                     {recentOrders.length === 0 ? (
                       <div className="text-sm text-gray-500 py-6 text-center">Belum ada order masuk.</div>
                     ) : (
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-xs sm:text-sm">
-                          <thead className="bg-gray-50 text-gray-600">
-                            <tr>
-                              <th className="text-left px-3 py-2 font-medium">Order</th>
-                              <th className="text-left px-3 py-2 font-medium">Pembeli</th>
-                              <th className="text-left px-3 py-2 font-medium">Total</th>
-                              <th className="text-left px-3 py-2 font-medium">Status</th>
-                              <th className="text-left px-3 py-2 font-medium">Aksi Cepat</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-100">
-                            {recentOrders.map((order: any) => (
-                              <tr key={order.id} className="hover:bg-gray-50">
-                                <td className="px-3 py-3">
-                                  <div className="font-semibold text-gray-900">{order.order_code || order.id}</div>
-                                  <div className="text-[11px] text-gray-500">{new Date(order.created_at).toLocaleString('id-ID')}</div>
-                                </td>
-                                <td className="px-3 py-3">
-                                  <div className="text-gray-900">{order.customer_name || 'Pembeli'}</div>
-                                  <div className="text-[11px] text-gray-500">{order.customer_phone || '-'}</div>
-                                </td>
-                                <td className="px-3 py-3 text-gray-900">{formatCurrency(order.total_amount || 0)}</td>
-                                <td className="px-3 py-3">
-                                  <span className="text-[11px] font-semibold px-2 py-1 rounded-full bg-blue-100 text-blue-700">
-                                    {orderStatusLabel[order.status] || order.status}
-                                  </span>
-                                </td>
-                                <td className="px-3 py-3">
-                                  <div className="flex flex-wrap gap-2">
-                                    <button
-                                      onClick={() => openWhatsAppForOrder(order, 'verification')}
-                                      className="px-2.5 py-1 text-[11px] font-semibold bg-green-50 text-green-700 border border-green-200 rounded-md hover:bg-green-100"
-                                    >
-                                      WA Aman
-                                    </button>
-                                    <button
-                                      onClick={() => handleQuickIncomeInput(order)}
-                                      className="px-2.5 py-1 text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md hover:bg-emerald-100"
-                                    >
-                                      Input Pendapatan
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                      <div className="space-y-3">
+                        {recentOrders.map((order: any) => renderOrderCard(order))}
                       </div>
                     )}
                   </div>
@@ -1711,9 +2259,17 @@ export default function LapakPage() {
                         Order akan dikirim ke WhatsApp Anda setelah customer checkout
                       </p>
                     </div>
-                    <span className="bg-blue-100 text-blue-800 text-xs font-semibold px-3 py-1.5 rounded-full whitespace-nowrap self-start sm:self-center">
-                      WhatsApp Integration
-                    </span>
+                    <div className="flex flex-wrap items-center gap-2 self-start sm:self-center">
+                      <span className="bg-blue-100 text-blue-800 text-xs font-semibold px-3 py-1.5 rounded-full whitespace-nowrap">
+                        WhatsApp Integration
+                      </span>
+                      <button
+                        onClick={handleResetLapakHistory}
+                        className="px-3 py-1.5 text-xs font-semibold text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100"
+                      >
+                        Restart Riwayat Order
+                      </button>
+                    </div>
                   </div>
 
                   {/* Info Card */}
@@ -1798,62 +2354,8 @@ export default function LapakPage() {
                     {orders.length === 0 ? (
                       <div className="text-sm text-gray-500 py-6 text-center">Belum ada order masuk.</div>
                     ) : (
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-xs sm:text-sm">
-                          <thead className="bg-gray-50 text-gray-600">
-                            <tr>
-                              <th className="text-left px-3 py-2 font-medium">Order</th>
-                              <th className="text-left px-3 py-2 font-medium">Pembeli</th>
-                              <th className="text-left px-3 py-2 font-medium">Metode</th>
-                              <th className="text-left px-3 py-2 font-medium">Total</th>
-                              <th className="text-left px-3 py-2 font-medium">Status</th>
-                              <th className="text-left px-3 py-2 font-medium">Aksi</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-100">
-                            {orders.map((order: any) => (
-                              <tr key={order.id} className="hover:bg-gray-50">
-                                <td className="px-3 py-3">
-                                  <div className="font-semibold text-gray-900">{order.order_code || order.id}</div>
-                                  <div className="text-[11px] text-gray-500">{new Date(order.created_at).toLocaleString('id-ID')}</div>
-                                </td>
-                                <td className="px-3 py-3">
-                                  <div className="text-gray-900">{order.customer_name || 'Pembeli'}</div>
-                                  <div className="text-[11px] text-gray-500">{order.customer_phone || '-'}</div>
-                                </td>
-                                <td className="px-3 py-3 text-gray-700">{order.payment_method || '-'}</td>
-                                <td className="px-3 py-3 text-gray-900">{formatCurrency(order.total_amount || 0)}</td>
-                                <td className="px-3 py-3">
-                                  <span className="text-[11px] font-semibold px-2 py-1 rounded-full bg-blue-100 text-blue-700">
-                                    {orderStatusLabel[order.status] || order.status}
-                                  </span>
-                                </td>
-                                <td className="px-3 py-3">
-                                  <div className="flex flex-wrap gap-2">
-                                    <button
-                                      onClick={() => openWhatsAppForOrder(order, 'verification')}
-                                      className="px-2.5 py-1 text-[11px] font-semibold bg-green-50 text-green-700 border border-green-200 rounded-md hover:bg-green-100"
-                                    >
-                                      WA Verifikasi
-                                    </button>
-                                    <button
-                                      onClick={() => openWhatsAppForOrder(order, 'update')}
-                                      className="px-2.5 py-1 text-[11px] font-semibold bg-lime-50 text-lime-700 border border-lime-200 rounded-md hover:bg-lime-100"
-                                    >
-                                      WA Update
-                                    </button>
-                                    <button
-                                      onClick={() => handleQuickIncomeInput(order)}
-                                      className="px-2.5 py-1 text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md hover:bg-emerald-100"
-                                    >
-                                      Input Pendapatan
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                      <div className="space-y-3">
+                        {orders.map((order: any) => renderOrderCard(order))}
                       </div>
                     )}
                   </div>
@@ -1866,11 +2368,11 @@ export default function LapakPage() {
                         <h4 className="font-semibold text-amber-900 mb-2 text-sm sm:text-base">Tips Mengelola Order:</h4>
                         <ul className="text-xs sm:text-sm text-amber-800 space-y-1 sm:space-y-1.5">
                           <li>• <strong>Balas cepat</strong> - Customer menghargai respons dalam 5-15 menit</li>
-                          <li>• <strong>Konfirmasi stok</strong> - Pastikan produk masih tersedia sebelum konfirmasi</li>
+                          <li>• <strong>Konfirmasi ketersediaan</strong> - Pastikan {businessTerms.availability} sebelum konfirmasi</li>
                           <li>• <strong>Detail pembayaran</strong> - Kirim QRIS atau rekening bank dengan jelas</li>
                           <li>• <strong>Bukti transfer</strong> - Minta customer kirim screenshot bukti bayar</li>
-                          <li>• <strong>Resi pengiriman</strong> - Kirim nomor resi setelah paket dikirim</li>
-                          <li>• <strong>Follow up</strong> - Tanyakan apakah barang sudah diterima dengan baik</li>
+                          <li>• <strong>Update proses</strong> - Kirim status perkembangan {businessTerms.offering} secara berkala</li>
+                          <li>• <strong>Follow up</strong> - Tanyakan apakah kebutuhan customer sudah terpenuhi dengan baik</li>
                         </ul>
                       </div>
                     </div>
@@ -1913,124 +2415,8 @@ export default function LapakPage() {
                               <div className="text-xs mt-1 opacity-80">{section.desc}</div>
                             </div>
 
-                            {/* Desktop Table */}
-                            <div className="hidden sm:block bg-white border border-gray-200 rounded-lg overflow-hidden">
-                              <table className="w-full text-xs sm:text-sm">
-                                <thead className="bg-gray-50 text-gray-600">
-                                  <tr>
-                                    <th className="text-left px-4 py-2 font-medium">Order</th>
-                                    <th className="text-left px-4 py-2 font-medium">Pembeli</th>
-                                    <th className="text-left px-4 py-2 font-medium">Total</th>
-                                    <th className="text-left px-4 py-2 font-medium">Status</th>
-                                    <th className="text-left px-4 py-2 font-medium">Timeline</th>
-                                    <th className="text-left px-4 py-2 font-medium">Aksi</th>
-                                  </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-100">
-                                  {sectionOrders.map((order: any) => (
-                                    <tr key={order.id} className="hover:bg-gray-50">
-                                      <td className="px-4 py-3">
-                                        <div className="font-semibold text-gray-900">{order.order_code || order.id}</div>
-                                        <div className="text-[11px] text-gray-500">{new Date(order.created_at).toLocaleString('id-ID')}</div>
-                                      </td>
-                                      <td className="px-4 py-3">
-                                        <div className="text-gray-900">{order.customer_name || 'Pembeli'}</div>
-                                        <div className="text-[11px] text-gray-500">{order.customer_phone || '-'}</div>
-                                      </td>
-                                      <td className="px-4 py-3 text-gray-900">
-                                        Rp {Number(order.total_amount || 0).toLocaleString('id-ID')}
-                                      </td>
-                                      <td className="px-4 py-3">
-                                        <span className="text-[11px] font-semibold px-2 py-1 rounded-full bg-blue-100 text-blue-700">
-                                          {orderStatusLabel[order.status] || order.status}
-                                        </span>
-                                      </td>
-                                      <td className="px-4 py-3">
-                                        {renderOrderTimeline(order.status)}
-                                      </td>
-                                      <td className="px-4 py-3">
-                                        <div className="space-y-2">
-                                          {renderOrderActions(order)}
-                                          {order.payment_proof_url && (
-                                            <a
-                                              href={order.payment_proof_url}
-                                              target="_blank"
-                                              rel="noopener noreferrer"
-                                              className="inline-flex items-center text-xs text-blue-600 hover:underline"
-                                            >
-                                              Lihat bukti pembayaran
-                                            </a>
-                                          )}
-                                          {order.public_tracking_code && (
-                                            <a
-                                              href={getTrackingUrl(order)}
-                                              target="_blank"
-                                              rel="noopener noreferrer"
-                                              className="inline-flex items-center text-xs text-blue-600 hover:underline"
-                                            >
-                                              Lihat tracking publik
-                                            </a>
-                                          )}
-                                        </div>
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-
-                            {/* Mobile Cards */}
-                            <div className="sm:hidden space-y-3">
-                              {sectionOrders.map((order: any) => (
-                                <div key={order.id} className="bg-white border border-gray-200 rounded-lg p-4">
-                                  <div className="flex items-center justify-between gap-2">
-                                    <div>
-                                      <div className="font-semibold text-gray-900">{order.order_code || order.id}</div>
-                                      <div className="text-xs text-gray-500">{new Date(order.created_at).toLocaleString('id-ID')}</div>
-                                    </div>
-                                    <span className="text-[11px] font-semibold px-2 py-1 rounded-full bg-blue-100 text-blue-700">
-                                      {orderStatusLabel[order.status] || order.status}
-                                    </span>
-                                  </div>
-
-                                  <div className="mt-3 text-sm text-gray-700 space-y-1">
-                                    <div>👤 {order.customer_name || 'Pembeli'}</div>
-                                    <div>📞 {order.customer_phone || '-'}</div>
-                                    <div>💳 {order.payment_method || '-'}</div>
-                                    <div>💰 Rp {Number(order.total_amount || 0).toLocaleString('id-ID')}</div>
-                                  </div>
-
-                                  <div className="mt-3">{renderOrderTimeline(order.status)}</div>
-
-                                  <div className="mt-3 space-y-2">
-                                    {order.payment_proof_url && (
-                                      <a
-                                        href={order.payment_proof_url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="inline-flex items-center text-xs text-blue-600 hover:underline"
-                                      >
-                                        Lihat bukti pembayaran
-                                      </a>
-                                    )}
-
-                                    {order.public_tracking_code && (
-                                      <div>
-                                        <a
-                                          href={getTrackingUrl(order)}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="inline-flex items-center text-xs text-blue-600 hover:underline"
-                                        >
-                                          Lihat tracking publik
-                                        </a>
-                                      </div>
-                                    )}
-
-                                    {renderOrderActions(order)}
-                                  </div>
-                                </div>
-                              ))}
+                            <div className="space-y-3">
+                              {sectionOrders.map((order: any) => renderOrderCard(order))}
                             </div>
                           </div>
                         )
@@ -2054,9 +2440,9 @@ export default function LapakPage() {
         description="Total kunjungan ke lapak dalam 30 hari terakhir"
         color="blue"
         detailItems={[
-          { label: 'Hari Ini', value: 0, icon: '📅' },
-          { label: '7 Hari Terakhir', value: 0, icon: '📊' },
-          { label: 'Unique Visitors', value: 0, icon: '👤' },
+          { label: 'Hari Ini', value: analytics?.page_views_today || 0, icon: '📅' },
+          { label: '7 Hari Terakhir', value: analytics?.page_views_7d || 0, icon: '📊' },
+          { label: 'Unique Visitors (30 Hari)', value: analytics?.unique_visitors_30d || 0, icon: '👤' },
         ]}
       />
 
@@ -2069,6 +2455,7 @@ export default function LapakPage() {
         description="Jumlah produk yang ditambahkan ke keranjang"
         color="green"
         detailItems={[
+          { label: 'Hari Ini', value: analytics?.cart_adds_today || 0, icon: '📅' },
           { label: 'Conversion Rate', value: `${analytics?.page_views > 0 ? Math.round((analytics?.cart_adds / analytics?.page_views) * 100) : 0}%`, icon: '📈' },
           { label: 'Avg. per Visit', value: (analytics?.cart_adds / (analytics?.page_views || 1)).toFixed(1), icon: '🎯' },
         ]}
@@ -2083,6 +2470,7 @@ export default function LapakPage() {
         description="Jumlah customer yang klik tombol WhatsApp"
         color="purple"
         detailItems={[
+          { label: 'Hari Ini', value: analytics?.whatsapp_clicks_today || 0, icon: '📅' },
           { label: 'From Checkout', value: orderStats?.total_orders || 0, icon: '✅' },
           { label: 'Direct Chat', value: (analytics?.whatsapp_clicks || 0) - (orderStats?.total_orders || 0), icon: '💭' },
           { label: 'Response Rate', value: '~85%', icon: '⚡' },

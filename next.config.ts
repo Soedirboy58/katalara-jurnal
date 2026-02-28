@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 import path from "path";
 import withPWA from "next-pwa";
+import runtimeCaching from "next-pwa/cache";
 
 const nextConfig: NextConfig = {
   // This repo sits inside a larger folder that may contain other lockfiles.
@@ -35,6 +36,17 @@ const withPWAConfig = withPWA({
   register: true,
   skipWaiting: true,
   disable: process.env.NODE_ENV === 'development',
+  runtimeCaching: [
+    {
+      urlPattern: /^https?.*\/api\/.*$/i,
+      handler: 'NetworkOnly',
+      method: 'GET',
+      options: {
+        cacheName: 'api-no-store',
+      },
+    },
+    ...runtimeCaching,
+  ],
 })
 
 export default withPWAConfig(nextConfig);

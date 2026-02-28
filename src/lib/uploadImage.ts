@@ -7,15 +7,27 @@ const getBucketCandidates = (folder: 'products' | 'logos' | 'qris') => {
   const envQris = process.env.NEXT_PUBLIC_LAPAK_QRIS_BUCKET;
   const envProducts = process.env.NEXT_PUBLIC_LAPAK_PRODUCTS_BUCKET;
 
+  const unique = (items: Array<string | undefined>) => {
+    const seen = new Set<string>();
+    const result: string[] = [];
+    for (const item of items) {
+      const value = String(item || '').trim();
+      if (!value || seen.has(value)) continue;
+      seen.add(value);
+      result.push(value);
+    }
+    return result;
+  }
+
   if (folder === 'logos') {
-    return [envLogo, 'Logo Binis', 'Logo Bisnis', DEFAULT_BUCKET].filter(Boolean) as string[];
+    return unique([envLogo, 'Logo Bisnis', DEFAULT_BUCKET]);
   }
 
   if (folder === 'qris') {
-    return [envQris, 'QRIS DB', DEFAULT_BUCKET].filter(Boolean) as string[];
+    return unique([envQris, 'QRIS DB', DEFAULT_BUCKET]);
   }
 
-  return [envProducts, 'products', DEFAULT_BUCKET].filter(Boolean) as string[];
+  return unique([envProducts, 'products', DEFAULT_BUCKET]);
 };
 
 const isBucketNotFound = (message?: string) => {
@@ -77,7 +89,11 @@ export async function uploadImage(
         });
 
       if (error) {
-        console.error('❌ Supabase upload error:', error);
+        if (isBucketNotFound(error.message)) {
+          console.warn('⚠️ Bucket tidak ditemukan, coba bucket berikutnya:', bucketName);
+        } else {
+          console.error('❌ Supabase upload error:', error);
+        }
         lastError = error.message;
 
         const message = (error.message || '').toLowerCase();
@@ -130,17 +146,18 @@ export async function deleteImage(imageUrl: string): Promise<boolean> {
 
     // Extract path from URL
     const url = new URL(imageUrl);
-    const pathMatch = url.pathname.match(/\/storage\/v1\/object\/public\/[^/]+\/(.+)/);
+    const pathMatch = url.pathname.match(/\/storage\/v1\/object\/public\/([^/]+)\/(.+)/);
     
     if (!pathMatch) {
       console.error('Invalid image URL format');
       return false;
     }
 
-    const filePath = pathMatch[1];
+    const bucketName = decodeURIComponent(pathMatch[1]);
+    const filePath = pathMatch[2];
 
     const { error } = await supabase.storage
-      .from(BUCKET_NAME)
+      .from(bucketName)
       .remove([filePath]);
 
     if (error) {

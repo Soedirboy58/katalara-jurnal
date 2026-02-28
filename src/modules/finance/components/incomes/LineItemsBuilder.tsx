@@ -449,7 +449,10 @@ export function LineItemsBuilder({
                 </button>
 
                 {!isMobile && showDropdown && (
-                  <div className="absolute z-50 w-full mt-2 bg-white border border-gray-200 rounded-2xl shadow-2xl ring-1 ring-black/5 max-h-72 overflow-y-auto overscroll-contain">
+                  <div
+                    className="absolute z-50 w-full mt-2 bg-white border border-gray-200 rounded-2xl shadow-2xl ring-1 ring-black/5 max-h-72 overflow-y-scroll overscroll-contain"
+                    style={{ WebkitOverflowScrolling: 'touch' }}
+                  >
                     {loadingProducts ? (
                       <div className="p-3 text-center text-sm text-gray-500">
                         <div className="animate-spin w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full mx-auto"></div>
@@ -541,7 +544,7 @@ export function LineItemsBuilder({
                   type="button"
                 />
 
-                <div className="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-2xl border-t border-gray-200 max-h-[80vh] overflow-hidden">
+                <div className="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-2xl border-t border-gray-200 h-[80vh] overflow-hidden flex flex-col">
                   <div className="px-4 pt-4 pb-3 border-b border-gray-100">
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
@@ -570,7 +573,10 @@ export function LineItemsBuilder({
                     </div>
                   </div>
 
-                  <div className="px-4 py-3 overflow-y-auto max-h-[calc(80vh-104px)]">
+                  <div
+                    className="px-4 py-3 overflow-y-scroll overscroll-contain flex-1 touch-pan-y"
+                    style={{ WebkitOverflowScrolling: 'touch', minHeight: 0 }}
+                  >
                     {loadingProducts ? (
                       <div className="py-8 text-center text-sm text-gray-500">Memuat produk...</div>
                     ) : (
@@ -599,7 +605,7 @@ export function LineItemsBuilder({
                           {pickerProducts.length === 0 ? (
                             <div className="py-8 text-center text-sm text-gray-500">Tidak ada item</div>
                           ) : (
-                            pickerProducts.slice(0, 50).map((p: any) => (
+                            pickerProducts.map((p: any) => (
                               <MobileProductRow
                                 key={p.id}
                                 p={p}
@@ -610,9 +616,6 @@ export function LineItemsBuilder({
                             ))
                           )}
                         </div>
-                        {pickerProducts.length > 50 && (
-                          <p className="mt-3 text-center text-xs text-gray-500">Perkecil pencarian untuk melihat lebih banyak</p>
-                        )}
                       </>
                     )}
                   </div>

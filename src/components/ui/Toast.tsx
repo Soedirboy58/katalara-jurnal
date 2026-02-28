@@ -33,7 +33,7 @@ function ToastItem({ type, message, onClose }: ToastProps) {
 
   return (
     <div className={cn(
-      'flex items-center gap-3 px-4 py-3 rounded-lg border-l-4 shadow-lg animate-slide-in-right',
+      'w-full flex items-center gap-3 px-4 py-3 rounded-lg border-l-4 shadow-lg animate-slide-in-right',
       colors[type]
     )}>
       <span className="text-xl">{icons[type]}</span>
@@ -64,7 +64,7 @@ export function ToastContainer() {
   }
 
   return (
-    <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none">
+    <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 pointer-events-none w-[calc(100%-2rem)] max-w-md">
       {toasts.map(toast => (
         <div key={toast.id} className="pointer-events-auto">
           <ToastItem

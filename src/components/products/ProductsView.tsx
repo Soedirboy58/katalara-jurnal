@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useProducts } from '@/hooks/useProducts'
 import { Button } from '@/components/ui/Button'
+import { Modal } from '@/components/ui/Modal'
 import ConfirmModal from '@/components/ui/ConfirmModal'
 import { showToast, ToastContainer } from '@/components/ui/Toast'
 import { useConfirm } from '@/hooks/useConfirm'
@@ -188,27 +189,31 @@ export function ProductsView() {
   }
 
   const handleAdjustStock = (product: Product) => {
-    // Minimal UX: prompt-based stock adjust until StockAdjustModal is re-enabled
-    const raw = prompt(
-      `Penyesuaian stok untuk: ${product.name}\n\nMasukkan perubahan stok (contoh: 5 atau -3):`,
-      '0'
-    )
-    if (raw === null) return
-    const qtyChange = Number(raw)
+    setStockProduct(product)
+    setStockChange('')
+    setStockNotes('Penyesuaian stok manual')
+    setIsStockModalOpen(true)
+  }
+
+  const handleSubmitStockAdjust = async () => {
+    if (!stockProduct) return
+    const qtyChange = Number(stockChange)
     if (!Number.isFinite(qtyChange) || qtyChange === 0) {
-      alert('Perubahan stok tidak valid atau 0')
+      showToast('Perubahan stok tidak valid atau 0', 'warning')
       return
     }
-    const notes = prompt('Catatan (opsional):', 'Penyesuaian stok manual') || undefined
 
-    ;(async () => {
-      const { error } = await adjustStock(product.id, qtyChange, notes)
-      if (error) {
-        alert('Gagal menyesuaikan stok: ' + error)
-        return
-      }
-      alert('✅ Stok berhasil disesuaikan')
-    })()
+    const notes = stockNotes?.trim() || undefined
+    const { error } = await adjustStock(stockProduct.id, qtyChange, notes)
+    if (error) {
+      showToast(`Gagal menyesuaikan stok: ${error}`, 'error')
+      return
+    }
+
+    showToast('Stok berhasil disesuaikan', 'success')
+    setIsStockModalOpen(false)
+    setStockProduct(null)
+    setStockChange('')
   }
 
   const handleDelete = async (product: Product) => {
@@ -544,75 +549,59 @@ export function ProductsView() {
         type={confirmState.options.type}
       />
 
-      {/* Stock Adjust Modal */}
-      {isStockModalOpen && stockProduct && (
-        <div className="fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full">
-            <div className="p-5 border-b">
-              <h3 className="text-lg font-bold text-gray-900">Penyesuaian Stok</h3>
-              <p className="text-xs text-gray-600 mt-1">{stockProduct.name}</p>
-            </div>
+      <Modal
+        isOpen={isStockModalOpen}
+        onClose={() => {
+          setIsStockModalOpen(false)
+          setStockProduct(null)
+          setStockChange('')
+        }}
+        title="Penyesuaian Stok"
+        size="sm"
+      >
+        <div className="space-y-4">
+          <div>
+            <p className="text-sm text-gray-600">Produk</p>
+            <p className="text-base font-semibold text-gray-900">
+              {stockProduct?.name || '-'}
+            </p>
+          </div>
 
-            <div className="p-5 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Perubahan stok</label>
-                <input
-                  type="number"
-                  value={stockChange}
-                  onChange={(e) => setStockChange(e.target.value)}
-                  placeholder="Contoh: 5 atau -3"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-                <p className="text-xs text-gray-500 mt-1">Gunakan angka negatif untuk pengurangan.</p>
-              </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Perubahan stok
+            </label>
+            <input
+              type="number"
+              inputMode="numeric"
+              value={stockChange}
+              onChange={(event) => setStockChange(event.target.value)}
+              placeholder="Contoh: 5 atau -3"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+            />
+            <p className="text-xs text-gray-500 mt-1">Gunakan nilai negatif untuk mengurangi stok.</p>
+          </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Catatan (opsional)</label>
-                <input
-                  type="text"
-                  value={stockNotes}
-                  onChange={(e) => setStockNotes(e.target.value)}
-                  placeholder="Catatan penyesuaian"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
-            </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Catatan</label>
+            <textarea
+              value={stockNotes}
+              onChange={(event) => setStockNotes(event.target.value)}
+              rows={2}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent resize-none"
+            />
+          </div>
 
-            <div className="border-t p-4 flex gap-3">
-              <button
-                onClick={() => {
-                  setIsStockModalOpen(false)
-                  setStockProduct(null)
-                }}
-                className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
-              >
-                Batal
-              </button>
-              <button
-                onClick={async () => {
-                  const qtyChange = Number(stockChange)
-                  if (!Number.isFinite(qtyChange) || qtyChange === 0) {
-                    showToast('Perubahan stok tidak valid atau 0', 'warning')
-                    return
-                  }
-                  const notes = stockNotes?.trim() || undefined
-                  const { error } = await adjustStock(stockProduct.id, qtyChange, notes)
-                  if (error) {
-                    showToast('Gagal menyesuaikan stok: ' + error, 'error')
-                    return
-                  }
-                  showToast('Stok berhasil disesuaikan', 'success')
-                  setIsStockModalOpen(false)
-                  setStockProduct(null)
-                }}
-                className="flex-1 px-4 py-2.5 text-white rounded-lg transition-colors font-medium bg-blue-600 hover:bg-blue-700"
-              >
-                Simpan
-              </button>
-            </div>
+          <div className="flex justify-end gap-3 pt-2">
+            <Button variant="secondary" onClick={() => setIsStockModalOpen(false)}>
+              Batal
+            </Button>
+            <Button onClick={handleSubmitStockAdjust}>
+              Simpan
+            </Button>
           </div>
         </div>
-      )}
+      </Modal>
 
       <ToastContainer />
     </div>

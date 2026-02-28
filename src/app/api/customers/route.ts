@@ -49,6 +49,69 @@ const toNumber = (v: any): number => {
   return Number.isFinite(n) ? n : 0
 }
 
+const isMissingColumnError = (error: any) => {
+  const code = (error?.code || error?.error_code || '').toString().toUpperCase()
+  const msg = (error?.message || error?.details || '').toString().toLowerCase()
+  return code === '42703' || msg.includes('column') || msg.includes('does not exist')
+}
+
+const buildCustomerAddress = (payload: {
+  address?: string
+  address_detail?: string
+  rt_rw?: string
+  landmark?: string
+  desa_name?: string
+  kecamatan_name?: string
+  kabupaten_name?: string
+  province_name?: string
+}) => {
+  const explicit = (payload.address || '').trim()
+  if (explicit) return explicit
+
+  const detail = (payload.address_detail || '').trim()
+  const rtRw = (payload.rt_rw || '').trim()
+  const landmark = (payload.landmark || '').trim()
+  const desa = (payload.desa_name || '').trim()
+  const kecamatan = (payload.kecamatan_name || '').trim()
+  const kabupaten = (payload.kabupaten_name || '').trim()
+  const provinsi = (payload.province_name || '').trim()
+
+  const addressParts = [detail]
+  if (rtRw) addressParts.push(`RT/RW ${rtRw}`)
+  if (landmark) addressParts.push(`Patokan: ${landmark}`)
+  const regionParts = [desa, kecamatan, kabupaten, provinsi].filter(Boolean)
+  if (regionParts.length) addressParts.push(regionParts.join(', '))
+  return addressParts.filter(Boolean).join(', ')
+}
+
+const runMutationWithFallback = async <T>(
+  execute: (payload: Record<string, any>) => Promise<{ data: T | null; error: any }>,
+  payload: Record<string, any>
+) => {
+  const working = { ...payload }
+  let lastError: any = null
+
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const result = await execute(working)
+    if (!result.error) return { data: result.data, error: null }
+
+    lastError = result.error
+    if (!isMissingColumnError(result.error)) break
+
+    const text = `${String(result.error?.message || '')} ${String(result.error?.details || '')}`
+    const match = text.match(/'([a-zA-Z0-9_]+)'\s+column|column\s+['"]?([a-zA-Z0-9_]+)['"]?\s+does not exist|Could not find the ['"]?([a-zA-Z0-9_]+)['"]? column/i)
+    const col = match?.[1] || match?.[2] || match?.[3]
+    if (!col) break
+    if (Object.prototype.hasOwnProperty.call(working, col)) {
+      delete working[col]
+      continue
+    }
+    break
+  }
+
+  return { data: null as T | null, error: lastError }
+}
+
 const maxIsoDate = (a?: string | null, b?: string | null) => {
   const aa = (a || '').toString()
   const bb = (b || '').toString()
@@ -262,81 +325,121 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST - Create new customer
+// POST - Create customer manually
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
     const { data: { user }, error: authError } = await supabase.auth.getUser()
 
     if (authError || !user) {
-      return NextResponse.json(
-        { success: false, error: 'Unauthorized' },
-        { status: 401 }
-      )
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const body = await request.json().catch(() => null as any)
+    const name = String(body?.name || '').trim()
+    if (!name) {
+      return NextResponse.json({ success: false, error: 'Nama pelanggan wajib diisi' }, { status: 400 })
+    }
+
+    const userCol = await getCustomersUserColumn(supabase, user.id)
+    const address = buildCustomerAddress({
+      address: body?.address,
+      address_detail: body?.address_detail,
+      rt_rw: body?.rt_rw,
+      landmark: body?.landmark,
+      desa_name: body?.desa_name,
+      kecamatan_name: body?.kecamatan_name,
+      kabupaten_name: body?.kabupaten_name,
+      province_name: body?.province_name,
+    })
+
+    const payload: Record<string, any> = {
+      [userCol]: user.id,
+      name,
+      phone: body?.phone ? String(body.phone).trim() : null,
+      email: body?.email ? String(body.email).trim() : null,
+      address: address || null,
+      province_id: body?.province_id ? String(body.province_id).trim() : null,
+      province_name: body?.province_name ? String(body.province_name).trim() : null,
+      kabupaten_id: body?.kabupaten_id ? String(body.kabupaten_id).trim() : null,
+      kabupaten_name: body?.kabupaten_name ? String(body.kabupaten_name).trim() : null,
+      kecamatan_id: body?.kecamatan_id ? String(body.kecamatan_id).trim() : null,
+      kecamatan_name: body?.kecamatan_name ? String(body.kecamatan_name).trim() : null,
+      desa_id: body?.desa_id ? String(body.desa_id).trim() : null,
+      desa_name: body?.desa_name ? String(body.desa_name).trim() : null,
+      address_detail: body?.address_detail ? String(body.address_detail).trim() : null,
+      rt_rw: body?.rt_rw ? String(body.rt_rw).trim() : null,
+      landmark: body?.landmark ? String(body.landmark).trim() : null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }
+
+    const result = await runMutationWithFallback(
+      (data) => supabase.from('customers').insert(data).select().maybeSingle(),
+      payload
+    )
+
+    if (result.error) {
+      console.error('Error creating customer:', result.error)
+      return NextResponse.json({ success: false, error: 'Gagal menambahkan pelanggan' }, { status: 500 })
+    }
+
+    return NextResponse.json({ success: true, data: result.data })
+  } catch (error: any) {
+    console.error('Unexpected error:', error)
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 })
+  }
+}
+
+// DELETE - Remove customer
+export async function DELETE(request: NextRequest) {
+  try {
+    const supabase = await createClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { searchParams } = new URL(request.url)
+    const customerId = searchParams.get('id')
+
+    if (!customerId) {
+      return NextResponse.json({ success: false, error: 'Customer ID is required' }, { status: 400 })
     }
 
     const userCol = await getCustomersUserColumn(supabase, user.id)
 
-    const body = await request.json()
-    
-    // Validation
-    if (!body.name || !body.name.trim()) {
-      return NextResponse.json(
-        { success: false, error: 'Nama pelanggan wajib diisi' },
-        { status: 400 }
-      )
-    }
-
-    // Check duplicate name (optional - can be removed if you want to allow same names)
-    const { data: existing } = await supabase
+    const softDelete = await supabase
       .from('customers')
-      .select('id')
+      .update({ is_active: false, updated_at: new Date().toISOString() })
+      .eq('id', customerId)
       .eq(userCol, user.id)
-      .ilike('name', body.name.trim())
-      .maybeSingle()
 
-    if (existing) {
-      return NextResponse.json(
-        { success: false, error: 'Pelanggan dengan nama ini sudah ada' },
-        { status: 400 }
-      )
+    if (softDelete.error && isMissingColumnError(softDelete.error)) {
+      const hardDelete = await supabase
+        .from('customers')
+        .delete()
+        .eq('id', customerId)
+        .eq(userCol, user.id)
+
+      if (hardDelete.error) {
+        console.error('Error deleting customer:', hardDelete.error)
+        return NextResponse.json({ success: false, error: 'Gagal menghapus pelanggan' }, { status: 500 })
+      }
+
+      return NextResponse.json({ success: true })
     }
 
-    const customerData = {
-      [userCol]: user.id,
-      name: body.name.trim(),
-      phone: body.phone || null,
-      email: body.email || null,
-      address: body.address || null,
-      notes: body.notes || null,
-      is_active: true
+    if (softDelete.error) {
+      console.error('Error deleting customer:', softDelete.error)
+      return NextResponse.json({ success: false, error: 'Gagal menghapus pelanggan' }, { status: 500 })
     }
 
-    const { data, error } = await supabase
-      .from('customers')
-      .insert(customerData)
-      .select()
-      .single()
-
-    if (error) {
-      console.error('Error creating customer:', error)
-      return NextResponse.json(
-        { success: false, error: error.message },
-        { status: 500 }
-      )
-    }
-
-    return NextResponse.json({
-      success: true,
-      data,
-      message: 'Pelanggan berhasil ditambahkan'
-    })
+    return NextResponse.json({ success: true })
   } catch (error: any) {
-    console.error('POST /api/customers error:', error)
-    return NextResponse.json(
-      { success: false, error: error.message },
-      { status: 500 }
-    )
+    console.error('Unexpected error:', error)
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 })
   }
 }
 
@@ -405,55 +508,3 @@ export async function PATCH(request: NextRequest) {
   }
 }
 
-// DELETE - Soft delete customer (set is_active = false)
-export async function DELETE(request: NextRequest) {
-  try {
-    const supabase = await createClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-
-    if (authError || !user) {
-      return NextResponse.json(
-        { success: false, error: 'Unauthorized' },
-        { status: 401 }
-      )
-    }
-
-    const userCol = await getCustomersUserColumn(supabase, user.id)
-
-    const { searchParams } = new URL(request.url)
-    const id = searchParams.get('id')
-    
-    if (!id) {
-      return NextResponse.json(
-        { success: false, error: 'Customer ID required' },
-        { status: 400 }
-      )
-    }
-
-    // Soft delete
-    const { error } = await supabase
-      .from('customers')
-      .update({ is_active: false, updated_at: new Date().toISOString() })
-      .eq('id', id)
-      .eq(userCol, user.id)
-
-    if (error) {
-      console.error('Error deleting customer:', error)
-      return NextResponse.json(
-        { success: false, error: error.message },
-        { status: 500 }
-      )
-    }
-
-    return NextResponse.json({
-      success: true,
-      message: 'Pelanggan berhasil dihapus'
-    })
-  } catch (error: any) {
-    console.error('DELETE /api/customers error:', error)
-    return NextResponse.json(
-      { success: false, error: error.message },
-      { status: 500 }
-    )
-  }
-}
