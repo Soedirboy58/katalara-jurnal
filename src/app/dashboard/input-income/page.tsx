@@ -52,6 +52,7 @@ export default function InputIncomePage() {
   const [toast, setToast] = useState<{ show: boolean; type: 'success' | 'error' | 'warning'; message: string }>(
     { show: false, type: 'success', message: '' }
   )
+  const { confirm, confirmState, handleConfirm, handleCancel } = useConfirm()
 
   const showToast = (type: 'success' | 'error' | 'warning', message: string) => {
     setToast({ show: true, type, message })
@@ -249,7 +250,13 @@ export default function InputIncomePage() {
   }
 
   const handleDelete = async (incomeId: string) => {
-    const confirmed = confirm('Yakin ingin menghapus transaksi ini?\n\nStok produk akan dikembalikan (rollback).')
+    const confirmed = await confirm({
+      title: 'Hapus transaksi',
+      message: 'Yakin ingin menghapus transaksi ini?\n\nStok produk akan dikembalikan (rollback).',
+      confirmText: 'Hapus',
+      cancelText: 'Batal',
+      type: 'warning'
+    })
     if (!confirmed) return
 
     const result = await deleteIncome(incomeId)
@@ -263,7 +270,13 @@ export default function InputIncomePage() {
   }
 
   const handleBulkDelete = async (ids: string[]) => {
-    const confirmed = confirm(`Hapus ${ids.length} transaksi yang dipilih?\n\nStok produk akan dikembalikan (rollback).`)
+    const confirmed = await confirm({
+      title: 'Hapus transaksi',
+      message: `Hapus ${ids.length} transaksi yang dipilih?\n\nStok produk akan dikembalikan (rollback).`,
+      confirmText: 'Hapus',
+      cancelText: 'Batal',
+      type: 'warning'
+    })
     if (!confirmed) return
 
     // Prefer bulk delete endpoint (if available)
@@ -447,6 +460,17 @@ export default function InputIncomePage() {
         onClose={() => setPreviewModalOpen(false)}
         transactionId={selectedTransactionId}
         transactionType="income"
+      />
+
+      <ConfirmModal
+        isOpen={confirmState.isOpen}
+        title={confirmState.title}
+        message={confirmState.message}
+        confirmText={confirmState.confirmText}
+        cancelText={confirmState.cancelText}
+        type={confirmState.type}
+        onConfirm={handleConfirm}
+        onCancel={handleCancel}
       />
     </div>
   )
