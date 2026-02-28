@@ -702,12 +702,6 @@ export async function POST(
       console.error('Customer upsert error:', error)
     }
 
-    try {
-      await syncStockAfterOrder(supabase, order_items, (order as any).order_code || responseTrackingCode)
-    } catch (error) {
-      console.error('Stock sync error:', error)
-    }
-
     return NextResponse.json({
       success: true,
       order_id: order.id,
@@ -908,7 +902,24 @@ export async function PATCH(
       );
     }
 
-    if (normalizedStatus === 'canceled' && currentOrder?.status !== 'canceled') {
+    if (normalizedStatus === 'confirmed' && currentOrder?.status !== 'confirmed') {
+      try {
+        await syncStockAfterOrder(
+          supabase,
+          currentOrder?.order_items,
+          currentOrder?.order_code || order_id
+        )
+      } catch (error) {
+        console.error('Stock sync error:', error)
+      }
+    }
+
+    const shouldRestore =
+      normalizedStatus === 'canceled' &&
+      currentOrder?.status !== 'canceled' &&
+      currentOrder?.status !== 'pending'
+
+    if (shouldRestore) {
       try {
         await restoreStockAfterCancel(
           supabase,
