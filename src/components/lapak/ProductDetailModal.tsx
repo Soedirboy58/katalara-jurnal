@@ -264,8 +264,7 @@ export default function ProductDetailModal({
   }, [isShareOpen, product.id, themeColor, storeName, storeLogoUrl, storefrontSlug]);
 
   const storefrontUrl = buildStorefrontUrl();
-  const shareText = `${product.name} - ${storeName}${storefrontUrl ? `\n${storefrontUrl}` : ''}`;
-  const waShareUrl = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
+  const shareText = `${product.name} - ${storeName}`;
   const fbShareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(storefrontUrl)}`;
 
   const handleDownloadShareImage = () => {
@@ -330,6 +329,40 @@ export default function ProductDetailModal({
 
     handleDownloadShareImage();
     setShareStatus('Perangkat belum mendukung share langsung. Gambar diunduh untuk diunggah ke Instagram.');
+  };
+
+  const handleWhatsappShare = async () => {
+    if (!shareImageUrl) {
+      setShareStatus('Gambar belum siap. Coba beberapa saat lagi.');
+      return;
+    }
+
+    const safeName = product.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    const canShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
+
+    if (canShare) {
+      try {
+        const file = await dataUrlToFile(shareImageUrl, `${safeName || 'produk'}-share.png`);
+        const payload = {
+          files: [file],
+          title: product.name,
+          text: shareText,
+        } as ShareData;
+
+        if (navigator.canShare && !navigator.canShare(payload)) {
+          throw new Error('unsupported');
+        }
+
+        await navigator.share(payload);
+        setShareStatus('Silakan pilih WhatsApp untuk membagikan gambar, lalu tempelkan tautan lapak.');
+        return;
+      } catch {
+        // Fall through to download
+      }
+    }
+
+    handleDownloadShareImage();
+    setShareStatus('Perangkat belum mendukung share langsung. Gambar diunduh untuk diunggah ke status WhatsApp, lalu tempelkan tautan lapak.');
   };
 
   const handleQuantityChange = (delta: number) => {
@@ -633,15 +666,14 @@ export default function ProductDetailModal({
               </div>
 
               <div className="grid grid-cols-3 gap-3">
-                <a
-                  href={waShareUrl}
-                  target="_blank"
-                  rel="noreferrer"
+                <button
+                  type="button"
+                  onClick={handleWhatsappShare}
                   className="h-12 rounded-lg border border-emerald-200 text-emerald-700 hover:bg-emerald-50 flex items-center justify-center"
                   aria-label="Bagikan ke WhatsApp"
                 >
                   <span className="w-8 h-8 rounded-full bg-emerald-500 text-white text-[11px] font-bold flex items-center justify-center">WA</span>
-                </a>
+                </button>
                 <button
                   type="button"
                   onClick={handleInstagramShare}
