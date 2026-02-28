@@ -42,6 +42,7 @@ export function ProductsView() {
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(10)
   const [lapakFilter, setLapakFilter] = useState<LapakFilter>('all')
+  const [syncAllLapak, setSyncAllLapak] = useState(true)
   const [syncedProducts, setSyncedProducts] = useState<Record<string, boolean>>({})
   const [syncingProducts, setSyncingProducts] = useState<Record<string, boolean>>({})
   const [syncStatusLoading, setSyncStatusLoading] = useState(false)
@@ -155,10 +156,13 @@ export function ProductsView() {
     setSyncingProducts((prev) => ({ ...prev, [productId]: true }))
     try {
       const storefrontId = getActiveStorefrontId()
-      const res = await fetch('/api/lapak/sync-product', {
+      const url = syncAllLapak ? '/api/lapak/sync-product/bulk-sync' : '/api/lapak/sync-product'
+      const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ productId, storefrontId })
+        body: syncAllLapak
+          ? JSON.stringify({ productIds: [productId] })
+          : JSON.stringify({ productId, storefrontId })
       })
       const data = await res.json().catch(() => null)
       if (!res.ok) {
@@ -179,6 +183,22 @@ export function ProductsView() {
     setSyncingProducts((prev) => ({ ...prev, [productId]: true }))
     try {
       const storefrontId = getActiveStorefrontId()
+      if (syncAllLapak) {
+        const res = await fetch('/api/lapak/sync-product/bulk-delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ productIds: [productId], productNames: product?.name ? [product.name] : [] })
+        })
+        const data = await res.json().catch(() => null)
+        if (!res.ok) {
+          showToast(data?.error || 'Gagal hapus dari Lapak', 'error')
+          return
+        }
+        setSyncedProducts((prev) => ({ ...prev, [productId]: false }))
+        showToast(data?.message || 'Produk dihapus dari Lapak', 'success')
+        return
+      }
+
       const nameParam = product?.name ? `&productName=${encodeURIComponent(product.name)}` : ''
       const res = await fetch(`/api/lapak/sync-product?productId=${encodeURIComponent(productId)}${nameParam}${storefrontId ? `&storefrontId=${storefrontId}` : ''}`,
         { method: 'DELETE' }
@@ -203,6 +223,24 @@ export function ProductsView() {
       return
     }
 
+    if (syncAllLapak) {
+      const res = await fetch('/api/lapak/sync-product/bulk-sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productIds: selectedProducts })
+      })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) {
+        showToast(data?.error || 'Gagal sync ke Lapak', 'error')
+        return
+      }
+      const nextMap = { ...syncedProducts }
+      for (const id of selectedProducts) nextMap[id] = true
+      setSyncedProducts(nextMap)
+      showToast(data?.message || 'Produk berhasil disinkronkan', 'success')
+      return
+    }
+
     for (const id of selectedProducts) {
       await handleSyncToLapak(id)
     }
@@ -223,7 +261,7 @@ export function ProductsView() {
       const res = await fetch('/api/lapak/sync-product/bulk-delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ productIds, productNames, storefrontId })
+        body: JSON.stringify({ productIds, productNames, storefrontId: syncAllLapak ? '' : storefrontId })
       })
       const data = await res.json().catch(() => null)
       if (!res.ok) {
