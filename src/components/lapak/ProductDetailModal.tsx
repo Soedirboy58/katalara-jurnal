@@ -562,7 +562,7 @@ export default function ProductDetailModal({
                 </svg>
               </button>
             </div>
-            <div className="p-5 space-y-4">
+            <div className="p-5 space-y-4 max-h-[80vh] overflow-y-auto">
               <div className="aspect-[9/16] bg-gray-100 rounded-xl overflow-hidden flex items-center justify-center">
                 {shareImageUrl ? (
                   <img src={shareImageUrl} alt="Preview share" className="w-full h-full object-cover" />
@@ -573,32 +573,32 @@ export default function ProductDetailModal({
                 )}
               </div>
 
-              <div className="grid grid-cols-3 gap-2 text-sm">
+              <div className="grid grid-cols-3 gap-3">
                 <a
                   href={waShareUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="px-3 py-2 rounded-lg border border-emerald-200 text-emerald-700 font-semibold hover:bg-emerald-50 flex items-center justify-center gap-2"
+                  className="h-12 rounded-lg border border-emerald-200 text-emerald-700 hover:bg-emerald-50 flex items-center justify-center"
+                  aria-label="Bagikan ke WhatsApp"
                 >
-                  <span className="w-7 h-7 rounded-full bg-emerald-500 text-white text-[11px] font-bold flex items-center justify-center">WA</span>
-                  WhatsApp
+                  <span className="w-8 h-8 rounded-full bg-emerald-500 text-white text-[11px] font-bold flex items-center justify-center">WA</span>
                 </a>
                 <button
                   type="button"
                   onClick={handleInstagramShare}
-                  className="px-3 py-2 rounded-lg border border-pink-200 text-pink-600 font-semibold hover:bg-pink-50 flex items-center justify-center gap-2"
+                  className="h-12 rounded-lg border border-pink-200 text-pink-600 hover:bg-pink-50 flex items-center justify-center"
+                  aria-label="Bagikan ke Instagram"
                 >
-                  <span className="w-7 h-7 rounded-full bg-pink-500 text-white text-[11px] font-bold flex items-center justify-center">IG</span>
-                  Instagram
+                  <span className="w-8 h-8 rounded-full bg-pink-500 text-white text-[11px] font-bold flex items-center justify-center">IG</span>
                 </button>
                 <a
                   href={fbShareUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="px-3 py-2 rounded-lg border border-blue-200 text-blue-700 font-semibold hover:bg-blue-50 flex items-center justify-center gap-2"
+                  className="h-12 rounded-lg border border-blue-200 text-blue-700 hover:bg-blue-50 flex items-center justify-center"
+                  aria-label="Bagikan ke Facebook"
                 >
-                  <span className="w-7 h-7 rounded-full bg-blue-600 text-white text-[11px] font-bold flex items-center justify-center">FB</span>
-                  Facebook
+                  <span className="w-8 h-8 rounded-full bg-blue-600 text-white text-[11px] font-bold flex items-center justify-center">FB</span>
                 </a>
               </div>
 
