@@ -95,8 +95,6 @@ export function PrintDocumentModal({ isOpen, onClose, incomeData, businessName }
     return () => clearTimeout(t)
   }, [toast.show])
 
-  if (!isOpen) return null
-
   const business = useMemo(
     () => ({
       name: businessName || 'Katalara',
@@ -109,6 +107,8 @@ export function PrintDocumentModal({ isOpen, onClose, incomeData, businessName }
     }),
     [businessName, incomeData?.business_address, incomeData?.business_phone, incomeData?.business_email, incomeData?.business_logo_url]
   )
+
+  if (!isOpen) return null
 
   const runGenerateBlob = async (m: PrintMode) => {
     return await generateIncomePdfBlob({ mode: m, incomeData, business })
