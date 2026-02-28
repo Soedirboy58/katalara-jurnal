@@ -2336,29 +2336,7 @@ export default function LapakPage() {
                     </div>
                   </div>
 
-                  {/* Order Inbox Table */}
-                  <div className="bg-white border border-gray-200 rounded-lg p-4 sm:p-5">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-                      <div>
-                        <h4 className="font-semibold text-gray-900 text-sm sm:text-base">Daftar Order Masuk / Permintaan</h4>
-                        <p className="text-xs text-gray-500 mt-1">Semua order masuk tercatat di sini untuk verifikasi, komunikasi WA, dan lanjut ke pendapatan.</p>
-                      </div>
-                      <button
-                        onClick={() => setActiveTab('analytics')}
-                        className="px-3 py-2 text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100"
-                      >
-                        Kembali ke Statistik
-                      </button>
-                    </div>
-
-                    {orders.length === 0 ? (
-                      <div className="text-sm text-gray-500 py-6 text-center">Belum ada order masuk.</div>
-                    ) : (
-                      <div className="space-y-3">
-                        {orders.map((order: any) => renderOrderCard(order))}
-                      </div>
-                    )}
-                  </div>
+                  {/* Order Inbox Table removed to avoid duplicate rendering with status sections below */}
 
                   {/* Tips Section */}
                   <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 sm:p-5">
