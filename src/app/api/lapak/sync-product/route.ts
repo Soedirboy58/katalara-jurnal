@@ -90,8 +90,9 @@ export async function POST(request: NextRequest) {
       .from('storefront_products')
       .select('id')
       .eq('user_id', user.id)
+      .eq('storefront_id', storefront.id)
       .or(`product_id.eq.${product.id},name.eq.${product.name}`)
-      .single();
+      .maybeSingle();
 
     if (existingProduct) {
       // Update existing product
@@ -195,8 +196,10 @@ export async function DELETE(request: NextRequest) {
     const productName = searchParams.get('productName');
     const productId = searchParams.get('productId');
     const storefrontId = searchParams.get('storefrontId');
+    const body = await request.json().catch(() => null as any)
+    const productIds = Array.isArray(body?.productIds) ? body.productIds : null
 
-    if (!productName && !productId) {
+    if (!productName && !productId && !productIds?.length) {
       return NextResponse.json(
         { error: 'Product name or productId is required' },
         { status: 400 }
@@ -209,7 +212,9 @@ export async function DELETE(request: NextRequest) {
       .delete()
       .eq('user_id', user.id);
 
-    if (productId) {
+    if (productIds?.length) {
+      deleteQuery = deleteQuery.in('product_id', productIds)
+    } else if (productId) {
       deleteQuery = deleteQuery.eq('product_id', productId);
     } else if (productName) {
       deleteQuery = deleteQuery.eq('name', productName);
@@ -257,11 +262,48 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const productName = searchParams.get('productName');
+    const productId = searchParams.get('productId');
+    const productIdsParam = searchParams.get('productIds');
     const storefrontId = searchParams.get('storefrontId');
 
-    if (!productName) {
+    const productIds = productIdsParam
+      ? productIdsParam
+          .split(',')
+          .map((id) => id.trim())
+          .filter(Boolean)
+      : []
+
+    if (productIds.length) {
+      let query = supabase
+        .from('storefront_products')
+        .select('product_id')
+        .eq('user_id', user.id)
+        .in('product_id', productIds)
+
+      if (storefrontId) {
+        query = query.eq('storefront_id', storefrontId)
+      }
+
+      const { data, error } = await query
+      if (error) {
+        return NextResponse.json(
+          { error: 'Gagal memeriksa status sync' },
+          { status: 500 }
+        )
+      }
+
+      const syncedMap: Record<string, boolean> = {}
+      for (const id of productIds) syncedMap[id] = false
+      for (const row of data || []) {
+        if (row?.product_id) syncedMap[String(row.product_id)] = true
+      }
+
+      return NextResponse.json({ syncedMap })
+    }
+
+    if (!productId && !productName) {
       return NextResponse.json(
-        { error: 'Product name is required' },
+        { error: 'Product id or name is required' },
         { status: 400 }
       );
     }
@@ -271,13 +313,18 @@ export async function GET(request: NextRequest) {
       .from('storefront_products')
       .select('id, is_visible, is_featured')
       .eq('user_id', user.id)
-      .eq('name', productName);
 
-    if (storefrontId) {
-      query = query.eq('storefront_id', storefrontId);
+    if (productId) {
+      query = query.eq('product_id', productId)
+    } else if (productName) {
+      query = query.eq('name', productName)
     }
 
-    const { data: product } = await query.single();
+    if (storefrontId) {
+      query = query.eq('storefront_id', storefrontId)
+    }
+
+    const { data: product } = await query.maybeSingle();
 
     return NextResponse.json({
       synced: !!product,

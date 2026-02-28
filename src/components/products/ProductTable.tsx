@@ -1,6 +1,5 @@
 'use client'
 
-import { useEffect, useState } from 'react'
 import type { Product } from '@/types'
 import { formatCurrency, formatNumber } from '@/utils/helpers'
 import { Button } from '@/components/ui/Button'
@@ -8,78 +7,33 @@ import { Button } from '@/components/ui/Button'
 interface ProductTableProps {
   products: Product[]
   loading: boolean
+  selectedProducts: string[]
+  onSelectProduct: (productId: string) => void
+  onSelectAll: () => void
   onEdit: (product: Product) => void
   onAdjustStock: (product: Product) => void
   onDelete: (product: Product) => void
+  syncedProducts: Record<string, boolean>
+  syncingProducts: Record<string, boolean>
+  onSync: (productId: string) => void
+  onUnsync: (productId: string) => void
 }
 
-export function ProductTable({ products, loading, onEdit, onAdjustStock, onDelete }: ProductTableProps) {
-  const [syncedProducts, setSyncedProducts] = useState<Record<string, boolean>>({})
-  const [syncingProducts, setSyncingProducts] = useState<Record<string, boolean>>({})
-
-  useEffect(() => {
-    const checkSyncStatus = async () => {
-      const statusMap: Record<string, boolean> = {}
-
-      for (const product of products) {
-        try {
-          const response = await fetch(`/api/lapak/sync-product?productName=${encodeURIComponent(product.name)}`)
-          const data = await response.json()
-          statusMap[product.id] = data.synced || false
-        } catch {
-          statusMap[product.id] = false
-        }
-      }
-
-      setSyncedProducts(statusMap)
-    }
-
-    if (products.length > 0) {
-      checkSyncStatus()
-    }
-  }, [products])
-
-  const handleSyncToLapak = async (product: Product) => {
-    setSyncingProducts(prev => ({ ...prev, [product.id]: true }))
-    try {
-      const response = await fetch('/api/lapak/sync-product', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ productId: product.id }),
-      })
-      const data = await response.json()
-      if (!response.ok) {
-        alert(data.error || 'Gagal sync ke Lapak')
-        return
-      }
-      setSyncedProducts(prev => ({ ...prev, [product.id]: true }))
-      alert(data.message || '✅ Berhasil sync ke Lapak')
-    } catch {
-      alert('Terjadi kesalahan saat sync ke Lapak')
-    } finally {
-      setSyncingProducts(prev => ({ ...prev, [product.id]: false }))
-    }
-  }
-
-  const handleUnsyncFromLapak = async (product: Product) => {
-    setSyncingProducts(prev => ({ ...prev, [product.id]: true }))
-    try {
-      const response = await fetch(`/api/lapak/sync-product?productName=${encodeURIComponent(product.name)}`, {
-        method: 'DELETE',
-      })
-      const data = await response.json()
-      if (!response.ok) {
-        alert(data.error || 'Gagal hapus dari Lapak')
-        return
-      }
-      setSyncedProducts(prev => ({ ...prev, [product.id]: false }))
-      alert(data.message || '✅ Produk dihapus dari Lapak')
-    } catch {
-      alert('Terjadi kesalahan saat hapus dari Lapak')
-    } finally {
-      setSyncingProducts(prev => ({ ...prev, [product.id]: false }))
-    }
-  }
+export function ProductTable({
+  products,
+  loading,
+  selectedProducts,
+  onSelectProduct,
+  onSelectAll,
+  onEdit,
+  onAdjustStock,
+  onDelete,
+  syncedProducts,
+  syncingProducts,
+  onSync,
+  onUnsync
+}: ProductTableProps) {
+  const allSelected = products.length > 0 && products.every((p) => selectedProducts.includes(p.id))
 
   const getStockQty = (product: Product) => {
     const qty = (product as any).stock_quantity ?? (product as any).stock ?? (product as any).quantity ?? 0
@@ -147,6 +101,18 @@ export function ProductTable({ products, loading, onEdit, onAdjustStock, onDelet
         <table className="w-full">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
+              <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <button
+                  type="button"
+                  onClick={onSelectAll}
+                  className="h-4 w-4 rounded border border-gray-300 flex items-center justify-center"
+                  title="Pilih semua di halaman ini"
+                >
+                  {allSelected && (
+                    <span className="text-[10px] text-blue-600">✓</span>
+                  )}
+                </button>
+              </th>
               <th className="hidden sm:table-cell px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 SKU
               </th>
@@ -181,9 +147,22 @@ export function ProductTable({ products, loading, onEdit, onAdjustStock, onDelet
               const unit = (product as any).unit || ''
               const costPrice = (product as any).cost_price ?? (product as any).buy_price ?? 0
               const sellingPrice = (product as any).selling_price ?? (product as any).sell_price ?? (product as any).price ?? 0
+              const isSelected = selectedProducts.includes(product.id)
 
               return (
                 <tr key={product.id} className="hover:bg-gray-50">
+                  <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                    <button
+                      type="button"
+                      onClick={() => onSelectProduct(product.id)}
+                      className={`h-4 w-4 rounded border flex items-center justify-center ${
+                        isSelected ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-300'
+                      }`}
+                      title="Pilih produk"
+                    >
+                      {isSelected ? '✓' : ''}
+                    </button>
+                  </td>
                   <td className="hidden sm:table-cell px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {product.sku || '-'}
                   </td>
@@ -245,7 +224,7 @@ export function ProductTable({ products, loading, onEdit, onAdjustStock, onDelet
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => handleUnsyncFromLapak(product)}
+                          onClick={() => onUnsync(product.id)}
                           disabled={!!syncingProducts[product.id]}
                           title="Hapus dari Lapak"
                         >
@@ -255,7 +234,7 @@ export function ProductTable({ products, loading, onEdit, onAdjustStock, onDelet
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => handleSyncToLapak(product)}
+                          onClick={() => onSync(product.id)}
                           disabled={!!syncingProducts[product.id]}
                           title="Sync ke Lapak"
                         >

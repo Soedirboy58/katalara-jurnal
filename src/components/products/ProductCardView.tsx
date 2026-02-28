@@ -1,6 +1,5 @@
 'use client'
 
-import { useState, useEffect } from 'react'
 import type { Product } from '@/types'
 import type { ProductLegacy } from '@/types/legacy'
 import { 
@@ -10,7 +9,6 @@ import {
   CheckCircleIcon,
   ShoppingBagIcon
 } from '@heroicons/react/24/outline'
-import { showToast } from '@/components/ui/Toast'
 
 interface ProductCardViewProps {
   products: Product[]
@@ -20,6 +18,10 @@ interface ProductCardViewProps {
   onEdit: (product: Product) => void
   onAdjustStock: (product: Product) => void
   onDelete: (product: Product) => void
+  syncedProducts: Record<string, boolean>
+  syncingProducts: Record<string, boolean>
+  onSync: (productId: string) => void
+  onUnsync: (productId: string) => void
 }
 
 export function ProductCardView({
@@ -29,96 +31,12 @@ export function ProductCardView({
   onSelectProduct,
   onEdit,
   onAdjustStock,
-  onDelete
+  onDelete,
+  syncedProducts,
+  syncingProducts,
+  onSync,
+  onUnsync
 }: ProductCardViewProps) {
-  const [syncedProducts, setSyncedProducts] = useState<Record<string, boolean>>({})
-  const [syncingProducts, setSyncingProducts] = useState<Record<string, boolean>>({})
-
-  const getActiveStorefrontId = () => {
-    if (typeof window === 'undefined') return null
-    return localStorage.getItem('katalara_active_lapak_id')
-  }
-
-  // Check which products are synced to Lapak
-  useEffect(() => {
-    const checkSyncStatus = async () => {
-      const statusMap: Record<string, boolean> = {}
-      
-      const storefrontId = getActiveStorefrontId()
-
-      for (const product of products) {
-        try {
-          const response = await fetch(`/api/lapak/sync-product?productName=${encodeURIComponent(product.name)}${storefrontId ? `&storefrontId=${storefrontId}` : ''}`)
-          const data = await response.json()
-          statusMap[product.id] = data.synced || false
-        } catch (error) {
-          console.error('Error checking sync status:', error)
-          statusMap[product.id] = false
-        }
-      }
-      
-      setSyncedProducts(statusMap)
-    }
-
-    if (products.length > 0) {
-      checkSyncStatus()
-    }
-  }, [products])
-
-  const handleSyncToLapak = async (product: Product) => {
-    setSyncingProducts(prev => ({ ...prev, [product.id]: true }))
-    
-    try {
-      const storefrontId = getActiveStorefrontId()
-      const response = await fetch('/api/lapak/sync-product', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ productId: product.id, storefrontId }),
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        showToast(data.error || 'Gagal sync ke Lapak', 'error')
-        return
-      }
-
-      showToast(data.message, 'success')
-      setSyncedProducts(prev => ({ ...prev, [product.id]: true }))
-    } catch (error) {
-      console.error('Error syncing to Lapak:', error)
-      showToast('Terjadi kesalahan saat sync ke Lapak', 'error')
-    } finally {
-      setSyncingProducts(prev => ({ ...prev, [product.id]: false }))
-    }
-  }
-
-  const handleUnsyncFromLapak = async (product: Product) => {
-    setSyncingProducts(prev => ({ ...prev, [product.id]: true }))
-    
-    try {
-      const storefrontId = getActiveStorefrontId()
-      const response = await fetch(`/api/lapak/sync-product?productName=${encodeURIComponent(product.name)}${storefrontId ? `&storefrontId=${storefrontId}` : ''}`, {
-        method: 'DELETE',
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        showToast(data.error || 'Gagal hapus dari Lapak', 'error')
-        return
-      }
-
-      showToast(data.message, 'success')
-      setSyncedProducts(prev => ({ ...prev, [product.id]: false }))
-    } catch (error) {
-      console.error('Error unsyncing from Lapak:', error)
-      showToast('Terjadi kesalahan saat hapus dari Lapak', 'error')
-    } finally {
-      setSyncingProducts(prev => ({ ...prev, [product.id]: false }))
-    }
-  }
-  
   const formatCurrency = (value: number) => `Rp ${value.toLocaleString('id-ID')}`
 
   const getStockQty = (product: Product) => {
@@ -202,7 +120,7 @@ export function ProductCardView({
               <div className="flex items-start justify-between gap-2 sm:gap-3">
                 <div className="flex items-start gap-2 sm:gap-3 flex-1 min-w-0">
                   {/* Checkbox */}
-                  <div className="flex-shrink-0 pt-0.5">
+                  onClick={() => onUnsync(product.id)}
                     <div 
                       onClick={() => onSelectProduct(product.id)}
                       className="cursor-pointer"
@@ -212,7 +130,7 @@ export function ProductCardView({
                           ? 'bg-blue-600 border-blue-600' 
                           : 'border-gray-300 hover:border-blue-500'
                       }`}>
-                        {isSelected && <CheckCircleIcon className="w-3 h-3 sm:w-4 sm:h-4 text-white" />}
+                  onClick={() => onSync(product.id)}
                       </div>
                     </div>
                   </div>

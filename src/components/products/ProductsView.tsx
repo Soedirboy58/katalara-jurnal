@@ -25,6 +25,7 @@ import type { Product, ProductFilters } from '@/types'
 
 type ViewMode = 'table' | 'card'
 type CategoryFilter = 'all' | 'best-seller' | 'low-stock' | 'high-value' | 'new'
+type LapakFilter = 'all' | 'synced' | 'unsynced'
 
 export function ProductsView() {
   const [filters, setFilters] = useState<ProductFilters>({})
@@ -40,6 +41,10 @@ export function ProductsView() {
   const [selectedProducts, setSelectedProducts] = useState<string[]>([])
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(10)
+  const [lapakFilter, setLapakFilter] = useState<LapakFilter>('all')
+  const [syncedProducts, setSyncedProducts] = useState<Record<string, boolean>>({})
+  const [syncingProducts, setSyncingProducts] = useState<Record<string, boolean>>({})
+  const [syncStatusLoading, setSyncStatusLoading] = useState(false)
 
   const { confirm, confirmState, handleConfirm, handleCancel } = useConfirm()
 
@@ -92,6 +97,126 @@ export function ProductsView() {
     }
   }, [products])
 
+  const getActiveStorefrontId = () => {
+    if (typeof window === 'undefined') return null
+    return localStorage.getItem('katalara_active_lapak_id')
+  }
+
+  const fetchSyncStatus = async (ids: string[]) => {
+    if (!ids.length) {
+      setSyncedProducts({})
+      return
+    }
+
+    const storefrontId = getActiveStorefrontId()
+    const chunkSize = 100
+    const nextMap: Record<string, boolean> = {}
+    for (let i = 0; i < ids.length; i += chunkSize) {
+      const chunk = ids.slice(i, i + chunkSize)
+      try {
+        const res = await fetch(
+          `/api/lapak/sync-product?productIds=${chunk.join(',')}${storefrontId ? `&storefrontId=${storefrontId}` : ''}`
+        )
+        const data = await res.json().catch(() => null)
+        const map = data?.syncedMap || {}
+        for (const id of chunk) {
+          nextMap[id] = Boolean(map[id])
+        }
+      } catch {
+        for (const id of chunk) {
+          nextMap[id] = false
+        }
+      }
+    }
+
+    setSyncedProducts(nextMap)
+  }
+
+  useEffect(() => {
+    const ids = products.map((p) => p.id).filter(Boolean)
+    if (!ids.length) {
+      setSyncedProducts({})
+      return
+    }
+
+    let cancelled = false
+    setSyncStatusLoading(true)
+    fetchSyncStatus(ids)
+      .finally(() => {
+        if (!cancelled) setSyncStatusLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [products])
+
+  const handleSyncToLapak = async (productId: string) => {
+    setSyncingProducts((prev) => ({ ...prev, [productId]: true }))
+    try {
+      const storefrontId = getActiveStorefrontId()
+      const res = await fetch('/api/lapak/sync-product', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productId, storefrontId })
+      })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) {
+        showToast(data?.error || 'Gagal sync ke Lapak', 'error')
+        return
+      }
+      setSyncedProducts((prev) => ({ ...prev, [productId]: true }))
+      showToast(data?.message || 'Produk berhasil disinkronkan', 'success')
+    } catch {
+      showToast('Terjadi kesalahan saat sync ke Lapak', 'error')
+    } finally {
+      setSyncingProducts((prev) => ({ ...prev, [productId]: false }))
+    }
+  }
+
+  const handleUnsyncFromLapak = async (productId: string) => {
+    setSyncingProducts((prev) => ({ ...prev, [productId]: true }))
+    try {
+      const storefrontId = getActiveStorefrontId()
+      const res = await fetch(`/api/lapak/sync-product?productId=${encodeURIComponent(productId)}${storefrontId ? `&storefrontId=${storefrontId}` : ''}`,
+        { method: 'DELETE' }
+      )
+      const data = await res.json().catch(() => null)
+      if (!res.ok) {
+        showToast(data?.error || 'Gagal hapus dari Lapak', 'error')
+        return
+      }
+      setSyncedProducts((prev) => ({ ...prev, [productId]: false }))
+      showToast(data?.message || 'Produk dihapus dari Lapak', 'success')
+    } catch {
+      showToast('Terjadi kesalahan saat hapus dari Lapak', 'error')
+    } finally {
+      setSyncingProducts((prev) => ({ ...prev, [productId]: false }))
+    }
+  }
+
+  const handleBulkSync = async () => {
+    if (selectedProducts.length === 0) {
+      showToast('Pilih produk terlebih dulu', 'warning')
+      return
+    }
+
+    for (const id of selectedProducts) {
+      await handleSyncToLapak(id)
+    }
+  }
+
+  const handleBulkUnsync = async () => {
+    if (selectedProducts.length === 0) {
+      showToast('Pilih produk terlebih dulu', 'warning')
+      return
+    }
+
+    for (const id of selectedProducts) {
+      await handleUnsyncFromLapak(id)
+    }
+  }
+
   // Filter products based on category and search
   const filteredProducts = useMemo(() => {
     let filtered = [...products]
@@ -127,8 +252,15 @@ export function ProductsView() {
       )
     }
 
+    if (lapakFilter === 'synced') {
+      filtered = filtered.filter((p) => syncedProducts[p.id])
+    }
+    if (lapakFilter === 'unsynced') {
+      filtered = filtered.filter((p) => !syncedProducts[p.id])
+    }
+
     return filtered
-  }, [products, categoryFilter, searchQuery])
+  }, [products, categoryFilter, searchQuery, lapakFilter, syncedProducts])
 
   // Pagination
   const totalPages = Math.ceil(filteredProducts.length / itemsPerPage)
@@ -348,6 +480,22 @@ export function ProductsView() {
           />
         </div>
 
+        <div className="flex items-center gap-2">
+          <FunnelIcon className="w-4 h-4 text-gray-400" />
+          <select
+            value={lapakFilter}
+            onChange={(e) => {
+              setLapakFilter(e.target.value as LapakFilter)
+              setCurrentPage(1)
+            }}
+            className="px-3 py-2 text-xs sm:text-sm border border-gray-300 rounded-lg bg-white"
+          >
+            <option value="all">Semua produk</option>
+            <option value="synced">Sudah sync Lapak</option>
+            <option value="unsynced">Belum sync Lapak</option>
+          </select>
+        </div>
+
         {/* View Mode Toggle */}
         <div className="flex justify-center sm:justify-start">
           <div className="flex gap-1 bg-gray-100 p-0.5 sm:p-1 rounded-lg w-fit">
@@ -374,6 +522,41 @@ export function ProductsView() {
             <span className="hidden sm:inline">Cards</span>
           </button>
           </div>
+        </div>
+      </div>
+
+      {/* Lapak Sync Section */}
+      <div className="bg-white border border-gray-200 rounded-lg p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-gray-900">Sinkron Lapak</p>
+          <p className="text-xs text-gray-600">
+            Pilih produk di halaman ini, lalu sync ke Lapak secara massal.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="secondary"
+            onClick={handleSelectAll}
+            disabled={paginatedProducts.length === 0}
+          >
+            Pilih halaman ini
+          </Button>
+          <Button
+            onClick={handleBulkSync}
+            disabled={selectedProducts.length === 0}
+          >
+            Sync terpilih
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={handleBulkUnsync}
+            disabled={selectedProducts.length === 0}
+          >
+            Hapus dari Lapak
+          </Button>
+          {syncStatusLoading && (
+            <span className="text-xs text-gray-500">Memeriksa status sync...</span>
+          )}
         </div>
       </div>
 
@@ -414,9 +597,16 @@ export function ProductsView() {
         <ProductTable
           products={paginatedProducts}
           loading={loading}
+          selectedProducts={selectedProducts}
+          onSelectProduct={handleSelectProduct}
+          onSelectAll={handleSelectAll}
           onEdit={handleEdit}
           onAdjustStock={handleAdjustStock}
           onDelete={handleDelete}
+          syncedProducts={syncedProducts}
+          syncingProducts={syncingProducts}
+          onSync={handleSyncToLapak}
+          onUnsync={handleUnsyncFromLapak}
         />
       ) : (
         <ProductCardView
@@ -427,6 +617,10 @@ export function ProductsView() {
           onEdit={handleEdit}
           onAdjustStock={handleAdjustStock}
           onDelete={handleDelete}
+          syncedProducts={syncedProducts}
+          syncingProducts={syncingProducts}
+          onSync={handleSyncToLapak}
+          onUnsync={handleUnsyncFromLapak}
         />
       )}
 
