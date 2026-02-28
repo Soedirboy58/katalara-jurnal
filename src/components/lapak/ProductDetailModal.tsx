@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import Image from 'next/image';
+import NextImage from 'next/image';
 import { StorefrontProduct, calculateDiscountPercentage, isProductInStock } from '@/types/lapak';
 
 interface ProductDetailModalProps {
@@ -80,7 +80,7 @@ export default function ProductDetailModal({
       return;
     }
 
-    const img = new Image();
+    const img = new window.Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => resolve(img);
     img.onerror = () => resolve(null);
@@ -321,7 +321,7 @@ export default function ProductDetailModal({
               {/* Main Image */}
               <div className="relative aspect-square bg-gray-100 rounded-xl overflow-hidden mb-4">
                 {allImages.length > 0 ? (
-                  <Image
+                  <NextImage
                     src={allImages[currentImageIndex]}
                     alt={product.name}
                     fill
@@ -361,7 +361,7 @@ export default function ProductDetailModal({
                       }`}
                       style={currentImageIndex === index ? { borderColor: themeColor } : {}}
                     >
-                      <Image
+                      <NextImage
                         src={img}
                         alt={`${product.name} ${index + 1}`}
                         fill
@@ -578,25 +578,33 @@ export default function ProductDetailModal({
                   href={waShareUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="px-3 py-2 rounded-lg border border-emerald-200 text-emerald-700 font-semibold hover:bg-emerald-50 text-center"
+                  className="px-3 py-2 rounded-lg border border-emerald-200 text-emerald-700 font-semibold hover:bg-emerald-50 flex items-center justify-center gap-2"
                 >
+                  <span className="w-7 h-7 rounded-full bg-emerald-500 text-white text-[11px] font-bold flex items-center justify-center">WA</span>
                   WhatsApp
                 </a>
                 <button
                   type="button"
                   onClick={handleInstagramShare}
-                  className="px-3 py-2 rounded-lg border border-pink-200 text-pink-600 font-semibold hover:bg-pink-50"
+                  className="px-3 py-2 rounded-lg border border-pink-200 text-pink-600 font-semibold hover:bg-pink-50 flex items-center justify-center gap-2"
                 >
+                  <span className="w-7 h-7 rounded-full bg-pink-500 text-white text-[11px] font-bold flex items-center justify-center">IG</span>
                   Instagram
                 </button>
                 <a
                   href={fbShareUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="px-3 py-2 rounded-lg border border-blue-200 text-blue-700 font-semibold hover:bg-blue-50 text-center"
+                  className="px-3 py-2 rounded-lg border border-blue-200 text-blue-700 font-semibold hover:bg-blue-50 flex items-center justify-center gap-2"
                 >
+                  <span className="w-7 h-7 rounded-full bg-blue-600 text-white text-[11px] font-bold flex items-center justify-center">FB</span>
                   Facebook
                 </a>
+              </div>
+
+              <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs text-gray-600">
+                <div className="font-semibold text-gray-700 mb-1">Tautan lapak</div>
+                <div className="break-all">{storefrontUrl || '-'}</div>
               </div>
 
               <div className="grid grid-cols-2 gap-2 text-sm">
