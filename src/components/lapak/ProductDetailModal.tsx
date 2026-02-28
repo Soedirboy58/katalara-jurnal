@@ -87,6 +87,33 @@ export default function ProductDetailModal({
     img.src = src;
   });
 
+  const getAverageColor = (img: HTMLImageElement) => {
+    const sampleCanvas = document.createElement('canvas');
+    const sampleCtx = sampleCanvas.getContext('2d');
+    if (!sampleCtx) return null;
+
+    sampleCanvas.width = 20;
+    sampleCanvas.height = 20;
+
+    try {
+      sampleCtx.drawImage(img, 0, 0, sampleCanvas.width, sampleCanvas.height);
+      const data = sampleCtx.getImageData(0, 0, sampleCanvas.width, sampleCanvas.height).data;
+      let r = 0;
+      let g = 0;
+      let b = 0;
+      const pixelCount = data.length / 4;
+      for (let i = 0; i < data.length; i += 4) {
+        r += data[i];
+        g += data[i + 1];
+        b += data[i + 2];
+      }
+      const toHex = (value: number) => Math.round(value / pixelCount).toString(16).padStart(2, '0');
+      return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+    } catch {
+      return null;
+    }
+  };
+
   const drawRoundedRect = (ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) => {
     const radius = Math.min(r, w / 2, h / 2);
     ctx.beginPath();
@@ -138,7 +165,9 @@ export default function ProductDetailModal({
     const ctx = canvas.getContext('2d');
     if (!ctx) return null;
 
-    const baseColor = themeColor || '#1f2937';
+    const mainImage = await loadImage(allImages[0] || '');
+    const dominantColor = mainImage ? getAverageColor(mainImage) : null;
+    const baseColor = dominantColor || themeColor || '#1f2937';
     const topColor = mixHexColors(baseColor, '#ffffff', 0.25);
     const bottomColor = mixHexColors(baseColor, '#000000', 0.2);
     const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
@@ -163,7 +192,6 @@ export default function ProductDetailModal({
     drawRoundedRect(ctx, imageX, imageY, imageSize, imageSize, 36);
     ctx.clip();
 
-    const mainImage = await loadImage(allImages[0] || '');
     if (mainImage) {
       drawCoverImage(ctx, mainImage, imageX, imageY, imageSize, imageSize);
     } else {
@@ -188,11 +216,6 @@ export default function ProductDetailModal({
     ctx.fillStyle = '#475569';
     wrapText(ctx, `Tersedia di ${storeName}`, textX, textY, cardWidth - 140, 46, 2);
     textY += 120;
-
-    const storefrontUrl = buildStorefrontUrl();
-    ctx.font = '600 32px ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif';
-    ctx.fillStyle = baseColor;
-    wrapText(ctx, storefrontUrl, textX, textY, cardWidth - 140, 40, 2);
 
     const logoImage = await loadImage(storeLogoUrl || '');
     const logoSize = 120;
@@ -259,6 +282,12 @@ export default function ProductDetailModal({
     setShareStatus('Gambar siap diunduh. Unggah ke story/status.');
   };
 
+  const dataUrlToFile = async (dataUrl: string, filename: string) => {
+    const response = await fetch(dataUrl);
+    const blob = await response.blob();
+    return new File([blob], filename, { type: blob.type || 'image/png' });
+  };
+
   const handleCopyLink = async () => {
     if (!storefrontUrl) return;
     try {
@@ -269,8 +298,38 @@ export default function ProductDetailModal({
     }
   };
 
-  const handleInstagramShare = () => {
+  const handleInstagramShare = async () => {
+    if (!shareImageUrl) {
+      setShareStatus('Gambar belum siap. Coba beberapa saat lagi.');
+      return;
+    }
+
+    const safeName = product.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    const canShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
+
+    if (canShare) {
+      try {
+        const file = await dataUrlToFile(shareImageUrl, `${safeName || 'produk'}-share.png`);
+        const payload = {
+          files: [file],
+          title: product.name,
+          text: shareText,
+        } as ShareData;
+
+        if (navigator.canShare && !navigator.canShare(payload)) {
+          throw new Error('unsupported');
+        }
+
+        await navigator.share(payload);
+        setShareStatus('Silakan pilih Instagram dari menu berbagi.');
+        return;
+      } catch {
+        // Fall through to download
+      }
+    }
+
     handleDownloadShareImage();
+    setShareStatus('Perangkat belum mendukung share langsung. Gambar diunduh untuk diunggah ke Instagram.');
   };
 
   const handleQuantityChange = (delta: number) => {
@@ -602,25 +661,33 @@ export default function ProductDetailModal({
                 </a>
               </div>
 
-              <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs text-gray-600">
-                <div className="font-semibold text-gray-700 mb-1">Tautan lapak</div>
-                <div className="break-all">{storefrontUrl || '-'}</div>
+              <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="font-semibold text-gray-700 mb-1">Tautan lapak</div>
+                    <div className="break-all text-gray-800">{storefrontUrl || '-'}</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCopyLink}
+                    className="shrink-0 h-9 w-9 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-100 flex items-center justify-center"
+                    aria-label="Salin tautan"
+                  >
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M8 8h9a2 2 0 012 2v9a2 2 0 01-2 2H8a2 2 0 01-2-2v-9a2 2 0 012-2z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M16 8V6a2 2 0 00-2-2H6a2 2 0 00-2 2v8a2 2 0 002 2h2" />
+                    </svg>
+                  </button>
+                </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2 text-sm">
+              <div className="grid grid-cols-1 gap-2 text-sm">
                 <button
                   type="button"
                   onClick={handleDownloadShareImage}
                   className="px-3 py-2 rounded-lg border border-gray-200 text-gray-700 font-semibold hover:bg-gray-50"
                 >
                   Unduh Gambar
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCopyLink}
-                  className="px-3 py-2 rounded-lg border border-gray-200 text-gray-700 font-semibold hover:bg-gray-50"
-                >
-                  Salin Link
                 </button>
               </div>
 
