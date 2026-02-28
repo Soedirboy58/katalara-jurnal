@@ -120,19 +120,17 @@ export function ProductCardView({
               <div className="flex items-start justify-between gap-2 sm:gap-3">
                 <div className="flex items-start gap-2 sm:gap-3 flex-1 min-w-0">
                   {/* Checkbox */}
-                  onClick={() => onUnsync(product.id)}
-                    <div 
-                      onClick={() => onSelectProduct(product.id)}
-                      className="cursor-pointer"
-                    >
-                      <div className={`w-4 h-4 sm:w-5 sm:h-5 rounded border-2 flex items-center justify-center transition-colors ${
-                        isSelected 
-                          ? 'bg-blue-600 border-blue-600' 
+                  <div
+                    onClick={() => onSelectProduct(product.id)}
+                    className="cursor-pointer"
+                  >
+                    <div
+                      className={`w-4 h-4 sm:w-5 sm:h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                        isSelected
+                          ? 'bg-blue-600 border-blue-600'
                           : 'border-gray-300 hover:border-blue-500'
-                      }`}>
-                  onClick={() => onSync(product.id)}
-                      </div>
-                    </div>
+                      }`}
+                    />
                   </div>
 
                   {/* Product Image/Icon */}
@@ -140,8 +138,8 @@ export function ProductCardView({
                     {(() => {
                       const legacy = product as ProductLegacy
                       return legacy.image_url ? (
-                        <img 
-                          src={legacy.image_url} 
+                        <img
+                          src={legacy.image_url}
                           alt={product.name}
                           className="w-full h-full object-cover"
                           onError={(e) => {
@@ -266,7 +264,7 @@ export function ProductCardView({
 
                 {syncedProducts[product.id] ? (
                   <button
-                    onClick={() => handleUnsyncFromLapak(product)}
+                    onClick={() => onUnsync(product.id)}
                     disabled={syncingProducts[product.id]}
                     className="flex flex-col items-center justify-center py-1 sm:py-2 px-1 sm:px-2 bg-green-50 border border-green-500 rounded-lg hover:bg-green-100 transition-colors group disabled:opacity-50"
                   >
@@ -279,7 +277,7 @@ export function ProductCardView({
                   </button>
                 ) : (
                   <button
-                    onClick={() => handleSyncToLapak(product)}
+                    onClick={() => onSync(product.id)}
                     disabled={syncingProducts[product.id]}
                     className="flex flex-col items-center justify-center py-1 sm:py-2 px-1 sm:px-2 bg-white border border-gray-300 rounded-lg hover:bg-purple-50 hover:border-purple-500 transition-colors group disabled:opacity-50"
                   >
