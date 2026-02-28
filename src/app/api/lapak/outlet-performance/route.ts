@@ -19,7 +19,7 @@ export async function GET(_request: NextRequest) {
 
     const { data: storefronts, error: storefrontError } = await supabase
       .from('business_storefronts')
-      .select('id, store_name, slug, is_active, outlet_code, outlet_manager_phone, commission_rate')
+      .select('id, store_name, slug, is_active, outlet_code, outlet_manager_phone, commission_rate, parent_storefront_id')
       .eq('user_id', user.id)
       .order('updated_at', { ascending: false })
 
@@ -34,7 +34,7 @@ export async function GET(_request: NextRequest) {
     const ids = storefronts.map((s) => s.id)
     const { data: orders, error: ordersError } = await supabase
       .from('storefront_orders')
-      .select('storefront_id, total_amount, status')
+      .select('storefront_id, total_amount, status, created_at')
       .in('storefront_id', ids)
 
     if (ordersError) {
@@ -54,6 +54,7 @@ export async function GET(_request: NextRequest) {
         shipped_orders: 0,
         completed_orders: 0,
         canceled_orders: 0,
+        last_order_at: null as string | null,
       }
 
       current.total_orders += 1
@@ -66,6 +67,14 @@ export async function GET(_request: NextRequest) {
       else if (status === 'shipped') current.shipped_orders += 1
       else if (status === 'completed') current.completed_orders += 1
       else if (status === 'canceled') current.canceled_orders += 1
+
+      const createdAt = String((row as any).created_at || '')
+      if (createdAt) {
+        const prev = current.last_order_at
+        if (!prev || new Date(createdAt).getTime() > new Date(prev).getTime()) {
+          current.last_order_at = createdAt
+        }
+      }
 
       statsByStorefront.set(id, current)
     }
@@ -80,6 +89,7 @@ export async function GET(_request: NextRequest) {
         shipped_orders: 0,
         completed_orders: 0,
         canceled_orders: 0,
+        last_order_at: null,
       }
 
       return {

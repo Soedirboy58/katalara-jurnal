@@ -924,7 +924,7 @@ export default function LapakPage() {
   };
 
   useEffect(() => {
-    if (activeTab !== 'affiliates') return
+    if (!['affiliates', 'analytics', 'notifications'].includes(activeTab)) return
 
     let cancelled = false
     const run = async () => {
@@ -1236,6 +1236,34 @@ export default function LapakPage() {
     navigator.clipboard.writeText(text);
     showToast('Link berhasil disalin!', 'success');
   };
+
+  const isPrimaryOutlet = Boolean(storefront && !storefront.parent_storefront_id)
+  const outletMonitorRows = useMemo(() => {
+    if (!storefront) return []
+    const currentId = storefront.id
+    return (outletStats || []).filter((outlet: any) =>
+      outlet.id === currentId || outlet.parent_storefront_id === currentId
+    )
+  }, [outletStats, storefront])
+
+  const formatOutletOrderStatus = (row: any) => {
+    const inProgress =
+      (row?.confirmed_orders || 0) +
+      (row?.preparing_orders || 0) +
+      (row?.shipped_orders || 0)
+    return {
+      pending: row?.pending_orders || 0,
+      inProgress,
+      completed: row?.completed_orders || 0,
+    }
+  }
+
+  const formatLastOrder = (value?: string | null) => {
+    if (!value) return '-'
+    const parsed = new Date(value)
+    if (Number.isNaN(parsed.getTime())) return '-'
+    return parsed.toLocaleString('id-ID')
+  }
 
   if (loading) {
     return (
@@ -2390,6 +2418,63 @@ export default function LapakPage() {
                     </button>
                   </div>
 
+                  {isPrimaryOutlet && (
+                    <div className="bg-white border border-gray-200 rounded-lg p-4 sm:p-5">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+                        <div>
+                          <h4 className="font-semibold text-gray-900 text-sm sm:text-base">Monitoring Outlet (Ringkas)</h4>
+                          <p className="text-xs text-gray-500 mt-1">Ringkasan order dari outlet utama & outlet duplikat.</p>
+                        </div>
+                      </div>
+
+                      {outletLoading ? (
+                        <div className="text-sm text-gray-500 py-4">Memuat data outlet...</div>
+                      ) : outletMonitorRows.length === 0 ? (
+                        <div className="text-sm text-gray-500 py-4">Belum ada outlet terhubung.</div>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <table className="min-w-full text-xs sm:text-sm">
+                            <thead>
+                              <tr className="text-left text-gray-500 border-b">
+                                <th className="py-2 pr-4">Outlet</th>
+                                <th className="py-2 pr-4">Total Order</th>
+                                <th className="py-2 pr-4">Pending</th>
+                                <th className="py-2 pr-4">Proses</th>
+                                <th className="py-2 pr-4">Omzet</th>
+                                <th className="py-2 pr-4">Komisi</th>
+                                <th className="py-2">Last Order</th>
+                              </tr>
+                            </thead>
+                            <tbody className="text-gray-700">
+                              {outletMonitorRows.map((row: any) => {
+                                const status = formatOutletOrderStatus(row)
+                                const commissionRate = Number(row?.commission_rate || 0)
+                                const commissionValue = (row?.total_revenue || 0) * (commissionRate / 100)
+                                const isMain = row.id === storefront?.id
+                                return (
+                                  <tr key={row.id} className="border-b last:border-b-0">
+                                    <td className="py-2 pr-4">
+                                      <div className="font-medium text-gray-900">{row.store_name || row.slug}</div>
+                                      <div className="text-[11px] text-gray-500">/{row.slug}{isMain ? ' • Utama' : ''}</div>
+                                    </td>
+                                    <td className="py-2 pr-4">{row.total_orders || 0}</td>
+                                    <td className="py-2 pr-4">{status.pending}</td>
+                                    <td className="py-2 pr-4">{status.inProgress}</td>
+                                    <td className="py-2 pr-4">{formatCurrency(row.total_revenue || 0)}</td>
+                                    <td className="py-2 pr-4">
+                                      {commissionRate ? `${formatCurrency(commissionValue)} (${commissionRate}%)` : '-'}
+                                    </td>
+                                    <td className="py-2">{formatLastOrder(row.last_order_at)}</td>
+                                  </tr>
+                                )
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <div className="bg-white border border-gray-200 rounded-lg p-4 sm:p-5">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
                       <div>
@@ -2510,6 +2595,63 @@ export default function LapakPage() {
                       </button>
                     </div>
                   </div>
+
+                  {isPrimaryOutlet && (
+                    <div className="bg-white border border-gray-200 rounded-lg p-4 sm:p-5">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+                        <div>
+                          <h4 className="font-semibold text-gray-900 text-sm sm:text-base">Monitoring Outlet (Ringkas)</h4>
+                          <p className="text-xs text-gray-500 mt-1">Ringkasan order dari outlet utama & outlet duplikat.</p>
+                        </div>
+                      </div>
+
+                      {outletLoading ? (
+                        <div className="text-sm text-gray-500 py-4">Memuat data outlet...</div>
+                      ) : outletMonitorRows.length === 0 ? (
+                        <div className="text-sm text-gray-500 py-4">Belum ada outlet terhubung.</div>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <table className="min-w-full text-xs sm:text-sm">
+                            <thead>
+                              <tr className="text-left text-gray-500 border-b">
+                                <th className="py-2 pr-4">Outlet</th>
+                                <th className="py-2 pr-4">Total Order</th>
+                                <th className="py-2 pr-4">Pending</th>
+                                <th className="py-2 pr-4">Proses</th>
+                                <th className="py-2 pr-4">Omzet</th>
+                                <th className="py-2 pr-4">Komisi</th>
+                                <th className="py-2">Last Order</th>
+                              </tr>
+                            </thead>
+                            <tbody className="text-gray-700">
+                              {outletMonitorRows.map((row: any) => {
+                                const status = formatOutletOrderStatus(row)
+                                const commissionRate = Number(row?.commission_rate || 0)
+                                const commissionValue = (row?.total_revenue || 0) * (commissionRate / 100)
+                                const isMain = row.id === storefront?.id
+                                return (
+                                  <tr key={row.id} className="border-b last:border-b-0">
+                                    <td className="py-2 pr-4">
+                                      <div className="font-medium text-gray-900">{row.store_name || row.slug}</div>
+                                      <div className="text-[11px] text-gray-500">/{row.slug}{isMain ? ' • Utama' : ''}</div>
+                                    </td>
+                                    <td className="py-2 pr-4">{row.total_orders || 0}</td>
+                                    <td className="py-2 pr-4">{status.pending}</td>
+                                    <td className="py-2 pr-4">{status.inProgress}</td>
+                                    <td className="py-2 pr-4">{formatCurrency(row.total_revenue || 0)}</td>
+                                    <td className="py-2 pr-4">
+                                      {commissionRate ? `${formatCurrency(commissionValue)} (${commissionRate}%)` : '-'}
+                                    </td>
+                                    <td className="py-2">{formatLastOrder(row.last_order_at)}</td>
+                                  </tr>
+                                )
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* Order Inbox Table removed to avoid duplicate rendering with status sections below */}
 
