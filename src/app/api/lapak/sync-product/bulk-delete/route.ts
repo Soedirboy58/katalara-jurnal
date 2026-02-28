@@ -26,50 +26,57 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    let deleteQuery = supabase
-      .from('storefront_products')
-      .delete()
-      .eq('user_id', user.id);
+    const chunkSize = 50
+    const deleteByIds = async (ids: string[]) => {
+      for (let i = 0; i < ids.length; i += chunkSize) {
+        let query = supabase
+          .from('storefront_products')
+          .delete()
+          .eq('user_id', user.id)
+          .in('product_id', ids.slice(i, i + chunkSize))
+
+        if (storefrontId) {
+          query = query.eq('storefront_id', storefrontId)
+        }
+
+        const { error } = await query
+        if (error) return error
+      }
+      return null
+    }
+
+    const deleteByNames = async (names: string[]) => {
+      for (let i = 0; i < names.length; i += chunkSize) {
+        let query = supabase
+          .from('storefront_products')
+          .delete()
+          .eq('user_id', user.id)
+          .in('name', names.slice(i, i + chunkSize))
+
+        if (storefrontId) {
+          query = query.eq('storefront_id', storefrontId)
+        }
+
+        const { error } = await query
+        if (error) return error
+      }
+      return null
+    }
+
+    let deleteError: any = null
 
     if (productIds.length) {
-      deleteQuery = deleteQuery.in('product_id', productIds);
+      deleteError = await deleteByIds(productIds)
     } else if (productNames.length) {
-      deleteQuery = deleteQuery.in('name', productNames);
+      deleteError = await deleteByNames(productNames)
     }
-
-    if (storefrontId) {
-      deleteQuery = deleteQuery.eq('storefront_id', storefrontId);
-    }
-
-    const { data: deletedRows, error: deleteError } = await deleteQuery.select('id');
 
     if (deleteError) {
-      console.error('Error deleting products:', deleteError);
+      console.error('Error deleting products:', deleteError)
       return NextResponse.json(
-        { error: 'Gagal menghapus produk dari Lapak' },
+        { error: `Gagal menghapus produk dari Lapak: ${deleteError.message || 'Unknown error'}` },
         { status: 500 }
-      );
-    }
-
-    if ((!deletedRows || deletedRows.length === 0) && productNames.length) {
-      let fallback = supabase
-        .from('storefront_products')
-        .delete()
-        .eq('user_id', user.id)
-        .in('name', productNames);
-
-      if (storefrontId) {
-        fallback = fallback.eq('storefront_id', storefrontId);
-      }
-
-      const { error: fallbackError } = await fallback;
-      if (fallbackError) {
-        console.error('Error deleting products by name:', fallbackError);
-        return NextResponse.json(
-          { error: 'Gagal menghapus produk dari Lapak' },
-          { status: 500 }
-        );
-      }
+      )
     }
 
     return NextResponse.json({
