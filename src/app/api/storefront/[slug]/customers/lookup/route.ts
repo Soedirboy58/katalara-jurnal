@@ -84,26 +84,53 @@ export async function GET(
 
     const userCol = await getCustomersUserColumn(supabase)
     const phone = normalizePhone(rawPhone)
-    const altPhone = phone.startsWith('62') ? `0${phone.slice(2)}` : phone
+    const tail = phone.slice(-6)
 
-    const { data, error } = await supabase
-      .from('customers')
-      .select('*')
-      .eq(userCol, storefront.user_id)
-      .in('phone', [phone, altPhone])
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-
-    if (error) {
-      return NextResponse.json({ found: false, data: null }, { status: 500 })
+    const findMatch = (rows: any[] | null | undefined) => {
+      if (!rows?.length) return null
+      return rows.find((row) => normalizePhone(row?.phone || '') === phone) || null
     }
 
-    if (!data) {
+    let candidates: any[] | null = null
+
+    if (tail.length >= 4) {
+      const { data, error } = await supabase
+        .from('customers')
+        .select('*')
+        .eq(userCol, storefront.user_id)
+        .ilike('phone', `%${tail}%`)
+        .order('updated_at', { ascending: false })
+        .limit(20)
+
+      if (error) {
+        return NextResponse.json({ found: false, data: null }, { status: 500 })
+      }
+
+      candidates = data || []
+    }
+
+    let match = findMatch(candidates)
+
+    if (!match) {
+      const { data, error } = await supabase
+        .from('customers')
+        .select('*')
+        .eq(userCol, storefront.user_id)
+        .order('updated_at', { ascending: false })
+        .limit(50)
+
+      if (error) {
+        return NextResponse.json({ found: false, data: null }, { status: 500 })
+      }
+
+      match = findMatch(data)
+    }
+
+    if (!match) {
       return NextResponse.json({ found: false, data: null }, { status: 200 })
     }
 
-    return NextResponse.json({ found: true, data })
+    return NextResponse.json({ found: true, data: match })
   } catch (error) {
     console.error('GET /api/storefront/[slug]/customers/lookup error:', error)
     return NextResponse.json({ found: false, data: null }, { status: 500 })
