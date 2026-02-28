@@ -98,14 +98,13 @@ export default function LapakPage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [orderStats, setOrderStats] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<'settings' | 'products' | 'analytics' | 'notifications' | 'affiliates'>('settings');
-  const [affiliates, setAffiliates] = useState<any[]>([])
-  const [affiliatesLoading, setAffiliatesLoading] = useState(false)
-  const [affiliateForm, setAffiliateForm] = useState({
-    code: '',
-    name: '',
-    phone: '',
-    commission_rate: '0',
-  })
+  const [outletStats, setOutletStats] = useState<any[]>([])
+  const [outletLoading, setOutletLoading] = useState(false)
+  const [outletEdits, setOutletEdits] = useState<Record<string, {
+    outlet_code: string
+    outlet_manager_phone: string
+    commission_rate: string
+  }>>({})
   const [businessCategory, setBusinessCategory] = useState<string | null>(null);
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
   const [kpiModal, setKpiModal] = useState<{
@@ -818,30 +817,17 @@ export default function LapakPage() {
     { key: 'canceled', title: 'Dibatalkan', tone: 'bg-red-50 border-red-200 text-red-900', desc: 'Order dibatalkan.' },
   ]
 
-  const affiliateStats = useMemo(() => {
-    const totals = new Map<string, { orders: number; revenue: number }>()
-    for (const order of orders) {
-      const code = String(order?.affiliate_code || '').trim()
-      if (!code) continue
-      const prev = totals.get(code) || { orders: 0, revenue: 0 }
-      prev.orders += 1
-      prev.revenue += Number(order?.total_amount || 0)
-      totals.set(code, prev)
-    }
-
-    return affiliates.map((aff) => {
-      const code = String(aff.code || '')
-      const total = totals.get(code) || { orders: 0, revenue: 0 }
-      const rate = Number(aff.commission_rate || 0)
-      const commission = total.revenue * (rate / 100)
+  const outletRows = useMemo(() => {
+    return outletStats.map((row) => {
+      const edit = outletEdits[row.id]
       return {
-        ...aff,
-        total_orders: total.orders,
-        total_revenue: total.revenue,
-        total_commission: commission,
+        ...row,
+        outlet_code: edit?.outlet_code ?? row.outlet_code ?? '',
+        outlet_manager_phone: edit?.outlet_manager_phone ?? row.outlet_manager_phone ?? '',
+        commission_rate: edit?.commission_rate ?? String(row.commission_rate ?? ''),
       }
     })
-  }, [affiliates, orders])
+  }, [outletStats, outletEdits])
 
   const loadData = async (storefrontId?: string) => {
     const requestId = ++loadRequestIdRef.current;
@@ -934,23 +920,35 @@ export default function LapakPage() {
 
   useEffect(() => {
     if (activeTab !== 'affiliates') return
-    if (!storefront?.id) return
 
     let cancelled = false
     const run = async () => {
       try {
-        setAffiliatesLoading(true)
-        const res = await fetch(`/api/lapak/affiliates?storefrontId=${storefront.id}`)
+        setOutletLoading(true)
+        const res = await fetch('/api/lapak/outlet-performance')
         const json = await res.json().catch(() => null as any)
         if (!res.ok) {
-          if (!cancelled) showToast(json?.error || 'Gagal memuat data affiliate', 'error')
+          if (!cancelled) showToast(json?.error || 'Gagal memuat data outlet', 'error')
           return
         }
-        if (!cancelled) setAffiliates(json?.affiliates || [])
+        if (cancelled) return
+        setOutletStats(json?.outlets || [])
+
+        const nextEdits: Record<string, { outlet_code: string; outlet_manager_phone: string; commission_rate: string }> = {}
+        for (const outlet of json?.outlets || []) {
+          nextEdits[outlet.id] = {
+            outlet_code: outlet.outlet_code || '',
+            outlet_manager_phone: outlet.outlet_manager_phone || '',
+            commission_rate: outlet.commission_rate !== null && outlet.commission_rate !== undefined
+              ? String(outlet.commission_rate)
+              : '',
+          }
+        }
+        setOutletEdits(nextEdits)
       } catch (error) {
-        if (!cancelled) showToast('Gagal memuat data affiliate', 'error')
+        if (!cancelled) showToast('Gagal memuat data outlet', 'error')
       } finally {
-        if (!cancelled) setAffiliatesLoading(false)
+        if (!cancelled) setOutletLoading(false)
       }
     }
 
@@ -958,7 +956,7 @@ export default function LapakPage() {
     return () => {
       cancelled = true
     }
-  }, [activeTab, storefront?.id])
+  }, [activeTab])
 
   const handleSelectStorefront = async (storefrontId: string) => {
     setLoading(true);
@@ -2568,141 +2566,148 @@ export default function LapakPage() {
                 <div className="bg-white border border-gray-200 rounded-lg p-4 sm:p-5">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                     <div>
-                      <h3 className="text-base sm:text-lg font-semibold text-gray-900">Dashboard Agent/Sales/Affiliate</h3>
+                      <h3 className="text-base sm:text-lg font-semibold text-gray-900">Dashboard Outlet</h3>
                       <p className="text-xs sm:text-sm text-gray-600 mt-1">
-                        Pantau performa per kode afiliasi, total order, dan komisi.
+                        Ringkasan penjualan tiap outlet, omset, dan pengaturan komisi.
                       </p>
                     </div>
                     <span className="text-xs font-semibold px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-700">
-                      {affiliates.length} kode aktif
+                      {outletStats.length} outlet terdaftar
                     </span>
                   </div>
                 </div>
 
                 <div className="bg-white border border-gray-200 rounded-lg p-4 sm:p-5">
-                  <h4 className="text-sm sm:text-base font-semibold text-gray-900 mb-3">Tambah Kode Affiliate</h4>
-                  <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                    <input
-                      type="text"
-                      value={affiliateForm.code}
-                      onChange={(e) => setAffiliateForm({ ...affiliateForm, code: e.target.value })}
-                      placeholder="Kode (AFFIL-01)"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                    />
-                    <input
-                      type="text"
-                      value={affiliateForm.name}
-                      onChange={(e) => setAffiliateForm({ ...affiliateForm, name: e.target.value })}
-                      placeholder="Nama agent"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                    />
-                    <input
-                      type="text"
-                      value={affiliateForm.phone}
-                      onChange={(e) => setAffiliateForm({ ...affiliateForm, phone: e.target.value.replace(/\D/g, '') })}
-                      placeholder="628xxxx"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                    />
-                    <input
-                      type="number"
-                      min={0}
-                      max={100}
-                      step={0.1}
-                      value={affiliateForm.commission_rate}
-                      onChange={(e) => setAffiliateForm({ ...affiliateForm, commission_rate: e.target.value })}
-                      placeholder="Komisi %"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                    />
-                  </div>
-                  <div className="mt-3 flex items-center gap-2">
-                    <button
-                      onClick={async () => {
-                        if (!storefront?.id) return
-                        if (!affiliateForm.code.trim()) {
-                          showToast('Kode affiliate wajib diisi', 'warning')
-                          return
-                        }
-                        try {
-                          const res = await fetch('/api/lapak/affiliates', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                              storefront_id: storefront.id,
-                              code: affiliateForm.code.trim(),
-                              name: affiliateForm.name.trim(),
-                              phone: affiliateForm.phone.trim(),
-                              commission_rate: affiliateForm.commission_rate,
-                            }),
-                          })
-                          const json = await res.json().catch(() => null as any)
-                          if (!res.ok) {
-                            showToast(json?.error || 'Gagal menambah affiliate', 'error')
-                            return
-                          }
-                          setAffiliates((prev) => [json.affiliate, ...prev])
-                          setAffiliateForm({ code: '', name: '', phone: '', commission_rate: '0' })
-                          showToast('Affiliate berhasil ditambahkan', 'success')
-                        } catch {
-                          showToast('Gagal menambah affiliate', 'error')
-                        }
-                      }}
-                      className="px-4 py-2 text-sm font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                    >
-                      Tambah Affiliate
-                    </button>
-                    <span className="text-xs text-gray-500">Gunakan kode ini di link: ?ref=KODE</span>
-                  </div>
-                </div>
-
-                <div className="bg-white border border-gray-200 rounded-lg p-4 sm:p-5">
-                  <h4 className="text-sm sm:text-base font-semibold text-gray-900 mb-3">Ringkasan Per Kode</h4>
-                  {affiliatesLoading ? (
-                    <div className="text-sm text-gray-500">Memuat data affiliate...</div>
-                  ) : affiliateStats.length === 0 ? (
-                    <div className="text-sm text-gray-500">Belum ada data affiliate.</div>
+                  <h4 className="text-sm sm:text-base font-semibold text-gray-900 mb-3">Performa Outlet</h4>
+                  {outletLoading ? (
+                    <div className="text-sm text-gray-500">Memuat data outlet...</div>
+                  ) : outletRows.length === 0 ? (
+                    <div className="text-sm text-gray-500">Belum ada outlet.</div>
                   ) : (
-                    <div className="space-y-3">
-                      {affiliateStats.map((row) => (
-                        <div key={row.id} className="border border-gray-200 rounded-lg p-3">
-                          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                            <div>
-                              <div className="text-sm font-semibold text-gray-900">{row.code}</div>
-                              <div className="text-xs text-gray-600">
-                                {row.name || 'Tanpa nama'}{row.phone ? ` • +${row.phone}` : ''}
-                              </div>
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              Komisi {row.commission_rate || 0}%
-                            </div>
-                          </div>
-                          <div className="grid sm:grid-cols-3 gap-2 text-xs text-gray-700 mt-3">
-                            <div><span className="text-gray-500">Order:</span> {row.total_orders}</div>
-                            <div><span className="text-gray-500">Omzet:</span> {formatCurrency(row.total_revenue || 0)}</div>
-                            <div><span className="text-gray-500">Komisi:</span> {formatCurrency(row.total_commission || 0)}</div>
-                          </div>
-                          <div className="mt-3 flex flex-wrap gap-2">
-                            <button
-                              onClick={async () => {
-                                try {
-                                  const res = await fetch(`/api/lapak/affiliates?id=${row.id}`, { method: 'DELETE' })
-                                  const json = await res.json().catch(() => null as any)
-                                  if (!res.ok) {
-                                    showToast(json?.error || 'Gagal menghapus affiliate', 'error')
-                                    return
-                                  }
-                                  setAffiliates((prev) => prev.filter((item) => item.id !== row.id))
-                                  showToast('Affiliate dihapus', 'success')
-                                } catch {
-                                  showToast('Gagal menghapus affiliate', 'error')
-                                }
-                              }}
-                              className="px-3 py-1.5 text-xs font-semibold text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100"
-                            >
-                              Hapus
-                            </button>
-                          </div>
-                        </div>
-                      ))}
+                    <div className="overflow-x-auto">
+                      <table className="min-w-[900px] w-full text-xs sm:text-sm">
+                        <thead>
+                          <tr className="text-left text-gray-500 border-b">
+                            <th className="py-2 pr-3">Outlet</th>
+                            <th className="py-2 pr-3">Kode</th>
+                            <th className="py-2 pr-3">Omzet</th>
+                            <th className="py-2 pr-3">Order</th>
+                            <th className="py-2 pr-3">Selesai</th>
+                            <th className="py-2 pr-3">Batal</th>
+                            <th className="py-2 pr-3">Komisi (%)</th>
+                            <th className="py-2 pr-3">Pengelola</th>
+                            <th className="py-2 pr-3">Aksi</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {outletRows.map((row) => (
+                            <tr key={row.id} className="border-b">
+                              <td className="py-2 pr-3">
+                                <div className="font-semibold text-gray-900">{row.store_name}</div>
+                                <div className="text-[11px] text-gray-500">/{row.slug}</div>
+                              </td>
+                              <td className="py-2 pr-3">
+                                <input
+                                  type="text"
+                                  value={row.outlet_code}
+                                  onChange={(e) => {
+                                    const value = e.target.value
+                                    setOutletEdits((prev) => ({
+                                      ...prev,
+                                      [row.id]: {
+                                        outlet_code: value,
+                                        outlet_manager_phone: row.outlet_manager_phone,
+                                        commission_rate: row.commission_rate,
+                                      },
+                                    }))
+                                  }}
+                                  className="w-28 px-2 py-1 border border-gray-300 rounded"
+                                />
+                              </td>
+                              <td className="py-2 pr-3 font-semibold text-gray-900">{formatCurrency(row.total_revenue || 0)}</td>
+                              <td className="py-2 pr-3">{row.total_orders || 0}</td>
+                              <td className="py-2 pr-3">{row.completed_orders || 0}</td>
+                              <td className="py-2 pr-3">{row.canceled_orders || 0}</td>
+                              <td className="py-2 pr-3">
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={100}
+                                  step={0.1}
+                                  value={row.commission_rate}
+                                  onChange={(e) => {
+                                    const value = e.target.value
+                                    setOutletEdits((prev) => ({
+                                      ...prev,
+                                      [row.id]: {
+                                        outlet_code: row.outlet_code,
+                                        outlet_manager_phone: row.outlet_manager_phone,
+                                        commission_rate: value,
+                                      },
+                                    }))
+                                  }}
+                                  className="w-20 px-2 py-1 border border-gray-300 rounded"
+                                />
+                              </td>
+                              <td className="py-2 pr-3">
+                                <input
+                                  type="text"
+                                  value={row.outlet_manager_phone}
+                                  onChange={(e) => {
+                                    const value = e.target.value.replace(/\D/g, '')
+                                    setOutletEdits((prev) => ({
+                                      ...prev,
+                                      [row.id]: {
+                                        outlet_code: row.outlet_code,
+                                        outlet_manager_phone: value,
+                                        commission_rate: row.commission_rate,
+                                      },
+                                    }))
+                                  }}
+                                  className="w-36 px-2 py-1 border border-gray-300 rounded"
+                                />
+                              </td>
+                              <td className="py-2 pr-3">
+                                <button
+                                  onClick={async () => {
+                                    const payload = outletEdits[row.id]
+                                    if (!payload) return
+                                    try {
+                                      const res = await fetch('/api/lapak/outlet-settings', {
+                                        method: 'PATCH',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({
+                                          storefront_id: row.id,
+                                          outlet_code: payload.outlet_code,
+                                          outlet_manager_phone: payload.outlet_manager_phone,
+                                          commission_rate: payload.commission_rate,
+                                        }),
+                                      })
+                                      const json = await res.json().catch(() => null as any)
+                                      if (!res.ok) {
+                                        showToast(json?.error || 'Gagal menyimpan outlet', 'error')
+                                        return
+                                      }
+                                      setOutletStats((prev) => prev.map((item) => item.id === row.id ? {
+                                        ...item,
+                                        outlet_code: json?.outlet?.outlet_code ?? payload.outlet_code,
+                                        outlet_manager_phone: json?.outlet?.outlet_manager_phone ?? payload.outlet_manager_phone,
+                                        commission_rate: json?.outlet?.commission_rate ?? payload.commission_rate,
+                                      } : item))
+                                      showToast('Pengaturan outlet tersimpan', 'success')
+                                    } catch {
+                                      showToast('Gagal menyimpan outlet', 'error')
+                                    }
+                                  }}
+                                  className="px-3 py-1.5 text-xs font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                                >
+                                  Simpan
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   )}
                 </div>
