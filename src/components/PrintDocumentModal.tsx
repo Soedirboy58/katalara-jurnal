@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { buildIncomePdfFilename, generateIncomePdfBlob, type PrintMode } from '@/lib/pdf-generator'
 import { buildWhatsAppUrl, normalizeWhatsAppPhone, type WhatsAppDocumentType } from '@/lib/whatsapp'
+import { createClient } from '@/lib/supabase/client'
 
 type Props = {
   isOpen: boolean
@@ -24,6 +25,7 @@ function formatIdDate(value?: string) {
 
 export function PrintDocumentModal({ isOpen, onClose, incomeData, businessName }: Props) {
   const [mode, setMode] = useState<PrintMode>('receipt')
+  const [resolvedBusinessName, setResolvedBusinessName] = useState(businessName || '')
 
   const [previewOpen, setPreviewOpen] = useState(false)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
@@ -95,9 +97,41 @@ export function PrintDocumentModal({ isOpen, onClose, incomeData, businessName }
     return () => clearTimeout(t)
   }, [toast.show])
 
+  useEffect(() => {
+    if (!businessName) return
+    setResolvedBusinessName(businessName)
+  }, [businessName])
+
+  useEffect(() => {
+    if (!isOpen) return
+    if (resolvedBusinessName) return
+
+    const run = async () => {
+      try {
+        const supabase = createClient()
+        const { data: auth } = await supabase.auth.getUser()
+        const userId = auth?.user?.id
+        if (!userId) return
+
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('business_name')
+          .eq('id', userId)
+          .maybeSingle()
+
+        const name = (profile?.business_name || '').toString().trim()
+        if (name) setResolvedBusinessName(name)
+      } catch {
+        // ignore
+      }
+    }
+
+    run()
+  }, [isOpen, resolvedBusinessName])
+
   const business = useMemo(
     () => ({
-      name: businessName || 'Katalara',
+      name: resolvedBusinessName || 'Katalara',
       // Optional fields (safe defaults). If later you store these in business_configurations,
       // just pass them down here.
       address: incomeData?.business_address || undefined,
@@ -105,7 +139,7 @@ export function PrintDocumentModal({ isOpen, onClose, incomeData, businessName }
       email: incomeData?.business_email || undefined,
       logoUrl: incomeData?.business_logo_url || undefined
     }),
-    [businessName, incomeData?.business_address, incomeData?.business_phone, incomeData?.business_email, incomeData?.business_logo_url]
+    [resolvedBusinessName, incomeData?.business_address, incomeData?.business_phone, incomeData?.business_email, incomeData?.business_logo_url]
   )
 
   if (!isOpen) return null
