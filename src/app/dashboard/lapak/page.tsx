@@ -97,7 +97,7 @@ export default function LapakPage() {
   const [analytics, setAnalytics] = useState<any>(null);
   const [orders, setOrders] = useState<any[]>([]);
   const [orderStats, setOrderStats] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState<'settings' | 'products' | 'analytics' | 'notifications'>('settings');
+  const [activeTab, setActiveTab] = useState<'settings' | 'products' | 'analytics' | 'notifications' | 'affiliates'>('settings');
   const [businessCategory, setBusinessCategory] = useState<string | null>(null);
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
   const [kpiModal, setKpiModal] = useState<{
@@ -1253,6 +1253,16 @@ export default function LapakPage() {
               }`}
             >
               🔔 Notifikasi Order
+            </button>
+            <button
+              onClick={() => setActiveTab('affiliates')}
+              className={`px-3 sm:px-6 py-2 sm:py-3 text-xs sm:text-base font-medium transition-colors whitespace-nowrap ${
+                activeTab === 'affiliates'
+                  ? 'text-blue-600 border-b-2 border-blue-600'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              🧩 Agent/Affiliate
             </button>
           </div>
 
@@ -2484,6 +2494,28 @@ export default function LapakPage() {
                   )}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Affiliates Tab */}
+          {activeTab === 'affiliates' && (
+            <div className="p-3 sm:p-6">
+              <div className="bg-white border border-gray-200 rounded-lg p-4 sm:p-5">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div>
+                    <h3 className="text-base sm:text-lg font-semibold text-gray-900">Dashboard Agent/Sales/Affiliate</h3>
+                    <p className="text-xs sm:text-sm text-gray-600 mt-1">
+                      Pantau performa per kode afiliasi, total order, dan komisi.
+                    </p>
+                  </div>
+                  <span className="text-xs font-semibold px-3 py-1.5 rounded-full bg-blue-50 text-blue-700">
+                    Coming soon
+                  </span>
+                </div>
+                <div className="mt-4 text-xs sm:text-sm text-gray-500">
+                  Setelah data afiliasi aktif, di sini akan muncul ringkasan per kode dan ekspor komisi.
+                </div>
+              </div>
             </div>
           )}
         </div>
