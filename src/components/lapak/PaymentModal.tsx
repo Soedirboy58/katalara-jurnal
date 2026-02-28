@@ -66,6 +66,7 @@ export default function PaymentModal({
   });
   const [desaOptions, setDesaOptions] = useState<Array<{ id: string; nama: string }>>([])
   const [desaLoading, setDesaLoading] = useState(false)
+  const [manualDesa, setManualDesa] = useState('')
   const [paymentProofUrl, setPaymentProofUrl] = useState<string | undefined>(undefined);
   const [paymentProofUploading, setPaymentProofUploading] = useState(false);
   const [paymentProofError, setPaymentProofError] = useState<string | null>(null);
@@ -96,6 +97,7 @@ export default function PaymentModal({
       delivery_method: 'delivery',
       notes: '',
     });
+    setManualDesa('')
     setOrderCode(`KNT-${Date.now().toString().slice(-8)}`);
   }, [isOpen]);
 
@@ -475,12 +477,22 @@ export default function PaymentModal({
                             value={checkoutForm.customer_desa_id || ''}
                             onChange={(e) => {
                               const value = e.target.value
+                              if (value === 'manual') {
+                                setCheckoutForm({
+                                  ...checkoutForm,
+                                  customer_desa_id: '',
+                                  customer_desa_name: manualDesa.trim(),
+                                })
+                                return
+                              }
+
                               const selected = desaOptions.find((row) => row.id === value)
                               setCheckoutForm({
                                 ...checkoutForm,
                                 customer_desa_id: value,
                                 customer_desa_name: selected?.nama || '',
                               })
+                              setManualDesa('')
                             }}
                             disabled={!checkoutForm.customer_kecamatan_id || desaLoading}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
@@ -489,8 +501,29 @@ export default function PaymentModal({
                             {desaOptions.map((desa) => (
                               <option key={desa.id} value={desa.id}>{desa.nama}</option>
                             ))}
+                            <option value="manual">Input manual</option>
                           </select>
                         </div>
+                        {(!desaOptions.length || checkoutForm.customer_desa_id === 'manual') && (
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-600 mb-1">Nama Desa/Kelurahan *</label>
+                            <input
+                              type="text"
+                              value={manualDesa}
+                              onChange={(e) => {
+                                const value = e.target.value
+                                setManualDesa(value)
+                                setCheckoutForm({
+                                  ...checkoutForm,
+                                  customer_desa_id: '',
+                                  customer_desa_name: value,
+                                })
+                              }}
+                              placeholder="Tulis nama desa/kelurahan"
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            />
+                          </div>
+                        )}
                         <div>
                           <label className="block text-xs font-semibold text-gray-600 mb-1">RT/RW</label>
                           <input
