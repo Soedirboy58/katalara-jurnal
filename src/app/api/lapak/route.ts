@@ -140,6 +140,7 @@ export async function POST(request: NextRequest) {
     const {
       store_name,
       description,
+      about_us,
       whatsapp_number,
       wa_status_templates,
       banner_image_urls,
@@ -236,6 +237,7 @@ export async function POST(request: NextRequest) {
       return {
         store_name,
         description,
+        about_us,
         whatsapp_number,
         instagram_handle,
         location_text,

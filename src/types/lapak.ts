@@ -11,6 +11,7 @@ export interface Storefront {
   slug: string;
   store_name: string;
   description?: string;
+  about_us?: string;
   
   // Branding
   logo_url?: string;

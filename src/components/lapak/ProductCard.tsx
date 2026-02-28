@@ -8,9 +8,10 @@ interface ProductCardProps {
   product: StorefrontProduct;
   themeColor: string;
   onClick: () => void;
+  onShare?: () => void;
 }
 
-export default function ProductCard({ product, themeColor, onClick }: ProductCardProps) {
+export default function ProductCard({ product, themeColor, onClick, onShare }: ProductCardProps) {
   const inStock = isProductInStock(product);
   const lowStock = isProductLowStock(product);
   const discountPercentage = calculateDiscountPercentage(product.price, product.compare_at_price);
@@ -68,6 +69,24 @@ export default function ProductCard({ product, themeColor, onClick }: ProductCar
               -{discountPercentage}%
             </span>
           </div>
+        )}
+
+        {onShare && (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onShare();
+            }}
+            className="absolute bottom-2 right-2 w-9 h-9 rounded-full bg-white/90 text-gray-700 shadow-sm border border-gray-200 flex items-center justify-center hover:bg-white"
+            aria-label="Bagikan produk"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 12v7a1 1 0 001 1h14a1 1 0 001-1v-7" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v14" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M7 8l5-5 5 5" />
+            </svg>
+          </button>
         )}
       </div>
 

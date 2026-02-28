@@ -121,6 +121,7 @@ export default function LapakPage() {
   const [formData, setFormData] = useState({
     store_name: '',
     description: '',
+    about_us: '',
     logo_url: '',
     qris_image_url: '',
     banner_image_urls: [] as string[],
@@ -205,6 +206,7 @@ export default function LapakPage() {
     setFormData({
       store_name: '',
       description: '',
+      about_us: '',
       logo_url: '',
       qris_image_url: '',
       banner_image_urls: [] as string[],
@@ -854,6 +856,7 @@ export default function LapakPage() {
         setFormData({
           store_name: data.storefront.store_name,
           description: data.storefront.description || '',
+          about_us: data.storefront.about_us || '',
           logo_url: data.storefront.logo_url || '',
           qris_image_url: data.storefront.qris_image_url || '',
           banner_image_urls: normalizeBannerImageUrls(data.storefront.banner_image_urls),
@@ -1494,6 +1497,23 @@ export default function LapakPage() {
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent text-sm"
                         />
                       </div>
+                    </div>
+                  </div>
+
+                  <div className="border border-gray-200 rounded-xl p-3 sm:p-4 bg-gray-50 space-y-3">
+                    <div>
+                      <h3 className="text-sm sm:text-base font-semibold text-gray-900">Konten Footer - About Us</h3>
+                      <p className="text-xs text-gray-500 mt-0.5">Tampil di bagian footer lapak.</p>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">Teks About Us</label>
+                      <textarea
+                        value={formData.about_us}
+                        onChange={(e) => setFormData({ ...formData, about_us: e.target.value })}
+                        placeholder="Ceritakan singkat tentang usaha atau produk unggulan Anda"
+                        rows={3}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent text-sm resize-none"
+                      />
                     </div>
                   </div>
 

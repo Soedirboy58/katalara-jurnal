@@ -1,12 +1,16 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { StorefrontProduct, calculateDiscountPercentage, isProductInStock } from '@/types/lapak';
 
 interface ProductDetailModalProps {
   product: StorefrontProduct;
   themeColor: string;
+  storeName: string;
+  storefrontSlug: string;
+  storeLogoUrl?: string;
+  initialShareOpen?: boolean;
   onClose: () => void;
   onAddToCart: (quantity: number, variant?: string, notes?: string) => void;
 }
@@ -14,6 +18,10 @@ interface ProductDetailModalProps {
 export default function ProductDetailModal({ 
   product, 
   themeColor, 
+  storeName,
+  storefrontSlug,
+  storeLogoUrl,
+  initialShareOpen = false,
   onClose, 
   onAddToCart 
 }: ProductDetailModalProps) {
@@ -21,6 +29,10 @@ export default function ProductDetailModal({
   const [selectedVariants, setSelectedVariants] = useState<Record<string, string>>({});
   const [notes, setNotes] = useState('');
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [isShareOpen, setIsShareOpen] = useState(initialShareOpen);
+  const [shareImageUrl, setShareImageUrl] = useState<string | null>(null);
+  const [shareStatus, setShareStatus] = useState<string | null>(null);
+  const [isGeneratingShare, setIsGeneratingShare] = useState(false);
 
   const inStock = isProductInStock(product);
   const discountPercentage = calculateDiscountPercentage(product.price, product.compare_at_price);
@@ -29,6 +41,237 @@ export default function ProductDetailModal({
   const allImages = product.image_url 
     ? [product.image_url, ...(product.image_urls || [])]
     : product.image_urls || [];
+
+  useEffect(() => {
+    setIsShareOpen(initialShareOpen);
+    setShareStatus(null);
+  }, [initialShareOpen, product.id]);
+
+  const buildStorefrontUrl = () => {
+    if (typeof window === 'undefined') return '';
+    return `${window.location.origin}/lapak/${storefrontSlug}`;
+  };
+
+  const mixHexColors = (hexA: string, hexB: string, amount: number) => {
+    const normalize = (hex: string) => hex.replace('#', '');
+    const a = normalize(hexA);
+    const b = normalize(hexB);
+    if (a.length !== 6 || b.length !== 6) return hexA;
+
+    const toRgb = (hex: string) => ({
+      r: parseInt(hex.slice(0, 2), 16),
+      g: parseInt(hex.slice(2, 4), 16),
+      b: parseInt(hex.slice(4, 6), 16),
+    });
+
+    const left = toRgb(a);
+    const right = toRgb(b);
+    const clamp = (value: number) => Math.max(0, Math.min(255, Math.round(value)));
+    const mix = (start: number, end: number) => clamp(start + (end - start) * amount);
+    const r = mix(left.r, right.r).toString(16).padStart(2, '0');
+    const g = mix(left.g, right.g).toString(16).padStart(2, '0');
+    const bVal = mix(left.b, right.b).toString(16).padStart(2, '0');
+    return `#${r}${g}${bVal}`;
+  };
+
+  const loadImage = (src: string) => new Promise<HTMLImageElement | null>((resolve) => {
+    if (!src) {
+      resolve(null);
+      return;
+    }
+
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = src;
+  });
+
+  const drawRoundedRect = (ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) => {
+    const radius = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + radius, y);
+    ctx.arcTo(x + w, y, x + w, y + h, radius);
+    ctx.arcTo(x + w, y + h, x, y + h, radius);
+    ctx.arcTo(x, y + h, x, y, radius);
+    ctx.arcTo(x, y, x + w, y, radius);
+    ctx.closePath();
+  };
+
+  const drawCoverImage = (ctx: CanvasRenderingContext2D, img: HTMLImageElement, x: number, y: number, w: number, h: number) => {
+    const scale = Math.max(w / img.width, h / img.height);
+    const width = img.width * scale;
+    const height = img.height * scale;
+    const offsetX = x + (w - width) / 2;
+    const offsetY = y + (h - height) / 2;
+    ctx.drawImage(img, offsetX, offsetY, width, height);
+  };
+
+  const wrapText = (ctx: CanvasRenderingContext2D, text: string, x: number, y: number, maxWidth: number, lineHeight: number, maxLines: number) => {
+    const words = text.split(' ');
+    let line = '';
+    let lineCount = 0;
+    let cursorY = y;
+
+    for (const word of words) {
+      const testLine = line ? `${line} ${word}` : word;
+      if (ctx.measureText(testLine).width > maxWidth && line) {
+        ctx.fillText(line, x, cursorY);
+        lineCount += 1;
+        cursorY += lineHeight;
+        line = word;
+        if (lineCount >= maxLines - 1) break;
+      } else {
+        line = testLine;
+      }
+    }
+
+    if (line && lineCount < maxLines) {
+      ctx.fillText(line, x, cursorY);
+    }
+  };
+
+  const generateShareImage = async () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1080;
+    canvas.height = 1920;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    const baseColor = themeColor || '#1f2937';
+    const topColor = mixHexColors(baseColor, '#ffffff', 0.25);
+    const bottomColor = mixHexColors(baseColor, '#000000', 0.2);
+    const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    gradient.addColorStop(0, topColor);
+    gradient.addColorStop(1, bottomColor);
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const cardX = 90;
+    const cardY = 220;
+    const cardWidth = canvas.width - 180;
+    const cardHeight = 1220;
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
+    drawRoundedRect(ctx, cardX, cardY, cardWidth, cardHeight, 48);
+    ctx.fill();
+
+    const imageSize = cardWidth - 120;
+    const imageX = cardX + 60;
+    const imageY = cardY + 60;
+
+    ctx.save();
+    drawRoundedRect(ctx, imageX, imageY, imageSize, imageSize, 36);
+    ctx.clip();
+
+    const mainImage = await loadImage(allImages[0] || '');
+    if (mainImage) {
+      drawCoverImage(ctx, mainImage, imageX, imageY, imageSize, imageSize);
+    } else {
+      ctx.fillStyle = '#e5e7eb';
+      ctx.fillRect(imageX, imageY, imageSize, imageSize);
+    }
+    ctx.restore();
+
+    const textX = cardX + 70;
+    let textY = imageY + imageSize + 80;
+    ctx.fillStyle = '#0f172a';
+    ctx.font = 'bold 64px ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif';
+    wrapText(ctx, product.name, textX, textY, cardWidth - 140, 72, 2);
+    textY += 150;
+
+    ctx.font = '600 48px ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif';
+    ctx.fillStyle = '#1f2937';
+    ctx.fillText(`Rp ${product.price.toLocaleString('id-ID')}`, textX, textY);
+    textY += 90;
+
+    ctx.font = '500 36px ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif';
+    ctx.fillStyle = '#475569';
+    wrapText(ctx, `Tersedia di ${storeName}`, textX, textY, cardWidth - 140, 46, 2);
+    textY += 120;
+
+    const storefrontUrl = buildStorefrontUrl();
+    ctx.font = '600 32px ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif';
+    ctx.fillStyle = baseColor;
+    wrapText(ctx, storefrontUrl, textX, textY, cardWidth - 140, 40, 2);
+
+    const logoImage = await loadImage(storeLogoUrl || '');
+    const logoSize = 120;
+    const logoX = cardX + cardWidth - logoSize - 50;
+    const logoY = cardY + 40;
+    ctx.save();
+    drawRoundedRect(ctx, logoX, logoY, logoSize, logoSize, logoSize / 2);
+    ctx.clip();
+    if (logoImage) {
+      drawCoverImage(ctx, logoImage, logoX, logoY, logoSize, logoSize);
+    } else {
+      ctx.fillStyle = '#e2e8f0';
+      ctx.fillRect(logoX, logoY, logoSize, logoSize);
+      ctx.fillStyle = '#64748b';
+      ctx.font = '700 42px ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(storeName.charAt(0).toUpperCase(), logoX + logoSize / 2, logoY + logoSize / 2);
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'alphabetic';
+    }
+    ctx.restore();
+
+    try {
+      return canvas.toDataURL('image/png');
+    } catch {
+      return null;
+    }
+  };
+
+  useEffect(() => {
+    if (!isShareOpen) return;
+    let cancelled = false;
+    const run = async () => {
+      setIsGeneratingShare(true);
+      const imageUrl = await generateShareImage();
+      if (!cancelled) {
+        setShareImageUrl(imageUrl);
+        setIsGeneratingShare(false);
+      }
+    };
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [isShareOpen, product.id, themeColor, storeName, storeLogoUrl, storefrontSlug]);
+
+  const storefrontUrl = buildStorefrontUrl();
+  const shareText = `${product.name} - ${storeName}${storefrontUrl ? `\n${storefrontUrl}` : ''}`;
+  const waShareUrl = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
+  const fbShareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(storefrontUrl)}`;
+
+  const handleDownloadShareImage = () => {
+    if (!shareImageUrl) {
+      setShareStatus('Gambar belum siap. Coba beberapa saat lagi.');
+      return;
+    }
+
+    const safeName = product.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    const link = document.createElement('a');
+    link.href = shareImageUrl;
+    link.download = `${safeName || 'produk'}-share.png`;
+    link.click();
+    setShareStatus('Gambar siap diunduh. Unggah ke story/status.');
+  };
+
+  const handleCopyLink = async () => {
+    if (!storefrontUrl) return;
+    try {
+      await navigator.clipboard.writeText(storefrontUrl);
+      setShareStatus('Link lapak tersalin.');
+    } catch {
+      setShareStatus('Gagal menyalin link.');
+    }
+  };
+
+  const handleInstagramShare = () => {
+    handleDownloadShareImage();
+  };
 
   const handleQuantityChange = (delta: number) => {
     const newQuantity = quantity + delta;
@@ -272,6 +515,19 @@ export default function ProductDetailModal({
                 </div>
               )}
 
+              <div className="mb-6">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsShareOpen(true);
+                    setShareStatus(null);
+                  }}
+                  className="w-full py-3 border-2 border-gray-300 rounded-xl font-semibold text-gray-700 hover:border-gray-400 hover:bg-gray-50 transition-colors"
+                >
+                  Bagikan Produk
+                </button>
+              </div>
+
               {/* Add to Cart Button */}
               {inStock && (
                 <button
@@ -290,6 +546,83 @@ export default function ProductDetailModal({
           </div>
         </div>
       </div>
+
+      {isShareOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70">
+          <div className="bg-white rounded-2xl w-full max-w-xl overflow-hidden shadow-2xl">
+            <div className="px-5 py-4 border-b border-gray-200 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-gray-900">Bagikan Produk</h3>
+              <button
+                onClick={() => setIsShareOpen(false)}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                aria-label="Tutup"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="aspect-[9/16] bg-gray-100 rounded-xl overflow-hidden flex items-center justify-center">
+                {shareImageUrl ? (
+                  <img src={shareImageUrl} alt="Preview share" className="w-full h-full object-cover" />
+                ) : isGeneratingShare ? (
+                  <div className="text-sm text-gray-500">Menyiapkan gambar...</div>
+                ) : (
+                  <div className="text-sm text-gray-500">Gambar tidak tersedia.</div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 text-sm">
+                <a
+                  href={waShareUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-3 py-2 rounded-lg border border-emerald-200 text-emerald-700 font-semibold hover:bg-emerald-50 text-center"
+                >
+                  WhatsApp
+                </a>
+                <button
+                  type="button"
+                  onClick={handleInstagramShare}
+                  className="px-3 py-2 rounded-lg border border-pink-200 text-pink-600 font-semibold hover:bg-pink-50"
+                >
+                  Instagram
+                </button>
+                <a
+                  href={fbShareUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-3 py-2 rounded-lg border border-blue-200 text-blue-700 font-semibold hover:bg-blue-50 text-center"
+                >
+                  Facebook
+                </a>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <button
+                  type="button"
+                  onClick={handleDownloadShareImage}
+                  className="px-3 py-2 rounded-lg border border-gray-200 text-gray-700 font-semibold hover:bg-gray-50"
+                >
+                  Unduh Gambar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCopyLink}
+                  className="px-3 py-2 rounded-lg border border-gray-200 text-gray-700 font-semibold hover:bg-gray-50"
+                >
+                  Salin Link
+                </button>
+              </div>
+
+              {shareStatus && (
+                <div className="text-xs text-gray-500">{shareStatus}</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

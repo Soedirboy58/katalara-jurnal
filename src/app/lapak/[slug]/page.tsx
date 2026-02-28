@@ -26,6 +26,7 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
 
   // UI State
   const [selectedProduct, setSelectedProduct] = useState<StorefrontProduct | null>(null);
+  const [shareAutoOpen, setShareAutoOpen] = useState(false);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
@@ -158,6 +159,7 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
     });
 
     setSelectedProduct(null);
+    setShareAutoOpen(false);
     trackEvent('cart_add', product.id);
   };
 
@@ -633,7 +635,13 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
                 themeColor={storefront.theme_color}
                 onClick={() => {
                   setSelectedProduct(product);
+                  setShareAutoOpen(false);
                   trackEvent('product_click', product.id);
+                }}
+                onShare={() => {
+                  setSelectedProduct(product);
+                  setShareAutoOpen(true);
+                  trackEvent('product_click', product.id, { source: 'share_button' });
                 }}
               />
             ))}
@@ -668,7 +676,14 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
         <ProductDetailModal
           product={selectedProduct}
           themeColor={storefront.theme_color}
-          onClose={() => setSelectedProduct(null)}
+          storeName={storefront.store_name}
+          storefrontSlug={slug}
+          storeLogoUrl={storefront.logo_url}
+          initialShareOpen={shareAutoOpen}
+          onClose={() => {
+            setSelectedProduct(null);
+            setShareAutoOpen(false);
+          }}
           onAddToCart={(quantity, variant, notes) =>
             addToCart(selectedProduct, quantity, variant, notes)
           }
@@ -729,7 +744,7 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
             <div>
               <div className="text-sm uppercase tracking-[0.2em] text-[#C8D4C2]">About Us</div>
               <p className="text-sm text-[#E1E8DA] mt-3">
-                {storefront.store_name} hadir dengan pilihan produk segar dan alami untuk gaya hidup sehat setiap hari.
+                {(storefront.about_us || '').trim() || `${storefront.store_name} hadir dengan pilihan produk segar dan alami untuk gaya hidup sehat setiap hari.`}
               </p>
             </div>
             <div>
