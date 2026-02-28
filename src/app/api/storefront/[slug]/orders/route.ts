@@ -394,6 +394,104 @@ const syncStockAfterOrder = async (supabase: any, rawItems: any, orderLabel: str
   }
 }
 
+const restoreStockAfterCancel = async (supabase: any, rawItems: any, orderLabel: string) => {
+  const orderItems = normalizeOrderItems(rawItems)
+  if (orderItems.length === 0) return
+
+  const qtyByStorefrontId = new Map<string, number>()
+  for (const item of orderItems) {
+    const id = String(item?.product_id || '').trim()
+    if (!id) continue
+    const qty = toNumber(item?.quantity ?? item?.qty ?? 0)
+    if (qty <= 0) continue
+    qtyByStorefrontId.set(id, (qtyByStorefrontId.get(id) || 0) + qty)
+  }
+
+  if (qtyByStorefrontId.size === 0) return
+
+  const storefrontIds = Array.from(qtyByStorefrontId.keys())
+  const { data: storefrontProducts, error: storefrontError } = await supabase
+    .from('storefront_products')
+    .select('id, product_id, stock_quantity, track_inventory')
+    .in('id', storefrontIds)
+
+  if (storefrontError || !storefrontProducts) return
+
+  const qtyByMasterId = new Map<string, number>()
+  const localUpdates: Array<{ id: string; nextStock: number }> = []
+
+  for (const product of storefrontProducts) {
+    const requested = qtyByStorefrontId.get(product.id) || 0
+    if (!requested) continue
+    if (product.track_inventory === false) continue
+
+    const current = toNumber((product as any).stock_quantity)
+    const next = Math.max(0, current + requested)
+    localUpdates.push({ id: product.id, nextStock: next })
+
+    const masterId = String((product as any).product_id || '').trim()
+    if (masterId) {
+      qtyByMasterId.set(masterId, (qtyByMasterId.get(masterId) || 0) + requested)
+    }
+  }
+
+  for (const update of localUpdates) {
+    await supabase
+      .from('storefront_products')
+      .update({ stock_quantity: update.nextStock, updated_at: new Date().toISOString() })
+      .eq('id', update.id)
+  }
+
+  const masterIds = Array.from(qtyByMasterId.keys())
+  if (masterIds.length === 0) return
+
+  for (const productId of masterIds) {
+    const qty = qtyByMasterId.get(productId) || 0
+    if (!qty) continue
+    await adjustStockSafe(supabase, productId, qty, `Lapak order canceled ${orderLabel}`)
+  }
+
+  const masterFetch = await supabase
+    .from('products')
+    .select('id, stock_quantity, stock, track_inventory')
+    .in('id', masterIds)
+
+  if (!masterFetch.error && Array.isArray(masterFetch.data)) {
+    for (const row of masterFetch.data) {
+      if (row?.track_inventory === false) continue
+      const canonical = getCanonicalStock(row)
+      if (!Number.isFinite(canonical)) continue
+      await supabase
+        .from('storefront_products')
+        .update({ stock_quantity: canonical, updated_at: new Date().toISOString() })
+        .eq('product_id', row.id)
+    }
+    return
+  }
+
+  if (masterFetch.error && !isMissingColumnError(masterFetch.error)) return
+
+  const linked = await supabase
+    .from('storefront_products')
+    .select('id, product_id, stock_quantity, track_inventory')
+    .in('product_id', masterIds)
+
+  if (linked.error || !linked.data) return
+
+  for (const row of linked.data) {
+    if (row.track_inventory === false) continue
+    const masterId = String(row.product_id || '').trim()
+    if (!masterId) continue
+    const qty = qtyByMasterId.get(masterId) || 0
+    if (!qty) continue
+    const next = Math.max(0, toNumber(row.stock_quantity) + qty)
+    await supabase
+      .from('storefront_products')
+      .update({ stock_quantity: next, updated_at: new Date().toISOString() })
+      .eq('id', row.id)
+  }
+}
+
 export async function POST(
   request: NextRequest,
   context: { params: Promise<{ slug: string }> }
@@ -741,6 +839,13 @@ export async function PATCH(
       );
     }
 
+    const { data: currentOrder } = await supabase
+      .from('storefront_orders')
+      .select('status, order_items, order_code')
+      .eq('id', order_id)
+      .eq('storefront_id', storefront.id)
+      .maybeSingle()
+
     const updatePayload: any = {
       status: normalizedStatus,
       updated_at: new Date().toISOString(),
@@ -801,6 +906,18 @@ export async function PATCH(
         { error: 'Gagal memperbarui order' },
         { status: 500, headers: NO_STORE_HEADERS }
       );
+    }
+
+    if (normalizedStatus === 'canceled' && currentOrder?.status !== 'canceled') {
+      try {
+        await restoreStockAfterCancel(
+          supabase,
+          currentOrder?.order_items,
+          currentOrder?.order_code || order_id
+        )
+      } catch (error) {
+        console.error('Stock restore error:', error)
+      }
     }
 
     return NextResponse.json({ success: true, order: updatedOrder }, { headers: NO_STORE_HEADERS });
