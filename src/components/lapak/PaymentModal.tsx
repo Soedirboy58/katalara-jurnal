@@ -99,8 +99,6 @@ export default function PaymentModal({
     setOrderCode(`KNT-${Date.now().toString().slice(-8)}`);
   }, [isOpen]);
 
-  if (!isOpen) return null;
-
   const normalizePhone = (value: string) => {
     let v = value.replace(/\D/g, '');
     if (v.startsWith('0')) v = v.slice(1);
@@ -270,6 +268,8 @@ export default function PaymentModal({
     { step: 5, text: 'Upload bukti transfer' },
     { step: 6, text: 'Konfirmasi pembayaran' },
   ] : [];
+
+  if (!isOpen) return null;
 
   return (
     <>
