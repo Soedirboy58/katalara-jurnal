@@ -318,6 +318,9 @@ progres/
 
 ## 📌 Rangkuman Sesi Terbaru
 
+#### [2026-02-28: Rangkuman Aktivitas](./2026-02-28_rangkuman_aktivitas.md)
+Mencakup: checkout lookup pelanggan repeat, alamat terstruktur, CRM pelanggan (tambah/hapus), dashboard outlet/affiliate, stok confirmed+rollback, perbaikan cetak dokumen, dan konfirmasi UI di Input Income.
+
 #### [2026-01-20: Rangkuman Aktivitas](./2026-01-20_rangkuman_aktivitas.md)
 Mencakup: UI cleanup kategori Income/Expense (tanpa emoji), konsistensi label di preview transaksi, dan deploy produksi.
 
