@@ -458,13 +458,22 @@ export default function LapakPage() {
       return;
     }
 
+    const normalizedMethod = String(order?.payment_method || '').toLowerCase()
+    const hasPaymentProof = Boolean(order?.payment_proof_url)
+    const isTransferPayment = normalizedMethod === 'transfer' || normalizedMethod === 'qris'
+    const isCashPayment = normalizedMethod === 'cash'
+
+    const paymentType = isTransferPayment
+      ? (hasPaymentProof ? 'cash' : 'tempo')
+      : (isCashPayment ? 'tempo' : 'cash')
+
     const txPayload = {
       transaction_date: new Date().toISOString(),
       items,
       customer_name: order.customer_name,
       customer_phone: order.customer_phone,
       customer_address: order.customer_address,
-      payment_type: 'cash',
+      payment_type: paymentType,
       category: 'product_sales',
       notes: `Lapak order ${order.order_code || order.id}`,
     };

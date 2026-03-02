@@ -130,23 +130,26 @@ export async function GET(request: Request) {
   // Transactions (sales)
   let transactionIds: string[] = [];
   const hasTransactions = await tableHasColumn(supabase, 'transactions', 'transaction_date');
+  let usedTransactions = false;
   if (hasTransactions) {
     const ownership = await getOwnershipFilter(supabase, 'transactions', user.id);
     const amountCol = await pickAmountColumn(supabase, 'transactions', ['total', 'grand_total', 'amount']);
 
     let q: any = supabase
       .from('transactions')
-      .select(`id, ${amountCol}, transaction_date, payment_status, paid_amount, down_payment, remaining_amount, customer_name, customer_id, due_date`);
+      .select(`id, ${amountCol}, transaction_date, payment_status`);
     q = ownership.apply(q);
     const { data: txRows } = await q
       .gte('transaction_date', startIso)
       .lte('transaction_date', endIso);
 
     for (const row of txRows || []) {
+      if (!isPaidStatus((row as any)?.payment_status)) continue;
       salesTotals.total += Math.max(0, toNumber((row as any)?.[amountCol]));
       salesTotals.count += 1;
       if (row?.id) transactionIds.push(String(row.id));
     }
+    usedTransactions = (txRows || []).length > 0;
 
     const hasItems = await tableHasColumn(supabase, 'transaction_items', 'transaction_id');
     if (hasItems && transactionIds.length) {
@@ -167,18 +170,19 @@ export async function GET(request: Request) {
   }
 
   // Legacy incomes (fallback when no transactions)
-  if (!hasTransactions) {
+  if (!usedTransactions) {
     const ownership = await getOwnershipFilter(supabase, 'incomes', user.id);
     const amountCol = await pickAmountColumn(supabase, 'incomes', ['amount', 'total', 'grand_total']);
     let q: any = supabase
       .from('incomes')
-      .select(`id, ${amountCol}, income_date, payment_status, paid_amount, down_payment, remaining_amount, customer_name, customer_id, due_date`);
+      .select(`id, ${amountCol}, income_date, payment_status`);
     q = ownership.apply(q);
     const { data: incomeRows } = await q
       .gte('income_date', startParam || startIso.split('T')[0])
       .lte('income_date', endParam || endIso.split('T')[0]);
 
     for (const row of incomeRows || []) {
+      if (!isPaidStatus((row as any)?.payment_status)) continue;
       salesTotals.total += Math.max(0, toNumber((row as any)?.[amountCol]));
       salesTotals.count += 1;
     }
@@ -194,7 +198,7 @@ export async function GET(request: Request) {
   if (storefrontIds.length) {
     const { data: orderRows } = await supabase
       .from('storefront_orders')
-      .select('total_amount, status, created_at, order_items, transaction_id')
+      .select('total_amount, status, created_at, order_items, transaction_id, payment_method, payment_proof_url')
       .in('storefront_id', storefrontIds)
       .gte('created_at', startIso)
       .lte('created_at', endIso);
@@ -204,6 +208,13 @@ export async function GET(request: Request) {
       if ((order as any)?.transaction_id) continue;
       const status = normalizeStatus((order as any)?.status);
       if (!revenueStatuses.has(status)) continue;
+
+      const method = normalizeStatus((order as any)?.payment_method);
+      const hasProof = Boolean((order as any)?.payment_proof_url);
+      const isTransfer = method === 'transfer' || method === 'qris';
+      const isCash = method === 'cash';
+      const isPaid = (isCash && status === 'completed') || (isTransfer && hasProof && status === 'confirmed');
+      if (!isPaid) continue;
 
       salesTotals.total += Math.max(0, toNumber((order as any)?.total_amount));
       salesTotals.count += 1;

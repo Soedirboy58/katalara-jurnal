@@ -835,7 +835,7 @@ export async function PATCH(
 
     const { data: currentOrder } = await supabase
       .from('storefront_orders')
-      .select('status, order_items, order_code')
+      .select('status, order_items, order_code, payment_method, payment_proof_url, total_amount, transaction_id')
       .eq('id', order_id)
       .eq('storefront_id', storefront.id)
       .maybeSingle()
@@ -911,6 +911,34 @@ export async function PATCH(
         )
       } catch (error) {
         console.error('Stock sync error:', error)
+      }
+    }
+
+    const normalizeMethod = (value?: string | null) => String(value || '').toLowerCase()
+    const paymentMethod = normalizeMethod(currentOrder?.payment_method)
+    const hasPaymentProof = Boolean(currentOrder?.payment_proof_url)
+    const isTransfer = paymentMethod === 'transfer' || paymentMethod === 'qris'
+    const isCash = paymentMethod === 'cash'
+
+    const shouldMarkPaid =
+      Boolean(currentOrder?.transaction_id) &&
+      ((isCash && normalizedStatus === 'completed') || (isTransfer && hasPaymentProof && normalizedStatus === 'confirmed'))
+
+    if (shouldMarkPaid) {
+      try {
+        const total = Math.max(0, toNumber(currentOrder?.total_amount))
+        await supabase
+          .from('transactions')
+          .update({
+            payment_status: 'paid',
+            paid_amount: total,
+            remaining_amount: 0,
+            payment_type: 'cash',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', currentOrder.transaction_id)
+      } catch (error) {
+        console.error('Transaction payment update error:', error)
       }
     }
 
