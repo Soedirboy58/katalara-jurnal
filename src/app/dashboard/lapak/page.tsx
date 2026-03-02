@@ -401,6 +401,23 @@ export default function LapakPage() {
   }
 
   const recentOrders = orders.slice(0, 8)
+  const productSalesSummary = useMemo(() => {
+    const summary = new Map<string, { name: string; qty: number }>()
+
+    for (const order of orders || []) {
+      const items = parseOrderItems(order?.order_items)
+      for (const item of items) {
+        const name = String(item?.product_name || item?.name || item?.title || '').trim()
+        if (!name) continue
+        const qty = Number(item?.quantity || item?.qty || 0)
+        const current = summary.get(name) || { name, qty: 0 }
+        current.qty += Number.isFinite(qty) ? qty : 0
+        summary.set(name, current)
+      }
+    }
+
+    return Array.from(summary.values()).sort((a, b) => b.qty - a.qty)
+  }, [orders])
 
   const updateOrderStatus = async (orderId: string, status: string, transactionId?: string) => {
     if (!storefront?.slug) return;
@@ -749,6 +766,20 @@ export default function LapakPage() {
         <div><span className="text-gray-500">Pembayaran:</span> {getPaymentMethodLabel(order.payment_method)}</div>
         <div><span className="text-gray-500">Total:</span> <span className="font-semibold text-gray-900">{formatCurrency(order.total_amount || 0)}</span></div>
       </div>
+
+      {parseOrderItems(order.order_items).length > 0 && (
+        <div className="text-xs text-gray-600">
+          <div className="text-[11px] text-gray-500 mb-1">Produk dibeli</div>
+          <ul className="space-y-1">
+            {parseOrderItems(order.order_items).map((item: any, idx: number) => (
+              <li key={`${order.id}-item-${idx}`} className="flex items-start justify-between gap-2">
+                <span className="truncate">{item?.product_name || item?.name || item?.title || 'Produk'}</span>
+                <span className="text-gray-500">x{Number(item?.quantity || item?.qty || 0)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {(storefront?.outlet_code || storefront?.outlet_manager_phone || storefront?.commission_rate) && (
         <div className="grid sm:grid-cols-2 gap-2 text-xs text-gray-600">
@@ -2474,6 +2505,40 @@ export default function LapakPage() {
                       )}
                     </div>
                   )}
+
+                  <div className="bg-white border border-gray-200 rounded-lg p-4 sm:p-5">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+                      <div>
+                        <h4 className="font-semibold text-gray-900 text-sm sm:text-base">Akumulasi Penjualan Produk</h4>
+                        <p className="text-xs text-gray-500 mt-1">Total produk terjual (pcs) dari semua order lapak ini.</p>
+                      </div>
+                    </div>
+
+                    {productSalesSummary.length === 0 ? (
+                      <div className="text-sm text-gray-500 py-4">Belum ada produk terjual.</div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full text-xs sm:text-sm">
+                          <thead>
+                            <tr className="text-left text-gray-500 border-b">
+                              <th className="py-2 pr-4">Produk</th>
+                              <th className="py-2">Terjual (pcs)</th>
+                            </tr>
+                          </thead>
+                          <tbody className="text-gray-700">
+                            {productSalesSummary.map((row) => (
+                              <tr key={row.name} className="border-b last:border-b-0">
+                                <td className="py-2 pr-4">
+                                  <div className="font-medium text-gray-900">{row.name}</div>
+                                </td>
+                                <td className="py-2">{row.qty}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
 
                   <div className="bg-white border border-gray-200 rounded-lg p-4 sm:p-5">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
