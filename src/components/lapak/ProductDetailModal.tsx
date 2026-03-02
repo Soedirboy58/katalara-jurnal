@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import NextImage from 'next/image';
-import { StorefrontProduct, calculateDiscountPercentage, isProductInStock } from '@/types/lapak';
+import { StorefrontProduct, calculateDiscountPercentage, isProductInStock, isProductPreOrder } from '@/types/lapak';
 
 interface ProductDetailModalProps {
   product: StorefrontProduct;
@@ -35,6 +35,7 @@ export default function ProductDetailModal({
   const [isGeneratingShare, setIsGeneratingShare] = useState(false);
 
   const inStock = isProductInStock(product);
+  const isPreOrder = isProductPreOrder(product);
   const discountPercentage = calculateDiscountPercentage(product.price, product.compare_at_price);
   
   // Get all images (main + additional)
@@ -368,7 +369,7 @@ export default function ProductDetailModal({
   const handleQuantityChange = (delta: number) => {
     const newQuantity = quantity + delta;
     if (newQuantity < 1) return;
-    if (product.track_inventory && newQuantity > product.stock_quantity) return;
+    if (product.track_inventory && !isPreOrder && newQuantity > product.stock_quantity) return;
     setQuantity(newQuantity);
   };
 
@@ -499,12 +500,16 @@ export default function ProductDetailModal({
               {/* Stock Status */}
               <div className="mb-6">
                 {inStock ? (
-                  <div className="flex items-center gap-2 text-green-600">
+                  <div className={`flex items-center gap-2 ${isPreOrder ? 'text-amber-600' : 'text-green-600'}`}>
                     <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      {isPreOrder ? (
+                        <path d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v5.25l3.5 2.1a1 1 0 001-1.72L11 10.75V6z" />
+                      ) : (
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      )}
                     </svg>
-                    <span className="font-medium">Tersedia</span>
-                    {product.track_inventory && (
+                    <span className="font-medium">{isPreOrder ? 'Pre Order' : 'Tersedia'}</span>
+                    {product.track_inventory && !isPreOrder && (
                       <span className="text-gray-500">({product.stock_quantity} stok)</span>
                     )}
                   </div>
@@ -515,6 +520,11 @@ export default function ProductDetailModal({
                     </svg>
                     <span className="font-medium">Stok Habis</span>
                   </div>
+                )}
+                {isPreOrder && (
+                  <p className="text-xs text-amber-600 mt-2">
+                    Pesanan akan diproses setelah produk siap.
+                  </p>
                 )}
               </div>
 
@@ -576,14 +586,14 @@ export default function ProductDetailModal({
                       value={quantity}
                       onChange={(e) => {
                         const val = parseInt(e.target.value) || 1;
-                        if (product.track_inventory && val > product.stock_quantity) return;
+                        if (product.track_inventory && !isPreOrder && val > product.stock_quantity) return;
                         setQuantity(Math.max(1, val));
                       }}
                       className="w-20 h-10 text-center border-2 border-gray-300 rounded-lg font-semibold text-lg"
                     />
                     <button
                       onClick={() => handleQuantityChange(1)}
-                      disabled={product.track_inventory && quantity >= product.stock_quantity}
+                      disabled={product.track_inventory && !isPreOrder && quantity >= product.stock_quantity}
                       className="w-10 h-10 rounded-lg border-2 border-gray-300 hover:border-gray-400 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center font-bold text-xl"
                     >
                       +

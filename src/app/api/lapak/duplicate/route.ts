@@ -300,6 +300,7 @@ export async function POST(request: NextRequest) {
         stock_quantity: product.stock_quantity ?? 0,
         low_stock_threshold: product.low_stock_threshold ?? 0,
         track_inventory: product.track_inventory !== false,
+        stock_status: product.stock_status || 'in_stock',
         image_url: product.image_url || null,
         image_urls: product.image_urls || null,
         variants: product.variants || null,

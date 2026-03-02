@@ -75,6 +75,7 @@ export interface StorefrontProduct {
   stock_quantity: number;
   low_stock_threshold: number;
   track_inventory: boolean;
+  stock_status?: 'in_stock' | 'out_of_stock' | 'pre_order';
   
   // Media
   image_url?: string;
@@ -369,12 +370,21 @@ export function calculateDiscountPercentage(price: number, compareAtPrice?: numb
 
 // Helper function to check if product is in stock
 export function isProductInStock(product: StorefrontProduct): boolean {
+  const status = product.stock_status || 'in_stock';
+  if (status === 'out_of_stock') return false;
+  if (status === 'pre_order') return true;
   if (!product.track_inventory) return true;
   return product.stock_quantity > 0;
 }
 
 // Helper function to check if product is low in stock
 export function isProductLowStock(product: StorefrontProduct): boolean {
+  const status = product.stock_status || 'in_stock';
+  if (status !== 'in_stock') return false;
   if (!product.track_inventory) return false;
   return product.stock_quantity > 0 && product.stock_quantity <= product.low_stock_threshold;
+}
+
+export function isProductPreOrder(product: StorefrontProduct): boolean {
+  return (product.stock_status || 'in_stock') === 'pre_order';
 }

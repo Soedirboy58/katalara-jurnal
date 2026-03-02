@@ -157,6 +157,7 @@ export default function LapakPage() {
     compare_at_price: 0,
     is_visible: true,
     is_featured: false,
+    stock_status: 'in_stock',
   });
   const [priceInput, setPriceInput] = useState('');
   const [compareAtPriceInput, setCompareAtPriceInput] = useState('');
@@ -1199,6 +1200,7 @@ export default function LapakPage() {
       compare_at_price: 0,
       is_visible: true,
       is_featured: false,
+      stock_status: 'in_stock',
     } as Partial<StorefrontProduct>);
     setPriceInput('');
     setCompareAtPriceInput('');
@@ -2136,6 +2138,7 @@ export default function LapakPage() {
                                   setProductForm({
                                     ...product,
                                     product_type: product.product_type || 'barang',
+                                    stock_status: product.stock_status || 'in_stock',
                                   });
                                   // Set formatted price inputs for editing
                                   setPriceInput(formatNumber(product.price));
@@ -2320,6 +2323,23 @@ export default function LapakPage() {
                               </div>
                               <p className="text-xs text-gray-500 mt-1">Opsional (untuk diskon)</p>
                             </div>
+                          </div>
+
+                          {/* Status Stok */}
+                          <div>
+                            <label className="block font-medium mb-2">Status Stok</label>
+                            <select
+                              value={productForm.stock_status || 'in_stock'}
+                              onChange={(e) => setProductForm({ ...productForm, stock_status: e.target.value as StorefrontProduct['stock_status'] })}
+                              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+                            >
+                              <option value="in_stock">Stok Tersedia</option>
+                              <option value="pre_order">Pre Order</option>
+                              <option value="out_of_stock">Habis</option>
+                            </select>
+                            <p className="text-xs text-gray-500 mt-1">
+                              Pre order tetap bisa dipesan, sedangkan status habis tidak bisa dipesan.
+                            </p>
                           </div>
 
                           {/* Opsi */}

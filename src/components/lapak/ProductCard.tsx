@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Image from 'next/image';
-import { StorefrontProduct, calculateDiscountPercentage, isProductInStock, isProductLowStock } from '@/types/lapak';
+import { StorefrontProduct, calculateDiscountPercentage, isProductInStock, isProductLowStock, isProductPreOrder } from '@/types/lapak';
 
 interface ProductCardProps {
   product: StorefrontProduct;
@@ -13,6 +13,7 @@ interface ProductCardProps {
 
 export default function ProductCard({ product, themeColor, onClick, onShare }: ProductCardProps) {
   const inStock = isProductInStock(product);
+  const isPreOrder = isProductPreOrder(product);
   const lowStock = isProductLowStock(product);
   const discountPercentage = calculateDiscountPercentage(product.price, product.compare_at_price);
 
@@ -47,7 +48,12 @@ export default function ProductCard({ product, themeColor, onClick, onShare }: P
               Habis
             </span>
           )}
-          {inStock && lowStock && (
+          {isPreOrder && (
+            <span className="px-2 py-1 bg-amber-500 text-white text-xs font-medium rounded">
+              Pre Order
+            </span>
+          )}
+          {inStock && !isPreOrder && lowStock && (
             <span className="px-2 py-1 bg-orange-500 text-white text-xs font-medium rounded">
               Stok Terbatas
             </span>
@@ -115,7 +121,12 @@ export default function ProductCard({ product, themeColor, onClick, onShare }: P
         </div>
 
         {/* Stock Info */}
-        {inStock && product.track_inventory && (
+        {isPreOrder && (
+          <p className="text-xs text-amber-600 mt-2">
+            Pre order
+          </p>
+        )}
+        {inStock && !isPreOrder && product.track_inventory && (
           <p className="text-xs text-gray-500 mt-2">
             Stok: {product.stock_quantity}
           </p>
