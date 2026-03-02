@@ -33,6 +33,7 @@ export function ProductModal({ isOpen, onClose, product, onSuccess, onCreated }:
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [formData, setFormData] = useState({
     name: '',
+    description: '',
     sku: '',
     category: '',
     product_type: 'physical' as 'physical' | 'service',
@@ -54,6 +55,7 @@ export function ProductModal({ isOpen, onClose, product, onSuccess, onCreated }:
       const legacy = product as ProductLegacy
       setFormData({
         name: product.name,
+        description: (product as any).description || '',
         sku: product.sku || '',
         category: product.category || '',
         product_type: inferredType,
@@ -68,6 +70,7 @@ export function ProductModal({ isOpen, onClose, product, onSuccess, onCreated }:
     } else {
       setFormData({
         name: '',
+        description: '',
         sku: '',
         category: '',
         product_type: 'physical',
@@ -189,6 +192,7 @@ export function ProductModal({ isOpen, onClose, product, onSuccess, onCreated }:
       const productData: any = {
         user_id: user.id,
         name: formData.name,
+        description: formData.description || null,
         sku,
         category: formData.category || null,
         product_type: formData.product_type,
@@ -354,6 +358,17 @@ export function ProductModal({ isOpen, onClose, product, onSuccess, onCreated }:
           required
           placeholder="Contoh: Kaos Polos Hitam"
         />
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Deskripsi Produk</label>
+          <textarea
+            value={formData.description}
+            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+            placeholder="Contoh: Kue nastar homemade, renyah dan lembut di mulut"
+            rows={3}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+          />
+        </div>
 
         {/* Multi Image Upload (max 3) */}
         <div>
