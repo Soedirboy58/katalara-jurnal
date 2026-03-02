@@ -461,11 +461,11 @@ export default function LapakPage() {
     const normalizedMethod = String(order?.payment_method || '').toLowerCase()
     const hasPaymentProof = Boolean(order?.payment_proof_url)
     const isTransferPayment = normalizedMethod === 'transfer' || normalizedMethod === 'qris'
-    const isCashPayment = normalizedMethod === 'cash'
+    const isCashPayment = !normalizedMethod || normalizedMethod === 'cash'
 
     const paymentType = isTransferPayment
       ? (hasPaymentProof ? 'cash' : 'tempo')
-      : (isCashPayment ? 'tempo' : 'cash')
+      : (isCashPayment ? 'tempo' : 'tempo')
 
     const txPayload = {
       transaction_date: new Date().toISOString(),

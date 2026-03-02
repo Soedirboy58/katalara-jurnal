@@ -918,22 +918,27 @@ export async function PATCH(
     const paymentMethod = normalizeMethod(currentOrder?.payment_method)
     const hasPaymentProof = Boolean(currentOrder?.payment_proof_url)
     const isTransfer = paymentMethod === 'transfer' || paymentMethod === 'qris'
-    const isCash = paymentMethod === 'cash'
+    const isCash = !paymentMethod || paymentMethod === 'cash'
 
     const shouldMarkPaid =
       Boolean(currentOrder?.transaction_id) &&
       ((isCash && normalizedStatus === 'completed') || (isTransfer && hasPaymentProof && normalizedStatus === 'confirmed'))
 
-    if (shouldMarkPaid) {
+    const shouldMarkUnpaid =
+      Boolean(currentOrder?.transaction_id) &&
+      isCash &&
+      ['pending', 'confirmed', 'preparing', 'shipped'].includes(normalizedStatus)
+
+    if (shouldMarkPaid || shouldMarkUnpaid) {
       try {
         const total = Math.max(0, toNumber(currentOrder?.total_amount))
         await supabase
           .from('transactions')
           .update({
-            payment_status: 'paid',
-            paid_amount: total,
-            remaining_amount: 0,
-            payment_type: 'cash',
+            payment_status: shouldMarkPaid ? 'paid' : 'unpaid',
+            paid_amount: shouldMarkPaid ? total : 0,
+            remaining_amount: shouldMarkPaid ? 0 : total,
+            payment_type: shouldMarkPaid ? 'cash' : 'tempo',
             updated_at: new Date().toISOString(),
           })
           .eq('id', currentOrder.transaction_id)
