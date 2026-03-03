@@ -404,8 +404,10 @@ export default function LapakPage() {
   const recentOrders = orders.slice(0, 8)
   const productSalesSummary = useMemo(() => {
     const summary = new Map<string, { name: string; qty: number }>()
+    const countedStatuses = new Set(['confirmed', 'preparing', 'shipped', 'completed'])
 
     for (const order of orders || []) {
+      if (!countedStatuses.has(String(order?.status || ''))) continue
       const items = parseOrderItems(order?.order_items)
       for (const item of items) {
         const name = String(item?.product_name || item?.name || item?.title || '').trim()
