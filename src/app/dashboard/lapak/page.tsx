@@ -468,6 +468,11 @@ export default function LapakPage() {
       ? (hasPaymentProof ? 'cash' : 'tempo')
       : (isCashPayment ? 'tempo' : 'tempo')
 
+    const tempoDays = 7
+    const dueDate = paymentType === 'tempo'
+      ? new Date(Date.now() + tempoDays * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+      : undefined
+
     const txPayload = {
       transaction_date: new Date().toISOString(),
       items,
@@ -475,6 +480,8 @@ export default function LapakPage() {
       customer_phone: order.customer_phone,
       customer_address: order.customer_address,
       payment_type: paymentType,
+      tempo_days: tempoDays,
+      due_date: dueDate,
       category: 'product_sales',
       notes: `Lapak order ${order.order_code || order.id}`,
     };
