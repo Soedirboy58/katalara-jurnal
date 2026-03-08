@@ -410,6 +410,7 @@ export default function SettingsPage() {
   const [unitCatalog, setUnitCatalog] = useState<Array<{ id: string; business_types?: string[]; is_active?: boolean }>>([])
   const [unitPrefs, setUnitPrefs] = useState<Record<string, { is_active: boolean; is_favorite: boolean }>>({})
   const [invoiceTemplates, setInvoiceTemplates] = useState<Array<{ id: string; business_types?: string[] }>>([])
+  const [defaultTemplateId, setDefaultTemplateId] = useState('')
 
 
 
