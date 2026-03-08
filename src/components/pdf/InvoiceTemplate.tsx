@@ -303,11 +303,11 @@ export function InvoiceTemplate(props: { business: BusinessInfo; data: IncomePri
           </View>
         ) : null}
 
-        {business.signatureUrl || business.ownerName || business.name ? (
+        {business.signatureUrl || business.signatureTitle || business.ownerName || business.name ? (
           <View style={styles.signatureBlock}>
             <Text style={styles.signatureLabel}>Hormat Kami,</Text>
             {business.signatureUrl ? <Image style={styles.signatureImage} src={business.signatureUrl} /> : null}
-            <Text style={styles.signatureName}>{business.ownerName || business.name || 'Pemilik'}</Text>
+            <Text style={styles.signatureName}>{business.signatureTitle || business.ownerName || business.name || 'Pemilik'}</Text>
           </View>
         ) : null}
 

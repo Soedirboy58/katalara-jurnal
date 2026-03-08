@@ -15,6 +15,7 @@ interface ExpensePrintModalProps {
     phone?: string
     email?: string
     ownerName?: string
+    signatureTitle?: string
     logoUrl?: string
     signatureUrl?: string
   }
@@ -176,8 +177,87 @@ export function ExpensePrintModal({ isOpen, onClose, expenseData, businessName, 
     phone: businessProfile?.phone || '',
     email: businessProfile?.email || '',
     ownerName: businessProfile?.ownerName || '',
+    signatureTitle: businessProfile?.signatureTitle || '',
     signatureUrl: businessProfile?.signatureUrl || ''
   }), [businessProfile, businessName])
+
+  const removeDarkBackground = async (url: string) => {
+    const res = await fetch(url)
+    const blob = await res.blob()
+    const objectUrl = URL.createObjectURL(blob)
+
+    try {
+      const img = new Image()
+      img.crossOrigin = 'anonymous'
+
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve()
+        img.onerror = () => reject(new Error('Failed to load signature image'))
+        img.src = objectUrl
+      })
+
+      const canvas = document.createElement('canvas')
+      canvas.width = img.width || 1
+      canvas.height = img.height || 1
+
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return url
+
+      ctx.drawImage(img, 0, 0)
+
+      const { width, height } = canvas
+      const sampleSize = Math.max(2, Math.min(12, Math.floor(Math.min(width, height) * 0.08)))
+
+      const samplePoints = [
+        [0, 0],
+        [width - sampleSize, 0],
+        [0, height - sampleSize],
+        [width - sampleSize, height - sampleSize]
+      ]
+
+      let r = 0
+      let g = 0
+      let b = 0
+      let count = 0
+
+      samplePoints.forEach(([sx, sy]) => {
+        const data = ctx.getImageData(sx, sy, sampleSize, sampleSize).data
+        for (let i = 0; i < data.length; i += 4) {
+          r += data[i]
+          g += data[i + 1]
+          b += data[i + 2]
+          count += 1
+        }
+      })
+
+      const avg = {
+        r: r / count,
+        g: g / count,
+        b: b / count
+      }
+
+      const brightness = (avg.r + avg.g + avg.b) / 3
+      if (brightness > 60) return url
+
+      const imgData = ctx.getImageData(0, 0, width, height)
+      const pixels = imgData.data
+      const tolerance = 30
+
+      for (let i = 0; i < pixels.length; i += 4) {
+        const dr = Math.abs(pixels[i] - avg.r)
+        const dg = Math.abs(pixels[i + 1] - avg.g)
+        const db = Math.abs(pixels[i + 2] - avg.b)
+        if (dr < tolerance && dg < tolerance && db < tolerance) {
+          pixels[i + 3] = 0
+        }
+      }
+
+      ctx.putImageData(imgData, 0, 0)
+      return canvas.toDataURL('image/png')
+    } finally {
+      URL.revokeObjectURL(objectUrl)
+    }
+  }
 
   useEffect(() => {
     if (!isOpen) return
@@ -197,11 +277,8 @@ export function ExpensePrintModal({ isOpen, onClose, expenseData, businessName, 
 
     const run = async () => {
       try {
-        const res = await fetch(resolvedBusiness.signatureUrl)
-        const blob = await res.blob()
-        const reader = new FileReader()
-        reader.onload = () => setSignatureDataUrl(reader.result as string)
-        reader.readAsDataURL(blob)
+        const cleaned = await removeDarkBackground(resolvedBusiness.signatureUrl)
+        setSignatureDataUrl(cleaned)
       } catch {
         setSignatureDataUrl(null)
       }
@@ -329,11 +406,18 @@ Terima kasih.
       doc.setDrawColor(220)
       doc.rect(marginX, startY, pageWidth - marginX * 2, 8)
 
+      const tableWidth = pageWidth - marginX * 2
+      const colNo = 8
+      const colQty = 20
+      const colPrice = 28
+      const colSubtotal = 32
+      const colDesc = tableWidth - (colNo + colQty + colPrice + colSubtotal)
+
       const xNo = marginX + 2
-      const xDesc = marginX + 14
-      const xQty = 138
-      const xPrice = 162
-      const xSubtotal = 194
+      const xDesc = marginX + colNo + 2
+      const xQty = marginX + colNo + colDesc + colQty
+      const xPrice = marginX + colNo + colDesc + colQty + colPrice
+      const xSubtotal = marginX + tableWidth
 
       doc.text('No', xNo, startY + 5.5)
       doc.text('Deskripsi', xDesc, startY + 5.5)
@@ -351,18 +435,42 @@ Terima kasih.
         return
       }
 
+      const renderHeader = () => {
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(9)
+        doc.setFillColor(245, 245, 245)
+        doc.rect(marginX, y, tableWidth, 8, 'F')
+        doc.setDrawColor(220)
+        doc.rect(marginX, y, tableWidth, 8)
+        doc.text('No', xNo, y + 5.5)
+        doc.text('Deskripsi', xDesc, y + 5.5)
+        doc.text('Qty', xQty, y + 5.5, { align: 'right' })
+        doc.text('Harga', xPrice, y + 5.5, { align: 'right' })
+        doc.text('Jumlah', xSubtotal, y + 5.5, { align: 'right' })
+        y += 10
+        doc.setFont('helvetica', 'normal')
+      }
+
+      renderHeader()
+
       items.forEach((it, idx) => {
-        if (y > 270) {
+        const descText = (it.product_name || 'Item').toString()
+        const descLines = doc.splitTextToSize(descText, colDesc - 4)
+        const rowHeight = Math.max(7, descLines.length * 4.5)
+
+        if (y + rowHeight > 270) {
           doc.addPage()
           y = 18
+          renderHeader()
         }
+
         doc.setFontSize(9)
         doc.text(String(idx + 1), xNo, y)
-        doc.text((it.product_name || 'Item').slice(0, 46), xDesc, y)
+        doc.text(descLines, xDesc, y)
         doc.text(`${it.qty} ${it.unit || ''}`.trim(), xQty, y, { align: 'right' })
         doc.text(formatMoney(it.price_per_unit || 0), xPrice, y, { align: 'right' })
         doc.text(formatMoney(it.subtotal || 0), xSubtotal, y, { align: 'right' })
-        y += 7
+        y += rowHeight
       })
 
       y += 4
@@ -436,7 +544,7 @@ Terima kasih.
         y += 6
       }
 
-      if (signatureDataUrl || resolvedBusiness.ownerName || resolvedBusiness.name) {
+      if (signatureDataUrl || resolvedBusiness.signatureTitle || resolvedBusiness.ownerName || resolvedBusiness.name) {
         y += 10
         const signX = pageWidth - marginX - 60
         doc.setFont('helvetica', 'normal')
@@ -450,7 +558,7 @@ Terima kasih.
           y += 16
         }
         doc.setFont('helvetica', 'bold')
-        doc.text(resolvedBusiness.ownerName || resolvedBusiness.name, signX, y, { align: 'center' })
+        doc.text(resolvedBusiness.signatureTitle || resolvedBusiness.ownerName || resolvedBusiness.name, signX, y, { align: 'center' })
         y += 6
       }
     }

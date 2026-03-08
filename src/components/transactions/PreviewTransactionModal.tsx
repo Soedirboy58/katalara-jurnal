@@ -77,6 +77,7 @@ export function PreviewTransactionModal({
     phone?: string
     email?: string
     ownerName?: string
+    signatureTitle?: string
     logoUrl?: string
     signatureUrl?: string
     watermarkLogoUrl?: string
@@ -166,6 +167,7 @@ export function PreviewTransactionModal({
             setBusinessProfile({
               name: config?.business_name || profile?.business_name || undefined,
               ownerName: config?.business_owner_name || undefined,
+              signatureTitle: config?.business_signature_title || undefined,
               address: config?.business_address || undefined,
               phone: config?.business_phone || undefined,
               email: config?.business_email || undefined,

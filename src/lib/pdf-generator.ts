@@ -12,6 +12,7 @@ export type BusinessInfo = {
   email?: string
   logoUrl?: string
   ownerName?: string
+  signatureTitle?: string
   signatureUrl?: string
   watermarkLogoUrl?: string
 }

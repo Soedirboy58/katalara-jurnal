@@ -357,6 +357,8 @@ export default function SettingsPage() {
 
   const [businessOwnerName, setBusinessOwnerName] = useState('')
 
+  const [businessSignatureTitle, setBusinessSignatureTitle] = useState('')
+
 
 
 
@@ -831,6 +833,7 @@ export default function SettingsPage() {
 
 
         setBusinessOwnerName(config.business_owner_name || '')
+        setBusinessSignatureTitle(config.business_signature_title || '')
 
 
 
@@ -2855,10 +2858,7 @@ export default function SettingsPage() {
 
         business_owner_name: businessOwnerName || null,
 
-
-
-
-
+        business_signature_title: businessSignatureTitle || null,
 
         business_address: businessAddress || null,
 
@@ -3829,6 +3829,17 @@ export default function SettingsPage() {
       </div>
 
 
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Jabatan/Posisi Tanda Tangan</label>
+                      <input
+                        type="text"
+                        value={businessSignatureTitle}
+                        onChange={(e) => setBusinessSignatureTitle(e.target.value)}
+                        placeholder="Contoh: Owner / Direktur"
+                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
 
 
 

@@ -28,6 +28,7 @@ export function PrintDocumentModal({ isOpen, onClose, incomeData, businessName, 
   const [mode, setMode] = useState<PrintMode>('receipt')
   const [resolvedBusinessName, setResolvedBusinessName] = useState(businessName || '')
   const [profileData, setProfileData] = useState<Partial<BusinessInfo> | null>(null)
+  const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null)
 
   const [previewOpen, setPreviewOpen] = useState(false)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
@@ -110,6 +111,107 @@ export function PrintDocumentModal({ isOpen, onClose, incomeData, businessName, 
   }, [businessProfile])
 
   useEffect(() => {
+    if (!profileData?.signatureUrl) {
+      setSignatureDataUrl(null)
+      return
+    }
+
+    let isMounted = true
+
+    const removeDarkBackground = async (url: string) => {
+      const res = await fetch(url)
+      const blob = await res.blob()
+      const objectUrl = URL.createObjectURL(blob)
+
+      try {
+        const img = new Image()
+        img.crossOrigin = 'anonymous'
+
+        await new Promise<void>((resolve, reject) => {
+          img.onload = () => resolve()
+          img.onerror = () => reject(new Error('Failed to load signature image'))
+          img.src = objectUrl
+        })
+
+        const canvas = document.createElement('canvas')
+        canvas.width = img.width || 1
+        canvas.height = img.height || 1
+
+        const ctx = canvas.getContext('2d')
+        if (!ctx) return url
+
+        ctx.drawImage(img, 0, 0)
+
+        const { width, height } = canvas
+        const sampleSize = Math.max(2, Math.min(12, Math.floor(Math.min(width, height) * 0.08)))
+
+        const samplePoints = [
+          [0, 0],
+          [width - sampleSize, 0],
+          [0, height - sampleSize],
+          [width - sampleSize, height - sampleSize]
+        ]
+
+        let r = 0
+        let g = 0
+        let b = 0
+        let count = 0
+
+        samplePoints.forEach(([sx, sy]) => {
+          const data = ctx.getImageData(sx, sy, sampleSize, sampleSize).data
+          for (let i = 0; i < data.length; i += 4) {
+            r += data[i]
+            g += data[i + 1]
+            b += data[i + 2]
+            count += 1
+          }
+        })
+
+        const avg = {
+          r: r / count,
+          g: g / count,
+          b: b / count
+        }
+
+        const brightness = (avg.r + avg.g + avg.b) / 3
+        if (brightness > 60) return url
+
+        const imgData = ctx.getImageData(0, 0, width, height)
+        const pixels = imgData.data
+        const tolerance = 30
+
+        for (let i = 0; i < pixels.length; i += 4) {
+          const dr = Math.abs(pixels[i] - avg.r)
+          const dg = Math.abs(pixels[i + 1] - avg.g)
+          const db = Math.abs(pixels[i + 2] - avg.b)
+          if (dr < tolerance && dg < tolerance && db < tolerance) {
+            pixels[i + 3] = 0
+          }
+        }
+
+        ctx.putImageData(imgData, 0, 0)
+        return canvas.toDataURL('image/png')
+      } finally {
+        URL.revokeObjectURL(objectUrl)
+      }
+    }
+
+    const run = async () => {
+      try {
+        const cleaned = await removeDarkBackground(profileData.signatureUrl as string)
+        if (isMounted) setSignatureDataUrl(cleaned)
+      } catch {
+        if (isMounted) setSignatureDataUrl(null)
+      }
+    }
+
+    run()
+    return () => {
+      isMounted = false
+    }
+  }, [profileData?.signatureUrl])
+
+  useEffect(() => {
     if (!isOpen) return
 
     const run = async () => {
@@ -140,6 +242,7 @@ export function PrintDocumentModal({ isOpen, onClose, incomeData, businessName, 
           setProfileData({
             name: config.business_name || undefined,
             ownerName: config.business_owner_name || undefined,
+            signatureTitle: config.business_signature_title || undefined,
             address: config.business_address || undefined,
             phone: config.business_phone || undefined,
             email: config.business_email || undefined,
@@ -191,11 +294,13 @@ export function PrintDocumentModal({ isOpen, onClose, incomeData, businessName, 
       email: profileData?.email || incomeData?.business_email || undefined,
       logoUrl: profileData?.logoUrl || incomeData?.business_logo_url || undefined,
       ownerName: profileData?.ownerName || undefined,
-      signatureUrl: profileData?.signatureUrl || undefined,
+      signatureTitle: profileData?.signatureTitle || undefined,
+      signatureUrl: signatureDataUrl || profileData?.signatureUrl || undefined,
       watermarkLogoUrl: profileData?.watermarkLogoUrl || undefined
     }),
     [
       profileData,
+      signatureDataUrl,
       resolvedBusinessName,
       incomeData?.business_address,
       incomeData?.business_phone,
