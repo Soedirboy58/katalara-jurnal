@@ -71,6 +71,16 @@ export function PreviewTransactionModal({
   const [isIncomePrintOpen, setIsIncomePrintOpen] = useState(false)
   const [isExpensePrintOpen, setIsExpensePrintOpen] = useState(false)
   const [businessName, setBusinessName] = useState('')
+  const [businessProfile, setBusinessProfile] = useState<{
+    name?: string
+    address?: string
+    phone?: string
+    email?: string
+    ownerName?: string
+    logoUrl?: string
+    signatureUrl?: string
+    watermarkLogoUrl?: string
+  } | null>(null)
   const poPrintRef = useRef<HTMLDivElement | null>(null)
 
   const openExpensePrint = (opts?: { closePoPreview?: boolean }) => {
@@ -134,7 +144,35 @@ export function PreviewTransactionModal({
               .select('business_name')
               .eq('id', userId)
               .maybeSingle()
-            setBusinessName((profile?.business_name || '').toString())
+
+            let config: any = null
+            let configError: any = null
+            ;({ data: config, error: configError } = await supabase
+              .from('business_configurations')
+              .select('*')
+              .eq('user_id', userId)
+              .maybeSingle())
+
+            if (configError && String(configError?.message || '').toLowerCase().includes('user_id')) {
+              ;({ data: config } = await supabase
+                .from('business_configurations')
+                .select('*')
+                .eq('owner_id', userId)
+                .maybeSingle())
+            }
+
+            const resolvedName = (config?.business_name || profile?.business_name || '').toString()
+            setBusinessName(resolvedName)
+            setBusinessProfile({
+              name: config?.business_name || profile?.business_name || undefined,
+              ownerName: config?.business_owner_name || undefined,
+              address: config?.business_address || undefined,
+              phone: config?.business_phone || undefined,
+              email: config?.business_email || undefined,
+              logoUrl: config?.business_logo_url || undefined,
+              signatureUrl: config?.business_signature_url || undefined,
+              watermarkLogoUrl: config?.business_watermark_logo_url || undefined
+            })
           }
         } catch {
           // ignore profile load failures
@@ -864,6 +902,7 @@ export function PreviewTransactionModal({
           isOpen={isIncomePrintOpen}
           onClose={() => setIsIncomePrintOpen(false)}
           businessName={businessName || 'Bisnis Saya'}
+          businessProfile={businessProfile || undefined}
           incomeData={{
             id: transaction.id,
             income_date: transaction.date,
@@ -900,6 +939,7 @@ export function PreviewTransactionModal({
           isOpen={isExpensePrintOpen}
           onClose={() => setIsExpensePrintOpen(false)}
           businessName={businessName || 'Bisnis Saya'}
+          businessProfile={businessProfile || undefined}
           expenseData={{
             id: transaction.id,
             expense_date: transaction.date,

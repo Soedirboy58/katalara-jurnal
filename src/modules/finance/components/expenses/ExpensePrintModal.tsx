@@ -9,6 +9,15 @@ interface ExpensePrintModalProps {
   onClose: () => void
   expenseData: any
   businessName: string
+  businessProfile?: {
+    name?: string
+    address?: string
+    phone?: string
+    email?: string
+    ownerName?: string
+    logoUrl?: string
+    signatureUrl?: string
+  }
 }
 
 type Mode = 'po' | 'summary'
@@ -155,11 +164,20 @@ const formatMoney = (n: number) => {
   return new Intl.NumberFormat('id-ID').format(Number.isFinite(n) ? n : 0)
 }
 
-export function ExpensePrintModal({ isOpen, onClose, expenseData, businessName }: ExpensePrintModalProps) {
+export function ExpensePrintModal({ isOpen, onClose, expenseData, businessName, businessProfile }: ExpensePrintModalProps) {
   const [mode, setMode] = useState<Mode>('po')
   const [showPreview, setShowPreview] = useState(false)
+  const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null)
 
   const d = useMemo(() => normalizeExpenseData(expenseData), [expenseData])
+  const resolvedBusiness = useMemo(() => ({
+    name: businessProfile?.name || businessName || 'Bisnis Saya',
+    address: businessProfile?.address || '',
+    phone: businessProfile?.phone || '',
+    email: businessProfile?.email || '',
+    ownerName: businessProfile?.ownerName || '',
+    signatureUrl: businessProfile?.signatureUrl || ''
+  }), [businessProfile, businessName])
 
   useEffect(() => {
     if (!isOpen) return
@@ -169,6 +187,28 @@ export function ExpensePrintModal({ isOpen, onClose, expenseData, businessName }
     setMode(hasIdentity ? 'po' : 'summary')
     setShowPreview(false)
   }, [isOpen, d.supplier_name])
+
+  useEffect(() => {
+    if (!isOpen) return
+    if (!resolvedBusiness.signatureUrl) {
+      setSignatureDataUrl(null)
+      return
+    }
+
+    const run = async () => {
+      try {
+        const res = await fetch(resolvedBusiness.signatureUrl)
+        const blob = await res.blob()
+        const reader = new FileReader()
+        reader.onload = () => setSignatureDataUrl(reader.result as string)
+        reader.readAsDataURL(blob)
+      } catch {
+        setSignatureDataUrl(null)
+      }
+    }
+
+    run()
+  }, [isOpen, resolvedBusiness.signatureUrl])
 
   if (!isOpen) return null
 
@@ -190,7 +230,7 @@ export function ExpensePrintModal({ isOpen, onClose, expenseData, businessName }
     const message = `
 *${title}*
 
-${businessName}
+  ${resolvedBusiness.name}
 ━━━━━━━━━━━━━━━━
 
 No: ${getDocNo()}
@@ -234,11 +274,24 @@ Terima kasih.
 
       doc.setFont('helvetica', 'bold')
       doc.setFontSize(11)
-      doc.text(businessName || 'Bisnis Saya', marginX, y)
+      doc.text(resolvedBusiness.name || 'Bisnis Saya', marginX, y)
       y += 5
 
       doc.setFont('helvetica', 'normal')
       doc.setFontSize(9)
+      if (resolvedBusiness.address) {
+        doc.text(resolvedBusiness.address, marginX, y)
+        y += 5
+      }
+      if (resolvedBusiness.phone) {
+        doc.text(`Telp/WA: ${resolvedBusiness.phone}`, marginX, y)
+        y += 5
+      }
+      if (resolvedBusiness.email) {
+        doc.text(`Email: ${resolvedBusiness.email}`, marginX, y)
+        y += 5
+      }
+
       doc.text(`Tanggal: ${formatDate(d.dateISO)}`, marginX, y)
       y += 8
 
@@ -380,6 +433,24 @@ Terima kasih.
         doc.setFont('helvetica', 'normal')
         doc.text(`DP: Rp ${formatMoney(d.down_payment || 0)}`, marginX, y)
         doc.text(`Sisa: Rp ${formatMoney(d.remaining_payment || 0)}`, marginX + 60, y)
+        y += 6
+      }
+
+      if (signatureDataUrl || resolvedBusiness.ownerName || resolvedBusiness.name) {
+        y += 10
+        const signX = pageWidth - marginX - 60
+        doc.setFont('helvetica', 'normal')
+        doc.text('Hormat Kami,', signX, y, { align: 'center' })
+        y += 8
+        if (signatureDataUrl) {
+          const signatureFormat = signatureDataUrl.startsWith('data:image/jpeg') ? 'JPEG' : 'PNG'
+          doc.addImage(signatureDataUrl, signatureFormat, signX - 25, y, 50, 20)
+          y += 24
+        } else {
+          y += 16
+        }
+        doc.setFont('helvetica', 'bold')
+        doc.text(resolvedBusiness.ownerName || resolvedBusiness.name, signX, y, { align: 'center' })
         y += 6
       }
     }
@@ -583,7 +654,10 @@ Terima kasih.
 
                   <div className="grid grid-cols-2 gap-4 mb-6 text-sm">
                     <div>
-                      <div className="font-bold text-gray-900">{businessName}</div>
+                      <div className="font-bold text-gray-900">{resolvedBusiness.name}</div>
+                      {resolvedBusiness.address ? <div className="text-gray-600">{resolvedBusiness.address}</div> : null}
+                      {resolvedBusiness.phone ? <div className="text-gray-600">Telp/WA: {resolvedBusiness.phone}</div> : null}
+                      {resolvedBusiness.email ? <div className="text-gray-600">Email: {resolvedBusiness.email}</div> : null}
                     </div>
                     <div className="text-right">
                       <div><span className="font-semibold">Tanggal:</span> {formatDate(d.dateISO)}</div>

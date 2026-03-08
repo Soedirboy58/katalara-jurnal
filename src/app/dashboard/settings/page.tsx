@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import ImageUpload from '@/components/lapak/ImageUpload'
 
 export default function SettingsPage() {
   const router = useRouter()
@@ -45,6 +46,17 @@ export default function SettingsPage() {
   const [dashboardLayout, setDashboardLayout] = useState('grid') // grid, list
   const [compactMode, setCompactMode] = useState(false)
   const [showAnimations, setShowAnimations] = useState(true)
+
+  // Business profile fields
+  const [businessName, setBusinessName] = useState('')
+  const [businessOwnerName, setBusinessOwnerName] = useState('')
+  const [businessAddress, setBusinessAddress] = useState('')
+  const [businessPhone, setBusinessPhone] = useState('')
+  const [businessEmail, setBusinessEmail] = useState('')
+  const [businessLogoUrl, setBusinessLogoUrl] = useState('')
+  const [businessSignatureUrl, setBusinessSignatureUrl] = useState('')
+  const [businessWatermarkLogoUrl, setBusinessWatermarkLogoUrl] = useState('')
+  const [profileUploadCount, setProfileUploadCount] = useState(0)
 
   const [resetLoading, setResetLoading] = useState(false)
   const [previewLoading, setPreviewLoading] = useState(false)
@@ -103,6 +115,23 @@ export default function SettingsPage() {
         setTrackROI(config.track_roi ?? true)
         setRoiPeriod(config.roi_period || 'monthly')
         setBusinessType(categoryToBusinessType(config.business_category))
+        setBusinessName(config.business_name || '')
+        setBusinessOwnerName(config.business_owner_name || '')
+        setBusinessAddress(config.business_address || '')
+        setBusinessPhone(config.business_phone || '')
+        setBusinessEmail(config.business_email || '')
+        setBusinessLogoUrl(config.business_logo_url || '')
+        setBusinessSignatureUrl(config.business_signature_url || '')
+        setBusinessWatermarkLogoUrl(config.business_watermark_logo_url || '')
+      }
+
+      if (!config?.business_name) {
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('business_name')
+          .eq('id', user.id)
+          .maybeSingle()
+        if (profile?.business_name) setBusinessName(profile.business_name)
       }
     } catch (error) {
       console.error('Error loading settings:', error)
@@ -352,6 +381,11 @@ export default function SettingsPage() {
 
   const handleSave = async () => {
     try {
+      if (profileUploadCount > 0) {
+        showToast('error', 'Tunggu upload gambar selesai sebelum menyimpan.')
+        return
+      }
+
       setSaving(true)
 
       // First check if config exists and get business_category
@@ -369,7 +403,15 @@ export default function SettingsPage() {
         enable_expense_notifications: enableNotifications,
         notification_threshold: parseInt(notificationThreshold),
         track_roi: trackROI,
-        roi_period: roiPeriod
+        roi_period: roiPeriod,
+        business_name: businessName || null,
+        business_owner_name: businessOwnerName || null,
+        business_address: businessAddress || null,
+        business_phone: businessPhone || null,
+        business_email: businessEmail || null,
+        business_logo_url: businessLogoUrl || null,
+        business_signature_url: businessSignatureUrl || null,
+        business_watermark_logo_url: businessWatermarkLogoUrl || null
       }
 
       const { error } = await supabase
@@ -377,6 +419,13 @@ export default function SettingsPage() {
         .upsert(settings, { onConflict: 'user_id' })
 
       if (error) throw error
+
+      if (businessName) {
+        await supabase
+          .from('user_profiles')
+          .update({ business_name: businessName })
+          .eq('id', userId)
+      }
 
       if (userId) {
         const unitRows = unitCatalog.map((unit) => ({
@@ -561,11 +610,130 @@ export default function SettingsPage() {
                   </svg>
                 </div>
                 <div className="flex-1">
-                  <h2 className="text-lg font-semibold text-gray-900">Tipe Usaha</h2>
-                  <p className="text-sm text-gray-600 mt-1">
-                    Pilih tipe usaha untuk menyesuaikan menu, alur input, dan tampilan fitur agar lebih sederhana.
-                  </p>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Nama Bisnis</label>
+                  <input
+                    type="text"
+                    value={businessName}
+                    onChange={(e) => setBusinessName(e.target.value)}
+                    placeholder="Contoh: PT. Maju Jaya"
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Nama Pemilik/Penanggung Jawab</label>
+                  <input
+                    type="text"
+                    value={businessOwnerName}
+                    onChange={(e) => setBusinessOwnerName(e.target.value)}
+                    placeholder="Contoh: Bapak Reza"
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">No. Telepon/WhatsApp</label>
+                  <input
+                    type="text"
+                    value={businessPhone}
+                    onChange={(e) => setBusinessPhone(e.target.value)}
+                    placeholder="Contoh: 0822xxxx"
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Email Bisnis</label>
+                  <input
+                    type="email"
+                    value={businessEmail}
+                    onChange={(e) => setBusinessEmail(e.target.value)}
+                    placeholder="Contoh: info@bisnis.com"
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                <div className="lg:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Alamat Bisnis</label>
+                  <textarea
+                    value={businessAddress}
+                    onChange={(e) => setBusinessAddress(e.target.value)}
+                    rows={3}
+                    placeholder="Contoh: Jl. Raya Susukan Desa Karangjati RT. 02 RW. 02, Kec. Susukan Kab. Banjarnegara"
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div className="flex items-center mb-4">
+                <div className="text-2xl mr-3">🖼️</div>
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">Logo, Tanda Tangan, & Watermark</h2>
+                  <p className="text-sm text-gray-600">Digunakan di PO, invoice, dan struk.</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                <ImageUpload
+                  currentImageUrl={businessLogoUrl}
+                  onImageUploaded={(url) => setBusinessLogoUrl(url)}
+                  onUploadingChange={(uploading) =>
+                    setProfileUploadCount((prev) => (uploading ? prev + 1 : Math.max(0, prev - 1)))
+                  }
+                  folder="logos"
+                  userId={userId || ''}
+                  label="Logo Bisnis (Header)"
+                  aspectRatio="square"
+                  enableCrop={true}
+                />
+                <ImageUpload
+                  currentImageUrl={businessSignatureUrl}
+                  onImageUploaded={(url) => setBusinessSignatureUrl(url)}
+                  onUploadingChange={(uploading) =>
+                    setProfileUploadCount((prev) => (uploading ? prev + 1 : Math.max(0, prev - 1)))
+                  }
+                  folder="signatures"
+                  userId={userId || ''}
+                  label="Tanda Tangan (Invoice/PO)"
+                  aspectRatio="wide"
+                  enableCrop={true}
+                />
+                <ImageUpload
+                  currentImageUrl={businessWatermarkLogoUrl}
+                  onImageUploaded={(url) => setBusinessWatermarkLogoUrl(url)}
+                  onUploadingChange={(uploading) =>
+                    setProfileUploadCount((prev) => (uploading ? prev + 1 : Math.max(0, prev - 1)))
+                  }
+                  folder="watermarks"
+                  userId={userId || ''}
+                  label="Logo Watermark (Invoice)"
+                  aspectRatio="wide"
+                  enableCrop={true}
+                />
+              </div>
+
+              <div className="mt-4 text-xs text-gray-500">
+                Watermark hanya digunakan untuk invoice. Tanda tangan muncul di invoice & PO.
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={handleSave}
+                disabled={saving || profileUploadCount > 0}
+                className="flex-1 sm:flex-none px-8 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {saving ? 'Menyimpan...' : profileUploadCount > 0 ? 'Menunggu upload...' : 'Simpan Profil Bisnis'}
+              </button>
+              <button
+                onClick={loadSettings}
+                disabled={saving}
+                className="px-6 py-3 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+              >
+                Reset
+              </button>
+            </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

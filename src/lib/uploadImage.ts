@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/client';
 
 const DEFAULT_BUCKET = 'lapak-images';
 
-const getBucketCandidates = (folder: 'products' | 'logos' | 'qris') => {
+const getBucketCandidates = (folder: 'products' | 'logos' | 'qris' | 'signatures' | 'watermarks') => {
   const envLogo = process.env.NEXT_PUBLIC_LAPAK_LOGO_BUCKET;
   const envQris = process.env.NEXT_PUBLIC_LAPAK_QRIS_BUCKET;
   const envProducts = process.env.NEXT_PUBLIC_LAPAK_PRODUCTS_BUCKET;
@@ -19,7 +19,7 @@ const getBucketCandidates = (folder: 'products' | 'logos' | 'qris') => {
     return result;
   }
 
-  if (folder === 'logos') {
+  if (folder === 'logos' || folder === 'signatures' || folder === 'watermarks') {
     return unique([envLogo, 'Logo Bisnis', DEFAULT_BUCKET]);
   }
 
@@ -48,7 +48,7 @@ export interface UploadResult {
  */
 export async function uploadImage(
   file: File,
-  folder: 'products' | 'logos' | 'qris',
+  folder: 'products' | 'logos' | 'qris' | 'signatures' | 'watermarks',
   userId: string
 ): Promise<UploadResult> {
   try {

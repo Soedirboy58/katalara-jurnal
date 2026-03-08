@@ -103,6 +103,7 @@ export function StrukTemplate(props: { business: BusinessInfo; data: IncomePrint
         <Text style={styles.headerTitle}>{(business.name || 'Katalara').toUpperCase()}</Text>
         {business.address ? <Text style={styles.headerSmall}>{business.address}</Text> : null}
         {business.phone ? <Text style={styles.headerSmall}>{business.phone}</Text> : null}
+        {business.email ? <Text style={styles.headerSmall}>{business.email}</Text> : null}
 
         <Text style={styles.divider}>{'='.repeat(32)}</Text>
 

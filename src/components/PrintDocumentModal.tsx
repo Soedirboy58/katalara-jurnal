@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { buildIncomePdfFilename, generateIncomePdfBlob, type PrintMode } from '@/lib/pdf-generator'
+import { buildIncomePdfFilename, generateIncomePdfBlob, type BusinessInfo, type PrintMode } from '@/lib/pdf-generator'
 import { buildWhatsAppUrl, normalizeWhatsAppPhone, type WhatsAppDocumentType } from '@/lib/whatsapp'
 import { createClient } from '@/lib/supabase/client'
 
@@ -10,6 +10,7 @@ type Props = {
   onClose: () => void
   incomeData: any
   businessName: string
+  businessProfile?: Partial<BusinessInfo>
 }
 
 type ToastState = {
@@ -23,9 +24,10 @@ function formatIdDate(value?: string) {
   return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
-export function PrintDocumentModal({ isOpen, onClose, incomeData, businessName }: Props) {
+export function PrintDocumentModal({ isOpen, onClose, incomeData, businessName, businessProfile }: Props) {
   const [mode, setMode] = useState<PrintMode>('receipt')
   const [resolvedBusinessName, setResolvedBusinessName] = useState(businessName || '')
+  const [profileData, setProfileData] = useState<Partial<BusinessInfo> | null>(null)
 
   const [previewOpen, setPreviewOpen] = useState(false)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
@@ -103,6 +105,58 @@ export function PrintDocumentModal({ isOpen, onClose, incomeData, businessName }
   }, [businessName])
 
   useEffect(() => {
+    if (!businessProfile) return
+    setProfileData((prev) => ({ ...prev, ...businessProfile }))
+  }, [businessProfile])
+
+  useEffect(() => {
+    if (!isOpen) return
+
+    const run = async () => {
+      try {
+        const supabase = createClient()
+        const { data: auth } = await supabase.auth.getUser()
+        const userId = auth?.user?.id
+        if (!userId) return
+
+        let config: any = null
+        let configError: any = null
+
+        ;({ data: config, error: configError } = await supabase
+          .from('business_configurations')
+          .select('*')
+          .eq('user_id', userId)
+          .maybeSingle())
+
+        if (configError && String(configError?.message || '').toLowerCase().includes('user_id')) {
+          ;({ data: config } = await supabase
+            .from('business_configurations')
+            .select('*')
+            .eq('owner_id', userId)
+            .maybeSingle())
+        }
+
+        if (config) {
+          setProfileData({
+            name: config.business_name || undefined,
+            ownerName: config.business_owner_name || undefined,
+            address: config.business_address || undefined,
+            phone: config.business_phone || undefined,
+            email: config.business_email || undefined,
+            logoUrl: config.business_logo_url || undefined,
+            signatureUrl: config.business_signature_url || undefined,
+            watermarkLogoUrl: config.business_watermark_logo_url || undefined
+          })
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    run()
+  }, [isOpen])
+
+  useEffect(() => {
     if (!isOpen) return
     if (resolvedBusinessName) return
 
@@ -131,15 +185,23 @@ export function PrintDocumentModal({ isOpen, onClose, incomeData, businessName }
 
   const business = useMemo(
     () => ({
-      name: resolvedBusinessName || 'Katalara',
-      // Optional fields (safe defaults). If later you store these in business_configurations,
-      // just pass them down here.
-      address: incomeData?.business_address || undefined,
-      phone: incomeData?.business_phone || undefined,
-      email: incomeData?.business_email || undefined,
-      logoUrl: incomeData?.business_logo_url || undefined
+      name: profileData?.name || resolvedBusinessName || 'Katalara',
+      address: profileData?.address || incomeData?.business_address || undefined,
+      phone: profileData?.phone || incomeData?.business_phone || undefined,
+      email: profileData?.email || incomeData?.business_email || undefined,
+      logoUrl: profileData?.logoUrl || incomeData?.business_logo_url || undefined,
+      ownerName: profileData?.ownerName || undefined,
+      signatureUrl: profileData?.signatureUrl || undefined,
+      watermarkLogoUrl: profileData?.watermarkLogoUrl || undefined
     }),
-    [resolvedBusinessName, incomeData?.business_address, incomeData?.business_phone, incomeData?.business_email, incomeData?.business_logo_url]
+    [
+      profileData,
+      resolvedBusinessName,
+      incomeData?.business_address,
+      incomeData?.business_phone,
+      incomeData?.business_email,
+      incomeData?.business_logo_url
+    ]
   )
 
   if (!isOpen) return null

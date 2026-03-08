@@ -11,6 +11,9 @@ export type BusinessInfo = {
   phone?: string
   email?: string
   logoUrl?: string
+  ownerName?: string
+  signatureUrl?: string
+  watermarkLogoUrl?: string
 }
 
 export type LineItem = {

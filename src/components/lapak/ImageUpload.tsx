@@ -11,7 +11,7 @@ interface ImageUploadProps {
   currentImageUrl?: string;
   onImageUploaded: (url: string) => void;
   onUploadingChange?: (uploading: boolean) => void;
-  folder: 'products' | 'logos' | 'qris';
+  folder: 'products' | 'logos' | 'qris' | 'signatures' | 'watermarks';
   userId: string;
   label: string;
   aspectRatio?: 'square' | 'wide' | 'auto';

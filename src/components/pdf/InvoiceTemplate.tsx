@@ -34,6 +34,20 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-start'
   },
+  headerMetaRow: {
+    marginTop: 6,
+    flexDirection: 'row',
+    justifyContent: 'space-between'
+  },
+  headerMetaLeft: {
+    fontSize: 9,
+    color: '#111827'
+  },
+  headerMetaRight: {
+    fontSize: 9,
+    color: '#111827',
+    textAlign: 'right'
+  },
   brandBlock: {
     flexDirection: 'row',
     gap: 10,
@@ -63,6 +77,13 @@ const styles = StyleSheet.create({
     color: '#374151',
     textAlign: 'right'
   },
+  watermark: {
+    position: 'absolute',
+    top: '32%',
+    left: '15%',
+    width: '70%',
+    opacity: 0.08
+  },
   sectionRow: {
     marginTop: 16,
     flexDirection: 'row',
@@ -79,6 +100,28 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: 700,
     marginBottom: 6
+  },
+  signatureBlock: {
+    marginTop: 18,
+    alignSelf: 'flex-end',
+    width: 160,
+    textAlign: 'center'
+  },
+  signatureLabel: {
+    fontSize: 9,
+    color: '#374151',
+    marginBottom: 6
+  },
+  signatureImage: {
+    width: 140,
+    height: 60,
+    objectFit: 'contain',
+    alignSelf: 'center'
+  },
+  signatureName: {
+    fontSize: 10,
+    fontWeight: 700,
+    marginTop: 6
   },
   table: {
     marginTop: 16,
@@ -165,6 +208,14 @@ export function InvoiceTemplate(props: { business: BusinessInfo; data: IncomePri
   return (
     <Document>
       <Page size="A4" style={styles.page}>
+        {business.watermarkLogoUrl || business.logoUrl ? (
+          <Image
+            style={styles.watermark}
+            src={business.watermarkLogoUrl || business.logoUrl || ''}
+            fixed
+          />
+        ) : null}
+
         <View style={styles.headerRow}>
           <View style={styles.brandBlock}>
             {business.logoUrl ? <Image style={styles.logo} src={business.logoUrl} /> : null}
@@ -179,8 +230,18 @@ export function InvoiceTemplate(props: { business: BusinessInfo; data: IncomePri
           <View>
             <Text style={styles.invoiceTitle}>INVOICE</Text>
             <Text style={styles.invoiceMeta}>Nomor: {invoiceNo}</Text>
-            <Text style={styles.invoiceMeta}>Tanggal: {formatDateId(data.income_date)}</Text>
-            {data.due_date ? <Text style={styles.invoiceMeta}>Jatuh Tempo: {formatDateId(data.due_date)}</Text> : null}
+          </View>
+        </View>
+
+        <View style={styles.headerMetaRow}>
+          <View>
+            <Text style={styles.headerMetaLeft}>Tanggal: {formatDateId(data.income_date)}</Text>
+            {data.due_date ? (
+              <Text style={styles.headerMetaLeft}>Tgl. Jatuh Tempo: {formatDateId(data.due_date)}</Text>
+            ) : null}
+          </View>
+          <View>
+            <Text style={styles.headerMetaRight}>Penawaran: -</Text>
           </View>
         </View>
 
@@ -192,9 +253,11 @@ export function InvoiceTemplate(props: { business: BusinessInfo; data: IncomePri
           </View>
 
           <View style={styles.box}>
-            <Text style={styles.boxTitle}>Info Pembayaran</Text>
-            {data.payment_method ? <Text>Metode: {data.payment_method}</Text> : <Text>Metode: -</Text>}
-            {data.payment_status ? <Text>Status: {data.payment_status}</Text> : <Text>Status: -</Text>}
+            <Text style={styles.boxTitle}>Informasi Perusahaan</Text>
+            <Text>{business.name || 'Katalara'}</Text>
+            {business.address ? <Text style={styles.businessMeta}>{business.address}</Text> : null}
+            {business.phone ? <Text style={styles.businessMeta}>Telp: {business.phone}</Text> : null}
+            {business.email ? <Text style={styles.businessMeta}>Email: {business.email}</Text> : null}
           </View>
         </View>
 
@@ -237,6 +300,14 @@ export function InvoiceTemplate(props: { business: BusinessInfo; data: IncomePri
           <View style={styles.notes}>
             <Text style={styles.boxTitle}>Catatan</Text>
             <Text>{data.notes}</Text>
+          </View>
+        ) : null}
+
+        {business.signatureUrl || business.ownerName || business.name ? (
+          <View style={styles.signatureBlock}>
+            <Text style={styles.signatureLabel}>Hormat Kami,</Text>
+            {business.signatureUrl ? <Image style={styles.signatureImage} src={business.signatureUrl} /> : null}
+            <Text style={styles.signatureName}>{business.ownerName || business.name || 'Pemilik'}</Text>
           </View>
         ) : null}
 

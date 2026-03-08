@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import jsPDF from 'jspdf'
 import { showToast, ToastContainer } from '@/components/ui/Toast'
+import { createClient } from '@/lib/supabase/client'
 
 interface PrintModalProps {
   isOpen: boolean
@@ -14,6 +15,56 @@ interface PrintModalProps {
 export function PrintModal({ isOpen, onClose, incomeData, businessName }: PrintModalProps) {
   const [printMode, setPrintMode] = useState<'receipt' | 'invoice'>('receipt')
   const [showPreview, setShowPreview] = useState(false)
+  const [profile, setProfile] = useState({
+    name: businessName || '',
+    address: '',
+    phone: '',
+    email: ''
+  })
+
+  useEffect(() => {
+    if (!isOpen) return
+    const run = async () => {
+      try {
+        const supabase = createClient()
+        const { data: auth } = await supabase.auth.getUser()
+        const userId = auth?.user?.id
+        if (!userId) return
+
+        let config: any = null
+        let configError: any = null
+
+        ;({ data: config, error: configError } = await supabase
+          .from('business_configurations')
+          .select('*')
+          .eq('user_id', userId)
+          .maybeSingle())
+
+        if (configError && String(configError?.message || '').toLowerCase().includes('user_id')) {
+          ;({ data: config } = await supabase
+            .from('business_configurations')
+            .select('*')
+            .eq('owner_id', userId)
+            .maybeSingle())
+        }
+
+        if (config) {
+          setProfile({
+            name: config.business_name || businessName || '',
+            address: config.business_address || '',
+            phone: config.business_phone || '',
+            email: config.business_email || ''
+          })
+        } else {
+          setProfile((prev) => ({ ...prev, name: businessName || prev.name }))
+        }
+      } catch {
+        setProfile((prev) => ({ ...prev, name: businessName || prev.name }))
+      }
+    }
+
+    run()
+  }, [isOpen, businessName])
   
   if (!isOpen) return null
   
@@ -56,7 +107,7 @@ export function PrintModal({ isOpen, onClose, incomeData, businessName }: PrintM
       // STRUK MODE (Thermal Printer 80mm) - Simple Receipt
       doc.setFontSize(12)
       doc.setFont('helvetica', 'bold')
-      doc.text(businessName.toUpperCase(), 40, 10, { align: 'center' })
+      doc.text((profile.name || businessName).toUpperCase(), 40, 10, { align: 'center' })
       
       doc.setFontSize(8)
       doc.setFont('helvetica', 'normal')
@@ -170,14 +221,13 @@ export function PrintModal({ isOpen, onClose, incomeData, businessName }: PrintM
       // From (Sender) - Left Side
       doc.setFontSize(10)
       doc.setFont('helvetica', 'bold')
-      doc.text(businessName, 20, 40)
+      doc.text(profile.name || businessName, 20, 40)
       
       doc.setFontSize(9)
       doc.setFont('helvetica', 'normal')
-      doc.text('Jl. Contoh Alamat No. 123', 20, 46)
-      doc.text('Jakarta Selatan, DKI Jakarta', 20, 51)
-      doc.text('Telp: 021-1234567', 20, 56)
-      doc.text('Email: info@business.com', 20, 61)
+      doc.text(profile.address || 'Alamat belum diatur', 20, 46)
+      if (profile.phone) doc.text(`Telp: ${profile.phone}`, 20, 51)
+      if (profile.email) doc.text(`Email: ${profile.email}`, 20, 56)
       
       // Date & Due Date - Right Side
       doc.setFontSize(9)
