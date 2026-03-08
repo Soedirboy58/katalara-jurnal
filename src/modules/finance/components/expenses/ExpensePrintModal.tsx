@@ -434,6 +434,9 @@ Terima kasih.
 
       renderHeader()
 
+      // Add a little padding so first row text doesn't collide with header border
+      y += 2
+
       items.forEach((it, idx) => {
         const descText = (it.product_name || 'Item').toString()
         const descLines = doc.splitTextToSize(descText, colDesc - 4)
@@ -445,13 +448,14 @@ Terima kasih.
           renderHeader()
         }
 
+        const textY = y + 2
         doc.setFontSize(9)
-        doc.text(String(idx + 1), xNo, y)
-        doc.text(descLines, xDesc, y)
-        doc.text(`${it.qty} ${it.unit || ''}`.trim(), xQty, y, { align: 'right' })
-        doc.text(formatMoney(it.price_per_unit || 0), xPrice, y, { align: 'right' })
-        doc.text(formatMoney(it.subtotal || 0), xSubtotal, y, { align: 'right' })
-        y += rowHeight
+        doc.text(String(idx + 1), xNo, textY)
+        doc.text(descLines, xDesc, textY)
+        doc.text(`${it.qty} ${it.unit || ''}`.trim(), xQty, textY, { align: 'right' })
+        doc.text(formatMoney(it.price_per_unit || 0), xPrice, textY, { align: 'right' })
+        doc.text(formatMoney(it.subtotal || 0), xSubtotal, textY, { align: 'right' })
+        y += rowHeight + 2
       })
 
       y += 4
