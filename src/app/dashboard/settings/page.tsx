@@ -406,6 +406,11 @@ export default function SettingsPage() {
 
   const [profileUploadCount, setProfileUploadCount] = useState(0)
 
+  const [operationalLoading, setOperationalLoading] = useState(false)
+  const [unitCatalog, setUnitCatalog] = useState<Array<{ id: string; business_types?: string[]; is_active?: boolean }>>([])
+  const [unitPrefs, setUnitPrefs] = useState<Record<string, { is_active: boolean; is_favorite: boolean }>>({})
+  const [invoiceTemplates, setInvoiceTemplates] = useState<Array<{ id: string; business_types?: string[] }>>([])
+
 
 
 
