@@ -396,16 +396,6 @@ Terima kasih.
     }
 
     const addItemsTable = () => {
-      const startY = y
-      doc.setFont('helvetica', 'bold')
-      doc.setFontSize(9)
-
-      // Header row
-      doc.setFillColor(245, 245, 245)
-      doc.rect(marginX, startY, pageWidth - marginX * 2, 8, 'F')
-      doc.setDrawColor(220)
-      doc.rect(marginX, startY, pageWidth - marginX * 2, 8)
-
       const tableWidth = pageWidth - marginX * 2
       const colNo = 8
       const colQty = 20
@@ -418,15 +408,6 @@ Terima kasih.
       const xQty = marginX + colNo + colDesc + colQty
       const xPrice = marginX + colNo + colDesc + colQty + colPrice
       const xSubtotal = marginX + tableWidth
-
-      doc.text('No', xNo, startY + 5.5)
-      doc.text('Deskripsi', xDesc, startY + 5.5)
-      doc.text('Qty', xQty, startY + 5.5, { align: 'right' })
-      doc.text('Harga', xPrice, startY + 5.5, { align: 'right' })
-      doc.text('Jumlah', xSubtotal, startY + 5.5, { align: 'right' })
-
-      y = startY + 10
-      doc.setFont('helvetica', 'normal')
 
       const items = d.items || []
       if (!items.length) {
