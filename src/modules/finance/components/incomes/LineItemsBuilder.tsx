@@ -269,96 +269,42 @@ export function LineItemsBuilder({
     setCustomUnit('')
   }, [category])
 
-  const formatNumber = (value: string) => {
-    const input = value.trim().replace(/\s+/g, '')
+  const formatQuantityInput = (value: string) => {
+    const input = value.replace(/\s+/g, '').replace(/\./g, ',')
     if (input === '') return ''
 
-    const onlyDigits = input.replace(/[^0-9.,]/g, '')
-    const hasComma = onlyDigits.includes(',')
-    const hasDot = onlyDigits.includes('.')
+    const sanitized = input.replace(/[^0-9,]/g, '')
+    const commaIndex = sanitized.indexOf(',')
+    const hasTrailingComma = sanitized.endsWith(',')
 
-    let intPart = ''
-    let fracPart = ''
-
-    if (hasComma && hasDot) {
-      // assuming id-ID format: dot thousand, comma decimal
-      const [left, right] = onlyDigits.split(',')
-      intPart = (left || '').replace(/\./g, '')
-      fracPart = right || ''
-    } else if (hasComma) {
-      const parts = onlyDigits.split(',')
-      if (parts.length === 2 && parts[1].length <= 2) {
-        intPart = parts[0].replace(/\./g, '')
-        fracPart = parts[1]
-      } else {
-        // fallback: treat all commas as thousand separators (e.g. 2,5250 -> 25250)
-        intPart = parts.join('')
-      }
-    } else if (hasDot) {
-      const parts = onlyDigits.split('.')
-      if (parts.length === 2 && parts[1].length <= 2) {
-        // maybe decimal format in US-style
-        intPart = parts[0].replace(/\./g, '')
-        fracPart = parts[1]
-      } else {
-        // thousand separators
-        intPart = parts.join('')
-      }
-    } else {
-      intPart = onlyDigits
+    if (commaIndex === -1) {
+      return sanitized
     }
 
-    intPart = intPart.replace(/^0+(?=\d)/, '')
-    if (intPart === '') intPart = '0'
-    const formattedInt = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+    const integerPart = sanitized.slice(0, commaIndex)
+    const decimalPart = sanitized.slice(commaIndex + 1).replace(/,/g, '')
 
-    if (fracPart === '') {
-      return formattedInt
+    if (hasTrailingComma && decimalPart === '') {
+      return `${integerPart},`
     }
 
-    return `${formattedInt},${fracPart}`
+    return `${integerPart},${decimalPart}`
   }
 
-  const parseNumber = (str: string) => {
-    const value = String(str).trim()
-    if (!value) return 0
-
-    const normalized = value.replace(/\s+/g, '')
-
-    if (normalized.includes(',') && normalized.includes('.')) {
-      const [left, right] = normalized.split(',')
-      const integer = left.replace(/\./g, '')
-      const fraction = right
-      const numeric = Number(`${integer}.${fraction}`)
-      return Number.isFinite(numeric) ? numeric : 0
-    }
-
-    if (normalized.includes(',')) {
-      const parts = normalized.split(',')
-      if (parts.length === 2 && parts[1].length <= 2) {
-        const integer = parts[0].replace(/\./g, '')
-        const fraction = parts[1]
-        const numeric = Number(`${integer}.${fraction}`)
-        return Number.isFinite(numeric) ? numeric : 0
-      }
-      // treat as US thousands separators or typo: remove commas
-      const numeric = Number(parts.join(''))
-      return Number.isFinite(numeric) ? numeric : 0
-    }
-
-    if (normalized.includes('.')) {
-      const parts = normalized.split('.')
-      if (parts.length === 2 && parts[1].length <= 2) {
-        // decimal with dot
-        const numeric = Number(normalized)
-        return Number.isFinite(numeric) ? numeric : 0
-      }
-      // thousand separators
-      const numeric = Number(parts.join(''))
-      return Number.isFinite(numeric) ? numeric : 0
-    }
-
+  const parseQuantityInput = (value: string) => {
+    const normalized = String(value).trim().replace(/\s+/g, '').replace(/\./g, '').replace(',', '.')
     const numeric = Number(normalized)
+    return Number.isFinite(numeric) ? numeric : 0
+  }
+
+  const formatPriceInput = (value: string) => {
+    const digitsOnly = value.replace(/\D/g, '')
+    if (digitsOnly === '') return ''
+    return digitsOnly.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+  }
+
+  const parsePriceInput = (value: string) => {
+    const numeric = Number(String(value).replace(/\./g, '').replace(/[^0-9]/g, ''))
     return Number.isFinite(numeric) ? numeric : 0
   }
 
@@ -384,8 +330,8 @@ export function LineItemsBuilder({
       return
     }
 
-    const qty = parseNumber(quantity)
-    const priceNum = parseNumber(price)
+    const qty = parseQuantityInput(quantity)
+    const priceNum = parsePriceInput(price)
     const buyPrice = (product as any).cost_price || 0
     
     // Validate quantity
@@ -457,11 +403,11 @@ export function LineItemsBuilder({
   }
 
   const handleQuantityChange = (value: string) => {
-    setQuantity(formatNumber(value))
+    setQuantity(formatQuantityInput(value))
   }
 
   const handlePriceChange = (value: string) => {
-    setPrice(formatNumber(value))
+    setPrice(formatPriceInput(value))
   }
 
   // Helper function for profit calculation
@@ -816,7 +762,7 @@ export function LineItemsBuilder({
               <div className="text-xs text-gray-500 mb-1">Subtotal</div>
               <div className="font-semibold">
                 Rp {new Intl.NumberFormat('id-ID').format(
-                  parseNumber(quantity) * parseNumber(price)
+                  parseQuantityInput(quantity) * parsePriceInput(price)
                 )}
               </div>
             </div>
