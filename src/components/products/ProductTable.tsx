@@ -145,6 +145,8 @@ export function ProductTable({
               const margin = getMargin(product)
               const stockQty = getStockQty(product)
               const unit = (product as any).unit || ''
+              const purchaseUnit = (product as any).purchase_unit || ''
+              const purchaseConversionQty = Number((product as any).purchase_conversion_qty ?? 0)
               const costPrice = (product as any).cost_price ?? (product as any).buy_price ?? 0
               const sellingPrice = (product as any).selling_price ?? (product as any).sell_price ?? (product as any).price ?? 0
               const isSelected = selectedProducts.includes(product.id)
@@ -168,6 +170,11 @@ export function ProductTable({
                   </td>
                   <td className="px-3 sm:px-6 py-4 whitespace-normal break-words">
                     <div className="text-sm font-medium text-gray-900">{product.name}</div>
+                    {purchaseUnit && purchaseConversionQty > 0 && (
+                      <div className="mt-1 text-xs text-amber-700">
+                        Beli: 1 {purchaseUnit} = {formatNumber(purchaseConversionQty)} {unit}
+                      </div>
+                    )}
                   </td>
                   <td className="hidden sm:table-cell px-3 sm:px-6 py-4 whitespace-normal break-words text-sm text-gray-600">
                     {product.category || '-'}

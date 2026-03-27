@@ -102,6 +102,8 @@ export function ProductCardView({
         const isSelected = selectedProducts.includes(product.id)
         const stockQty = getStockQty(product)
         const legacy = product as ProductLegacy
+        const purchaseUnit = (product as any).purchase_unit || ''
+        const purchaseConversionQty = Number((product as any).purchase_conversion_qty ?? 0)
         const costPrice = legacy.cost_price ?? legacy.buy_price ?? 0
         const costNum = typeof costPrice === 'string' ? Number(costPrice) : costPrice
         const stockValue = Number.isFinite(costNum) ? costNum * stockQty : 0
@@ -177,6 +179,11 @@ export function ProductCardView({
                     )}
                     {product.sku && (
                       <p className="text-[10px] sm:text-xs text-gray-500 mt-0.5 sm:mt-1 truncate">SKU: {product.sku}</p>
+                    )}
+                    {purchaseUnit && purchaseConversionQty > 0 && (
+                      <p className="text-[10px] sm:text-xs text-amber-700 mt-0.5 sm:mt-1 truncate">
+                        Beli: 1 {purchaseUnit} = {purchaseConversionQty.toLocaleString('id-ID')} {(product as any).unit || ''}
+                      </p>
                     )}
                   </div>
                 </div>
