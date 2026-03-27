@@ -792,12 +792,8 @@ export default function InputExpensesPage() {
   }
 
   const handleEdit = (expenseId: string) => {
-    showToast(
-      'warning',
-      'Fitur akan diaktifkan mendatang, semetnara gunakan hapus dan buat transaksi baru jika terjadi kesalahan'
-    )
     setSelectedTransactionId(expenseId)
-    setEditModalOpen(false)
+    setEditModalOpen(true)
   }
 
   const handlePreview = (expenseId: string) => {

@@ -29,6 +29,11 @@ interface EditFormData {
   notes: string
 }
 
+interface EditRestrictions {
+  hasLinkedItems: boolean
+  hasLinkedParty: boolean
+}
+
 export function EditTransactionModal({
   isOpen,
   onClose,
@@ -39,6 +44,10 @@ export function EditTransactionModal({
   const supabase = createClient()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [restrictions, setRestrictions] = useState<EditRestrictions>({
+    hasLinkedItems: false,
+    hasLinkedParty: false,
+  })
   const [formData, setFormData] = useState<EditFormData>({
     date: '',
     category: '',
@@ -66,6 +75,26 @@ export function EditTransactionModal({
         if (error) throw error
 
         if (data) {
+          let hasLinkedItems = false
+
+          if (transactionType === 'expense') {
+            const { count } = await supabase
+              .from('expense_items')
+              .select('id', { count: 'exact', head: true })
+              .eq('expense_id', transactionId)
+            hasLinkedItems = Number(count || 0) > 0
+          } else {
+            hasLinkedItems =
+              (Array.isArray((data as any).line_items) && (data as any).line_items.length > 0) ||
+              Boolean((data as any).product_id) ||
+              Number((data as any).quantity || 0) > 0
+          }
+
+          setRestrictions({
+            hasLinkedItems,
+            hasLinkedParty: Boolean((data as any).customer_id || (data as any).supplier_id),
+          })
+
           setFormData({
             date: data[transactionType === 'income' ? 'income_date' : 'expense_date'] || '',
             category:
@@ -106,12 +135,21 @@ export function EditTransactionModal({
         // schema drift safe: try both specific and generic columns
         [categoryField]: formData.category,
         category: formData.category,
-        [customerSupplierField]: formData.customer_or_supplier,
-        grand_total: formData.amount,
         payment_method: formData.payment_method,
         payment_status: formData.payment_status,
         notes: formData.notes,
         updated_at: new Date().toISOString()
+      }
+
+      if (!restrictions.hasLinkedParty) {
+        updateData[customerSupplierField] = formData.customer_or_supplier
+      }
+
+      if (!restrictions.hasLinkedItems) {
+        updateData.grand_total = formData.amount
+        if (transactionType === 'income') {
+          updateData.amount = formData.amount
+        }
       }
 
       const extractMissingColumn = (err: any) => {
@@ -251,7 +289,13 @@ export function EditTransactionModal({
                   onChange={(e) => handleChange('customer_or_supplier', e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder={transactionType === 'income' ? 'Nama customer' : 'Nama supplier'}
+                  disabled={restrictions.hasLinkedParty}
                 />
+                {restrictions.hasLinkedParty && (
+                  <p className="mt-1 text-xs text-amber-700">
+                    Nama pihak dikunci di modal ini karena transaksi terhubung ke data master customer/supplier.
+                  </p>
+                )}
               </div>
 
               {/* Amount */}
@@ -268,8 +312,20 @@ export function EditTransactionModal({
                   min="0"
                   step="0.01"
                   required
+                  disabled={restrictions.hasLinkedItems}
                 />
+                {restrictions.hasLinkedItems && (
+                  <p className="mt-1 text-xs text-amber-700">
+                    Total dikunci karena transaksi memiliki item terkait. Ubah item melalui alur transaksi baru agar stok dan subtotal tetap sinkron.
+                  </p>
+                )}
               </div>
+
+              {(restrictions.hasLinkedItems || restrictions.hasLinkedParty) && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                  Edit pada modal ini dibatasi ke metadata aman seperti tanggal, kategori, metode/status pembayaran, dan catatan. Pembatasan ini menjaga hubungan antar data tetap konsisten.
+                </div>
+              )}
 
               {/* Payment Method */}
               <div>
