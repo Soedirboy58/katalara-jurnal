@@ -451,13 +451,15 @@ export const ExpenseItemsTable: React.FC<ExpenseItemsTableProps> = ({
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">Satuan</label>
             {(() => {
-              const selectedUnit = currentItem.unit || 'pcs'
-              const isCustomUnit = selectedUnit && !unitOptions.some((opt) => opt.value === selectedUnit)
+              const rawSelectedUnit = currentItem.unit
+              const selectedUnit = rawSelectedUnit ?? 'pcs'
+              const isSelectingCustom = rawSelectedUnit === ''
+              const isCustomUnit = !!rawSelectedUnit && !unitOptions.some((opt) => opt.value === rawSelectedUnit)
 
               return (
                 <>
                   <select
-                    value={isCustomUnit ? '__CUSTOM__' : selectedUnit}
+                    value={isSelectingCustom || isCustomUnit ? '__CUSTOM__' : selectedUnit}
                     onChange={(e) => {
                       if (e.target.value === '__CUSTOM__') {
                         onCurrentItemChange({ unit: '' })
@@ -487,10 +489,10 @@ export const ExpenseItemsTable: React.FC<ExpenseItemsTableProps> = ({
                     {!unitLoading && <option value="__CUSTOM__">Custom...</option>}
                   </select>
 
-                  {isCustomUnit || (!unitLoading && selectedUnit === '') ? (
+                  {isSelectingCustom || isCustomUnit ? (
                     <input
                       type="text"
-                      value={currentItem.unit || ''}
+                      value={rawSelectedUnit || ''}
                       onChange={(e) => onCurrentItemChange({ unit: e.target.value })}
                       placeholder="Masukkan satuan custom"
                       className="mt-2 w-full h-10 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
