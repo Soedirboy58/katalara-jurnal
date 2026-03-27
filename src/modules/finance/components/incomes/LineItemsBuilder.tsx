@@ -270,12 +270,25 @@ export function LineItemsBuilder({
   }, [category])
 
   const formatNumber = (num: string) => {
-    const cleaned = num.replace(/\D/g, '')
-    return cleaned.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+    // Accept comma and dot as decimal separators for user convenience
+    const normalized = num.replace(/,/g, '.').replace(/[^0-9.]/g, '')
+    const parts = normalized.split('.')
+    const integerPart = parts[0] || '0'
+    const decimalPart = parts.slice(1).join('')
+
+    const formattedInt = integerPart.replace(/^0+(?=\d)/, '').replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+
+    if (decimalPart.length === 0) {
+      return formattedInt || '0'
+    }
+
+    return `${formattedInt || '0'},${decimalPart}`
   }
 
   const parseNumber = (str: string) => {
-    return parseInt(str.replace(/\./g, '')) || 0
+    const cleaned = str.replace(/\./g, '').replace(/,/g, '.')
+    const n = Number(cleaned)
+    return Number.isFinite(n) ? n : 0
   }
 
   const handleAddItem = async () => {

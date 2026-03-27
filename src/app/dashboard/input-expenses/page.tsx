@@ -417,11 +417,11 @@ export default function InputExpensesPage() {
       return
     }
     
-    const quantity = parseFloat(current.quantity)
-    const pricePerUnit = parseFloat(current.price_per_unit)
+    const quantity = Number(String(current.quantity).replace(/\./g, '').replace(',', '.'))
+    const pricePerUnit = Number(String(current.price_per_unit).replace(/\./g, '').replace(',', '.'))
     
     // Validate quantity
-    if (quantity <= 0) {
+    if (Number.isNaN(quantity) || quantity <= 0) {
       showToast('error', 'Jumlah harus lebih dari 0')
       return
     }

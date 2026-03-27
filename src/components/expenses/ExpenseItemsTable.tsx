@@ -67,11 +67,27 @@ export const ExpenseItemsTable: React.FC<ExpenseItemsTableProps> = ({
   const [unitOptions, setUnitOptions] = useState<{ value: string; label: string; isFavorite: boolean }[]>([])
   const [unitLoading, setUnitLoading] = useState(false)
   
+  const parseNumericInput = (input: string) => {
+    const normalized = input.replace(/\./g, '').replace(/,/g, '.')
+    const n = Number(normalized)
+    return Number.isFinite(n) ? n : 0
+  }
+
+  const formatNumericInput = (input: string) => {
+    const normalized = input.replace(/,/g, '.').replace(/[^0-9.]/g, '')
+    const parts = normalized.split('.')
+    const integerPart = parts[0] || '0'
+    const decimalPart = parts.slice(1).join('')
+    const formattedInt = integerPart.replace(/^0+(?=\d)/, '').replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+    if (!decimalPart) return formattedInt || '0'
+    return `${formattedInt || '0'},${decimalPart}`
+  }
+
   // Calculate current item subtotal
-  const currentSubtotal = 
-    (parseFloat(currentItem.quantity || '0') || 0) * 
-    (parseFloat(currentItem.price_per_unit || '0') || 0)
-  
+  const currentSubtotal =
+    (parseNumericInput(currentItem.quantity || '0') || 0) *
+    (parseNumericInput(currentItem.price_per_unit || '0') || 0)
+
   // Format rupiah
   const formatRupiah = (amount: number) => {
     return new Intl.NumberFormat('id-ID', {
@@ -406,12 +422,10 @@ export const ExpenseItemsTable: React.FC<ExpenseItemsTableProps> = ({
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">Qty</label>
             <input
-              type="number"
+              type="text"
               value={currentItem.quantity || ''}
-              onChange={(e) => onCurrentItemChange({ quantity: e.target.value })}
+              onChange={(e) => onCurrentItemChange({ quantity: formatNumericInput(e.target.value) })}
               placeholder="Qty"
-              min="0"
-              step="0.01"
               className="w-full h-10 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
             />
           </div>
@@ -419,32 +433,65 @@ export const ExpenseItemsTable: React.FC<ExpenseItemsTableProps> = ({
           {/* Unit */}
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">Satuan</label>
-            <select
-              value={currentItem.unit || 'pcs'}
-              onChange={(e) => onCurrentItemChange({ unit: e.target.value })}
-              className="w-full h-10 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-            >
-              {unitLoading && <option value={currentItem.unit || 'pcs'}>Memuat satuan...</option>}
-              {!unitLoading && unitOptions.length === 0 && <option value={currentItem.unit || 'pcs'}>Satuan default</option>}
-              {!unitLoading &&
-                unitOptions.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-            </select>
+            {(() => {
+              const selectedUnit = currentItem.unit || 'pcs'
+              const isCustomUnit = selectedUnit && !unitOptions.some((opt) => opt.value === selectedUnit)
+
+              return (
+                <>
+                  <select
+                    value={isCustomUnit ? '__CUSTOM__' : selectedUnit}
+                    onChange={(e) => {
+                      if (e.target.value === '__CUSTOM__') {
+                        onCurrentItemChange({ unit: '' })
+                      } else {
+                        onCurrentItemChange({ unit: e.target.value })
+                      }
+                    }}
+                    className="w-full h-10 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  >
+                    {unitLoading && <option value={selectedUnit}>Memuat satuan...</option>}
+                    {!unitLoading && unitOptions.length === 0 && (
+                      <>
+                        <option value="pcs">Pcs</option>
+                        <option value="kg">Kg</option>
+                        <option value="liter">Liter</option>
+                        <option value="pack">Pack</option>
+                        <option value="box">Box</option>
+                        <option value="__CUSTOM__">Custom...</option>
+                      </>
+                    )}
+                    {!unitLoading &&
+                      unitOptions.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    {!unitLoading && <option value="__CUSTOM__">Custom...</option>}
+                  </select>
+
+                  {isCustomUnit || (!unitLoading && selectedUnit === '') ? (
+                    <input
+                      type="text"
+                      value={currentItem.unit || ''}
+                      onChange={(e) => onCurrentItemChange({ unit: e.target.value })}
+                      placeholder="Masukkan satuan custom"
+                      className="mt-2 w-full h-10 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                    />
+                  ) : null}
+                </>
+              )
+            })()}
           </div>
           
           {/* Price */}
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">Harga/Unit</label>
             <input
-              type="number"
+              type="text"
               value={currentItem.price_per_unit || ''}
-              onChange={(e) => onCurrentItemChange({ price_per_unit: e.target.value })}
+              onChange={(e) => onCurrentItemChange({ price_per_unit: formatNumericInput(e.target.value) })}
               placeholder="Harga satuan"
-              min="0"
-              step="1"
               className="w-full h-10 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
             />
           </div>
