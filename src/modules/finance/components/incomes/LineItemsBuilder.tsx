@@ -269,26 +269,97 @@ export function LineItemsBuilder({
     setCustomUnit('')
   }, [category])
 
-  const formatNumber = (num: string) => {
-    // Accept comma and dot as decimal separators for user convenience
-    const normalized = num.replace(/,/g, '.').replace(/[^0-9.]/g, '')
-    const parts = normalized.split('.')
-    const integerPart = parts[0] || '0'
-    const decimalPart = parts.slice(1).join('')
+  const formatNumber = (value: string) => {
+    const input = value.trim().replace(/\s+/g, '')
+    if (input === '') return ''
 
-    const formattedInt = integerPart.replace(/^0+(?=\d)/, '').replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+    const onlyDigits = input.replace(/[^0-9.,]/g, '')
+    const hasComma = onlyDigits.includes(',')
+    const hasDot = onlyDigits.includes('.')
 
-    if (decimalPart.length === 0) {
-      return formattedInt || '0'
+    let intPart = ''
+    let fracPart = ''
+
+    if (hasComma && hasDot) {
+      // assuming id-ID format: dot thousand, comma decimal
+      const [left, right] = onlyDigits.split(',')
+      intPart = (left || '').replace(/\./g, '')
+      fracPart = right || ''
+    } else if (hasComma) {
+      const parts = onlyDigits.split(',')
+      if (parts.length === 2 && parts[1].length <= 2) {
+        intPart = parts[0].replace(/\./g, '')
+        fracPart = parts[1]
+      } else {
+        // fallback: treat all commas as thousand separators (e.g. 2,5250 -> 25250)
+        intPart = parts.join('')
+      }
+    } else if (hasDot) {
+      const parts = onlyDigits.split('.')
+      if (parts.length === 2 && parts[1].length <= 2) {
+        // maybe decimal format in US-style
+        intPart = parts[0].replace(/\./g, '')
+        fracPart = parts[1]
+      } else {
+        // thousand separators
+        intPart = parts.join('')
+      }
+    } else {
+      intPart = onlyDigits
     }
 
-    return `${formattedInt || '0'},${decimalPart}`
+    intPart = intPart.replace(/^0+(?=\d)/, '')
+    if (intPart === '') intPart = '0'
+    const formattedInt = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+
+    if (fracPart === '') {
+      return formattedInt
+    }
+
+    return `${formattedInt},${fracPart}`
   }
 
   const parseNumber = (str: string) => {
-    const cleaned = str.replace(/\./g, '').replace(/,/g, '.')
-    const n = Number(cleaned)
-    return Number.isFinite(n) ? n : 0
+    const value = String(str).trim()
+    if (!value) return 0
+
+    const normalized = value.replace(/\s+/g, '')
+
+    if (normalized.includes(',') && normalized.includes('.')) {
+      const [left, right] = normalized.split(',')
+      const integer = left.replace(/\./g, '')
+      const fraction = right
+      const numeric = Number(`${integer}.${fraction}`)
+      return Number.isFinite(numeric) ? numeric : 0
+    }
+
+    if (normalized.includes(',')) {
+      const parts = normalized.split(',')
+      if (parts.length === 2 && parts[1].length <= 2) {
+        const integer = parts[0].replace(/\./g, '')
+        const fraction = parts[1]
+        const numeric = Number(`${integer}.${fraction}`)
+        return Number.isFinite(numeric) ? numeric : 0
+      }
+      // treat as US thousands separators or typo: remove commas
+      const numeric = Number(parts.join(''))
+      return Number.isFinite(numeric) ? numeric : 0
+    }
+
+    if (normalized.includes('.')) {
+      const parts = normalized.split('.')
+      if (parts.length === 2 && parts[1].length <= 2) {
+        // decimal with dot
+        const numeric = Number(normalized)
+        return Number.isFinite(numeric) ? numeric : 0
+      }
+      // thousand separators
+      const numeric = Number(parts.join(''))
+      return Number.isFinite(numeric) ? numeric : 0
+    }
+
+    const numeric = Number(normalized)
+    return Number.isFinite(numeric) ? numeric : 0
   }
 
   const handleAddItem = async () => {
