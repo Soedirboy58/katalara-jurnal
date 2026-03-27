@@ -67,26 +67,43 @@ export const ExpenseItemsTable: React.FC<ExpenseItemsTableProps> = ({
   const [unitOptions, setUnitOptions] = useState<{ value: string; label: string; isFavorite: boolean }[]>([])
   const [unitLoading, setUnitLoading] = useState(false)
   
-  const parseNumericInput = (input: string) => {
-    const normalized = input.replace(/\./g, '').replace(/,/g, '.')
+  const formatQuantityInput = (input: string) => {
+    const normalized = input.replace(/\s+/g, '').replace(/\./g, ',')
+    if (normalized === '') return ''
+
+    const sanitized = normalized.replace(/[^0-9,]/g, '')
+    const commaIndex = sanitized.indexOf(',')
+
+    if (commaIndex === -1) return sanitized
+
+    const integerPart = sanitized.slice(0, commaIndex)
+    const decimalPart = sanitized.slice(commaIndex + 1).replace(/,/g, '')
+    if (sanitized.endsWith(',') && decimalPart === '') return `${integerPart},`
+    return `${integerPart},${decimalPart}`
+  }
+
+  const parseQuantityInput = (input: string) => {
+    const normalized = input.replace(/\s+/g, '').replace(/\./g, '').replace(',', '.')
     const n = Number(normalized)
     return Number.isFinite(n) ? n : 0
   }
 
-  const formatNumericInput = (input: string) => {
-    const normalized = input.replace(/,/g, '.').replace(/[^0-9.]/g, '')
-    const parts = normalized.split('.')
-    const integerPart = parts[0] || '0'
-    const decimalPart = parts.slice(1).join('')
-    const formattedInt = integerPart.replace(/^0+(?=\d)/, '').replace(/\B(?=(\d{3})+(?!\d))/g, '.')
-    if (!decimalPart) return formattedInt || '0'
-    return `${formattedInt || '0'},${decimalPart}`
+  const formatPriceInput = (input: string) => {
+    const digitsOnly = input.replace(/\D/g, '')
+    if (digitsOnly === '') return ''
+    return digitsOnly.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+  }
+
+  const parsePriceInput = (input: string) => {
+    const digitsOnly = input.replace(/\D/g, '')
+    const n = Number(digitsOnly)
+    return Number.isFinite(n) ? n : 0
   }
 
   // Calculate current item subtotal
   const currentSubtotal =
-    (parseNumericInput(currentItem.quantity || '0') || 0) *
-    (parseNumericInput(currentItem.price_per_unit || '0') || 0)
+    (parseQuantityInput(currentItem.quantity || '0') || 0) *
+    (parsePriceInput(currentItem.price_per_unit || '0') || 0)
 
   // Format rupiah
   const formatRupiah = (amount: number) => {
@@ -424,7 +441,7 @@ export const ExpenseItemsTable: React.FC<ExpenseItemsTableProps> = ({
             <input
               type="text"
               value={currentItem.quantity || ''}
-              onChange={(e) => onCurrentItemChange({ quantity: formatNumericInput(e.target.value) })}
+              onChange={(e) => onCurrentItemChange({ quantity: formatQuantityInput(e.target.value) })}
               placeholder="Qty"
               className="w-full h-10 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
             />
@@ -490,7 +507,7 @@ export const ExpenseItemsTable: React.FC<ExpenseItemsTableProps> = ({
             <input
               type="text"
               value={currentItem.price_per_unit || ''}
-              onChange={(e) => onCurrentItemChange({ price_per_unit: formatNumericInput(e.target.value) })}
+              onChange={(e) => onCurrentItemChange({ price_per_unit: formatPriceInput(e.target.value) })}
               placeholder="Harga satuan"
               className="w-full h-10 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
             />

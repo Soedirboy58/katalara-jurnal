@@ -9,9 +9,14 @@ Dokumen ini menyimpan **data deploy yang benar** (project Vercel, repo/branch Gi
 
 ## 1) Fakta Deploy (Sumber Kebenaran)
 
-### Latest Deploy (20 Januari 2026)
-- **Production URL:** `https://katalara-nextjs-2i107bj6s-katalaras-projects.vercel.app`
-- **Inspect URL:** `https://vercel.com/katalaras-projects/katalara-nextjs/6WrJd62Qd7o2E`
+### Latest Deploy (27 Maret 2026)
+- **Production URL:** `https://katalara-nextjs-h67mu7jaw-katalaras-projects.vercel.app`
+- **Inspect URL:** `https://vercel.com/katalaras-projects/katalara-nextjs/5PJ4gkyBESDr3ZKxVFatcSiJY9jc`
+
+### Recent Deploys (27 Maret 2026)
+- `https://katalara-nextjs-hzdon8omu-katalaras-projects.vercel.app`
+- `https://katalara-nextjs-kw8si4w11-katalaras-projects.vercel.app`
+- `https://katalara-nextjs-h67mu7jaw-katalaras-projects.vercel.app`
 
 Catatan: URL production dapat berubah setiap deploy bila belum memakai domain custom.
 

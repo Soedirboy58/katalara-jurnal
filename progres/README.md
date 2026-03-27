@@ -191,6 +191,24 @@ progres/
 
 ### Phase 4: Bug Fixes & Improvements
 
+#### [08. Settings, Signature, and Numeric Input Fixes](./04-BUGFIXES/08_settings_signature_and_numeric_input_fixes.md)
+**Date:** 27 March 2026  
+**Status:** ✅ Fixed  
+
+**Issues:**
+- Settings page save/runtime problems due to missing state and mixed profile/config concerns
+- Signature title not flowing consistently into documents
+- Purchase order print layout regressions
+- Numeric input confusion between quantity and price formatting
+- Expense unit customization gaps
+
+**Solution:**
+- Stabilized settings state and business configuration flow
+- Added `business_signature_title` support end-to-end
+- Fixed PO print spacing/header duplication
+- Separated quantity formatter from price formatter in income flow
+- Added custom unit fallback flow in expense input
+
 #### [01. Expense Flow Fixes](./04-BUGFIXES/01_expense_flow_fixes.md)
 **Date:** December 2025  
 **Status:** ✅ Fixed  
@@ -318,6 +336,9 @@ progres/
 
 ## 📌 Rangkuman Sesi Terbaru
 
+#### [2026-03-27: Rangkuman Aktivitas](./2026-03-27_rangkuman_aktivitas.md)
+Mencakup: stabilisasi Settings, penambahan `business_signature_title`, perbaikan preview/cetak dokumen, perbaikan layout PO, custom satuan Expense, serta pemisahan formatter `jumlah` vs `harga` pada Input Income.
+
 #### [2026-02-28: Rangkuman Aktivitas](./2026-02-28_rangkuman_aktivitas.md)
 Mencakup: checkout lookup pelanggan repeat, alamat terstruktur, CRM pelanggan (tambah/hapus), dashboard outlet/affiliate, stok confirmed+rollback, perbaikan cetak dokumen, konfirmasi UI di Input Income, serta update About Us & share produk di Lapak.
 
@@ -406,12 +427,12 @@ const sell = product.selling_price ?? product.sell_price ?? product.price ?? 0
 | Metric | Count |
 |--------|-------|
 | Total Features | 12+ |
-| Bug Fixes | 10+ |
+| Bug Fixes | 11+ |
 | Refactorings | 3 |
 | Core Tables | 8 |
 | API Routes | 15+ |
 | Components | 50+ |
-| Documentation Files | 15+ |
+| Documentation Files | 17+ |
 
 ---
 

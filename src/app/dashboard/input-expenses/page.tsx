@@ -418,7 +418,7 @@ export default function InputExpensesPage() {
     }
     
     const quantity = Number(String(current.quantity).replace(/\./g, '').replace(',', '.'))
-    const pricePerUnit = Number(String(current.price_per_unit).replace(/\./g, '').replace(',', '.'))
+    const pricePerUnit = Number(String(current.price_per_unit).replace(/\D/g, ''))
     
     // Validate quantity
     if (Number.isNaN(quantity) || quantity <= 0) {
@@ -427,7 +427,7 @@ export default function InputExpensesPage() {
     }
     
     // Validate price
-    if (pricePerUnit <= 0) {
+    if (Number.isNaN(pricePerUnit) || pricePerUnit <= 0) {
       showToast('error', 'Harga beli harus lebih dari 0')
       return
     }
