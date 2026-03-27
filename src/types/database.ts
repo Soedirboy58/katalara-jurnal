@@ -26,6 +26,8 @@ export interface Database {
           // Kept nullable for backward compatibility.
           product_type: string | null
           unit: string
+          purchase_unit: string | null
+          purchase_conversion_qty: number | null
           description: string | null
           cost_price: number
           selling_price: number
@@ -44,6 +46,8 @@ export interface Database {
           category?: string | null
           product_type?: string | null
           unit?: string
+          purchase_unit?: string | null
+          purchase_conversion_qty?: number | null
           description?: string | null
           cost_price?: number
           selling_price?: number
@@ -64,6 +68,8 @@ export interface Database {
           category?: string | null
           product_type?: string | null
           unit?: string
+          purchase_unit?: string | null
+          purchase_conversion_qty?: number | null
           description?: string | null
           cost_price?: number
           selling_price?: number

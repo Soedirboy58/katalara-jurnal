@@ -11,6 +11,8 @@
  * sku              TEXT (auto-generated if empty)
  * category         TEXT (kategori produk)
  * unit             TEXT DEFAULT 'pcs'
+ * purchase_unit    TEXT NULL
+ * purchase_conversion_qty NUMERIC(15,3) NULL
  * description      TEXT
  * cost_price       NUMERIC(15,2) DEFAULT 0  ← Harga beli/modal
  * selling_price    NUMERIC(15,2) DEFAULT 0  ← Harga jual
@@ -48,6 +50,8 @@ export interface ProductRow {
   sku: string | null
   category: string | null
   unit: string
+  purchase_unit: string | null
+  purchase_conversion_qty: number | null
   description: string | null
   cost_price: number
   selling_price: number
@@ -70,6 +74,8 @@ export interface ProductInsert {
   sku?: string | null
   category?: string | null
   unit?: string
+  purchase_unit?: string | null
+  purchase_conversion_qty?: number | null
   description?: string | null
   cost_price?: number
   selling_price?: number
@@ -92,6 +98,8 @@ export interface ProductUpdate {
   sku?: string | null
   category?: string | null
   unit?: string
+  purchase_unit?: string | null
+  purchase_conversion_qty?: number | null
   description?: string | null
   cost_price?: number
   selling_price?: number
@@ -111,6 +119,8 @@ export interface ProductFormData {
   sku?: string
   category?: string
   unit: string
+  purchase_unit?: string
+  purchase_conversion_qty?: number
   description?: string
   cost_price: number       // Harga Beli
   selling_price: number    // Harga Jual
@@ -128,6 +138,8 @@ export function mapFormToInsert(formData: ProductFormData, userId: string): Prod
     sku: formData.sku || null,
     category: formData.category || null,
     unit: formData.unit || 'pcs',
+    purchase_unit: formData.purchase_unit || null,
+    purchase_conversion_qty: formData.purchase_conversion_qty || null,
     description: formData.description || null,
     cost_price: formData.cost_price || 0,
     selling_price: formData.selling_price || 0,
@@ -149,6 +161,8 @@ export function mapFormToUpdate(formData: Partial<ProductFormData>): ProductUpda
   if (formData.sku !== undefined) update.sku = formData.sku || null
   if (formData.category !== undefined) update.category = formData.category || null
   if (formData.unit !== undefined) update.unit = formData.unit
+  if (formData.purchase_unit !== undefined) update.purchase_unit = formData.purchase_unit || null
+  if (formData.purchase_conversion_qty !== undefined) update.purchase_conversion_qty = formData.purchase_conversion_qty || null
   if (formData.description !== undefined) update.description = formData.description || null
   if (formData.cost_price !== undefined) update.cost_price = formData.cost_price
   if (formData.selling_price !== undefined) update.selling_price = formData.selling_price

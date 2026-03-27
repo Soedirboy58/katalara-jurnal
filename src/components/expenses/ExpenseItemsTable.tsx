@@ -237,11 +237,18 @@ export const ExpenseItemsTable: React.FC<ExpenseItemsTableProps> = ({
   
   // Handle product selection
   const handleProductSelect = (product: Product) => {
+    const purchaseUnit = (product as any).purchase_unit || ''
+    const purchaseConversionQty = Number((product as any).purchase_conversion_qty ?? 0)
+    const baseCost = Number(product.cost_price || 0)
+    const defaultPurchasePrice = purchaseUnit && purchaseConversionQty > 0
+      ? Math.round(baseCost * purchaseConversionQty)
+      : baseCost
+
     onCurrentItemChange({
       product_id: product.id,
       product_name: product.name,
-      unit: product.unit || currentItem.unit || 'pcs',
-      price_per_unit: product.cost_price?.toString() || '0'
+      unit: purchaseUnit || product.unit || currentItem.unit || 'pcs',
+      price_per_unit: defaultPurchasePrice.toString() || '0'
     })
     setShowDropdown(false)
   }

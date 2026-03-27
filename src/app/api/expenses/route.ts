@@ -42,6 +42,43 @@ async function getProductStockField(
   return { field: 'stock', value: Number.isFinite(v) ? v : 0 }
 }
 
+async function getProductConversionConfig(
+  supabase: any,
+  productId: string
+): Promise<{ baseUnit: string; purchaseUnit: string | null; purchaseFactor: number | null } | null> {
+  const { data, error } = await supabase
+    .from('products')
+    .select('unit, purchase_unit, purchase_conversion_qty')
+    .eq('id', productId)
+    .single()
+
+  if (error) {
+    const msg = (error as any)?.message?.toString()?.toLowerCase?.() || ''
+    const code = (error as any)?.code || ''
+    const isMissing = code === '42703' || msg.includes('purchase_unit') || msg.includes('purchase_conversion_qty')
+    if (isMissing) {
+      const fallback = await supabase
+        .from('products')
+        .select('unit')
+        .eq('id', productId)
+        .single()
+      if (fallback.error) return null
+      return {
+        baseUnit: String(fallback.data?.unit || 'pcs'),
+        purchaseUnit: null,
+        purchaseFactor: null,
+      }
+    }
+    return null
+  }
+
+  return {
+    baseUnit: String(data?.unit || 'pcs'),
+    purchaseUnit: data?.purchase_unit ? String(data.purchase_unit) : null,
+    purchaseFactor: data?.purchase_conversion_qty != null ? Number(data.purchase_conversion_qty) : null,
+  }
+}
+
 async function rollbackProductStocksFromExpenseItems(
   supabase: any,
   expenseIds: string[]
@@ -243,7 +280,19 @@ export async function POST(request: Request) {
           for (const item of line_items) {
             const productId = (item?.product_id || '').toString()
             if (!productId) continue
-            const qty = Number(item?.quantity ?? item?.qty ?? 0)
+            const qtyRaw = Number(item?.quantity ?? item?.qty ?? 0)
+            if (!Number.isFinite(qtyRaw) || qtyRaw <= 0) continue
+
+            let qty = qtyRaw
+            const config = await getProductConversionConfig(supabase, productId)
+            const itemUnit = String(item?.unit || '').trim().toLowerCase()
+            const purchaseUnit = String(config?.purchaseUnit || '').trim().toLowerCase()
+            const purchaseFactor = Number(config?.purchaseFactor || 0)
+
+            if (purchaseUnit && itemUnit === purchaseUnit && purchaseFactor > 0) {
+              qty = qtyRaw * purchaseFactor
+            }
+
             if (!Number.isFinite(qty) || qty <= 0) continue
             qtyByProduct.set(productId, (qtyByProduct.get(productId) || 0) + qty)
           }
@@ -269,6 +318,27 @@ export async function POST(request: Request) {
 
           for (const [productId, qty] of qtyByProduct.entries()) {
             if (trackMap.has(productId) && trackMap.get(productId) === false) continue
+
+            const matchingLineItem = (line_items || []).find((item: any) => String(item?.product_id || '') === productId)
+            if (matchingLineItem) {
+              const config = await getProductConversionConfig(supabase, productId)
+              const itemUnit = String(matchingLineItem?.unit || '').trim().toLowerCase()
+              const purchaseUnit = String(config?.purchaseUnit || '').trim().toLowerCase()
+              const purchaseFactor = Number(config?.purchaseFactor || 0)
+              const rawPrice = Number(matchingLineItem?.price_per_unit ?? matchingLineItem?.price ?? 0)
+
+              if (purchaseUnit && itemUnit === purchaseUnit && purchaseFactor > 0 && Number.isFinite(rawPrice) && rawPrice > 0) {
+                const normalizedCost = rawPrice / purchaseFactor
+                try {
+                  await supabase
+                    .from('products')
+                    .update({ cost_price: normalizedCost })
+                    .eq('id', productId)
+                } catch {
+                  // ignore
+                }
+              }
+            }
 
             const stockInfo = await getProductStockField(supabase, productId)
             if (!stockInfo) continue

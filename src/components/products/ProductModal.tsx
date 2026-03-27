@@ -18,7 +18,7 @@ interface ProductModalProps {
   onClose: () => void
   product: Product | null
   onSuccess: () => void
-  onCreated?: (product: { id: string; name: string; unit?: string; cost_price?: number }) => void
+  onCreated?: (product: { id: string; name: string; unit?: string; cost_price?: number; purchase_unit?: string | null; purchase_conversion_qty?: number | null }) => void
 }
 
 interface ImagePreview {
@@ -38,6 +38,8 @@ export function ProductModal({ isOpen, onClose, product, onSuccess, onCreated }:
     category: '',
     product_type: 'physical' as 'physical' | 'service',
     unit: 'pcs',
+    purchase_unit: '',
+    purchase_conversion_qty: 1,
     cost_price: 0,
     selling_price: 0,
     min_stock_alert: 0,
@@ -61,6 +63,8 @@ export function ProductModal({ isOpen, onClose, product, onSuccess, onCreated }:
         product_type: inferredType,
         product_type: inferredType,
         unit: legacy.unit || (product as any).unit || 'pcs',
+        purchase_unit: (product as any).purchase_unit || '',
+        purchase_conversion_qty: Number((product as any).purchase_conversion_qty ?? 1) || 1,
         cost_price: getCostPrice(product),
         selling_price: getSellingPrice(product),
         min_stock_alert: (legacy as any).min_stock_alert || (product as any).min_stock_alert || 0,
@@ -75,6 +79,8 @@ export function ProductModal({ isOpen, onClose, product, onSuccess, onCreated }:
         category: '',
         product_type: 'physical',
         unit: 'pcs',
+        purchase_unit: '',
+        purchase_conversion_qty: 1,
         cost_price: 0,
         selling_price: 0,
         min_stock_alert: 0,
@@ -197,6 +203,11 @@ export function ProductModal({ isOpen, onClose, product, onSuccess, onCreated }:
         category: formData.category || null,
         product_type: formData.product_type,
         unit: formData.unit,
+        purchase_unit: formData.product_type === 'service' ? null : (formData.purchase_unit || null),
+        purchase_conversion_qty:
+          formData.product_type === 'service' || !formData.purchase_unit
+            ? null
+            : Math.max(0, Number(formData.purchase_conversion_qty || 0)),
         cost_price: formData.cost_price,
         selling_price: formData.selling_price,
         min_stock_alert: formData.min_stock_alert,
@@ -204,63 +215,46 @@ export function ProductModal({ isOpen, onClose, product, onSuccess, onCreated }:
         is_active: true
       }
 
+      const stripMissingColumnAndRetry = async (mode: 'insert' | 'update', productId?: string) => {
+        let payload = { ...productData }
+
+        for (let attempt = 0; attempt < 6; attempt++) {
+          const query = mode === 'update'
+            ? supabase.from('products').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', productId!).select('id').single()
+            : supabase.from('products').insert({ ...payload, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }).select('id').single()
+
+          const result = await query
+          if (!result.error) return result
+
+          const message = result.error.message || ''
+          const missingMatch = message.match(/Could not find the '([^']+)' column/i)
+          const missingColumn = missingMatch?.[1]
+
+          if (!missingColumn || !Object.prototype.hasOwnProperty.call(payload, missingColumn)) {
+            return result
+          }
+
+          delete payload[missingColumn]
+        }
+
+        return {
+          data: null,
+          error: new Error('Failed to save product after compatibility retries')
+        } as any
+      }
+
       console.log('💾 Saving product data:', productData)
 
       let productId: string
 
       if (product) {
-        // Update existing product
-        let updateResult = await supabase
-          .from('products')
-          .update({
-            ...productData,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', product.id)
-          .select('id')
-          .single()
-
-        if (updateResult.error && updateResult.error.message?.includes('product_type')) {
-          const { product_type, ...fallback } = productData
-          updateResult = await supabase
-            .from('products')
-            .update({
-              ...fallback,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', product.id)
-            .select('id')
-            .single()
-        }
+        const updateResult = await stripMissingColumnAndRetry('update', product.id)
 
         if (updateResult.error) throw new Error(updateResult.error.message)
         productId = product.id
         console.log('✅ Product updated successfully')
       } else {
-        // Create new product - need to get the ID back
-        let insertResult = await supabase
-          .from('products')
-          .insert({
-            ...productData,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          })
-          .select('id')
-          .single()
-
-        // Backward compatibility: older schemas may not have `product_type`.
-        if (insertResult.error && insertResult.error.message?.includes('product_type')) {
-          const { product_type, ...fallback } = productData
-          insertResult = await supabase
-            .from('products')
-            .insert({
-              ...fallback,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-            })
-            .select('id')
-            .single()
-        }
+        const insertResult = await stripMissingColumnAndRetry('insert')
 
         if (insertResult.error) throw new Error(insertResult.error.message)
         if (!insertResult.data) throw new Error('Failed to get product ID after insert')
@@ -273,7 +267,9 @@ export function ProductModal({ isOpen, onClose, product, onSuccess, onCreated }:
         id: productId,
         name: formData.name,
         unit: formData.unit,
-        cost_price: formData.cost_price
+        cost_price: formData.cost_price,
+        purchase_unit: formData.purchase_unit || null,
+        purchase_conversion_qty: formData.purchase_conversion_qty || null,
       })
 
       // STEP 2: Upload image to Supabase Storage (only first image, sesuai schema)
@@ -515,7 +511,7 @@ export function ProductModal({ isOpen, onClose, product, onSuccess, onCreated }:
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Satuan
+              Satuan Dasar Stok/Jual
             </label>
             <select
               value={formData.unit}
@@ -545,6 +541,60 @@ export function ProductModal({ isOpen, onClose, product, onSuccess, onCreated }:
             step="1"
           />
         </div>
+
+        {formData.product_type === 'physical' && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 space-y-3">
+            <div>
+              <p className="text-sm font-medium text-amber-900">Konversi Satuan Pembelian</p>
+              <p className="text-xs text-amber-800 mt-1">
+                Gunakan ini jika produk dibeli dari supplier dengan satuan berbeda dari satuan stok/jual. Contoh: stok dan jual dalam kg, tetapi beli dalam dus.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Satuan Beli Default
+                </label>
+                <select
+                  value={formData.purchase_unit}
+                  onChange={(e) => setFormData({ ...formData, purchase_unit: e.target.value })}
+                  className="w-full h-10 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">Sama dengan satuan dasar</option>
+                  <option value="pcs">pcs</option>
+                  <option value="kg">kg</option>
+                  <option value="gram">gram</option>
+                  <option value="liter">liter</option>
+                  <option value="ml">ml</option>
+                  <option value="box">box</option>
+                  <option value="pak">pak</option>
+                  <option value="lusin">lusin</option>
+                  <option value="dus">dus</option>
+                  <option value="karung">karung</option>
+                  <option value="ikat">ikat</option>
+                </select>
+              </div>
+
+              <Input
+                label={`1 ${formData.purchase_unit || 'satuan beli'} = berapa ${formData.unit}?`}
+                type="number"
+                value={formData.purchase_conversion_qty || ''}
+                onChange={(e) => {
+                  const val = e.target.value === '' ? 0 : Number(e.target.value)
+                  setFormData({ ...formData, purchase_conversion_qty: Number.isFinite(val) ? val : 0 })
+                }}
+                min="0"
+                step="0.001"
+                placeholder="Contoh: 20"
+              />
+            </div>
+
+            <p className="text-xs text-gray-600">
+              Contoh: jika produk dijual per kg dan dibeli per dus isi 20 kg, set satuan dasar = kg, satuan beli = dus, dan faktor konversi = 20.
+            </p>
+          </div>
+        )}
 
         <div className="flex items-center gap-2">
           <input
